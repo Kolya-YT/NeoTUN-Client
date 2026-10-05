@@ -53,7 +53,7 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
 
     override fun openTun(options: TunOptions): Int {
-        val builder = VpnService.Builder(vpn)
+        val builder = vpn.Builder()
             .setSession("NeoTUN")
             .setMtu(options.mtu)
 
@@ -129,7 +129,7 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         return ConnectionOwner().apply {
             userId = uid
             userName = packages.firstOrNull() ?: ""
-            setAndroidPackageNames(NeoTunStringIterator(packages))
+            setAndroidPackageNames(NeoTunStringIterator(packages.toList()))
         }
     }
 
@@ -156,7 +156,6 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
                     if (ni.supportsMulticast()) flags = flags or OsConstants.IFF_MULTICAST
                     type = io.nekohasekai.libbox.Libbox.InterfaceTypeOther
                     dnsServer = NeoTunStringIterator(emptyList())
-                    dnsSearchDomain = NeoTunStringIterator(emptyList())
                     gateway = NeoTunStringIterator(emptyList())
                     metered = false
                 }
