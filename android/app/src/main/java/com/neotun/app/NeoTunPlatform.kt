@@ -164,10 +164,10 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     override fun includeAllNetworks(): Boolean = false
     override fun readWIFIState(): WIFIState? = null
     override fun clearDNSCache() = Unit
-    override fun sendNotification(notification: Notification): Int = 0
-    override fun cancelNotification(identifier: String, typeID: Int): Int = 0
-    override fun startNeighborMonitor(listener: NeighborUpdateListener): Int = 0
-    override fun closeNeighborMonitor(listener: NeighborUpdateListener): Int = 0
+    override fun sendNotification(notification: Notification) = Unit
+    override fun cancelNotification(identifier: String, typeID: Int) = Unit
+    override fun startNeighborMonitor(listener: NeighborUpdateListener) = Unit
+    override fun closeNeighborMonitor(listener: NeighborUpdateListener) = Unit
     override fun registerMyInterface(name: String) = Unit
     override fun usePlatformShell(): Boolean = false
     override fun checkPlatformShell() = Unit
