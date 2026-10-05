@@ -2,7 +2,7 @@
 
 Кроссплатформенный клиент с общим **ядром на Rust** и нативными сетевыми адаптерами для каждой платформы.
 
-> 🚧 **Текущий статус:** разработка начинается с Android. В репозитории сейчас находится фундамент Rust/JNI и Android TUN/VpnService. Это **ещё не готовый клиент**, реальные подключения через протоколы пока не реализованы.
+> 🚧 **Текущий статус:** Android уже перешёл к первой реальной интеграции сетевого движка. Подключён **sing-box libbox**, реализован Android TUN через `VpnService`, а Rust разбирает VLESS и генерирует конфигурацию sing-box. Проект всё ещё в активной разработке и пока не считается production-клиентом.
 
 ## 🎯 Цели проекта
 
@@ -12,7 +12,7 @@ NeoTUN создаётся как единый клиент с общим ядр�
 
 | Platform | Status | Planned networking layer |
 |---|---|---|
-| Android | 🟡 In development | `VpnService` / TUN |
+| Android | 🟡 Active development | `VpnService` / TUN + sing-box libbox |
 | Windows | ⚪ Planned | Wintun |
 | iOS | ⚪ Planned | Network Extension |
 | macOS | ⚪ Planned | Network Extension |
@@ -115,21 +115,24 @@ Link / QR / File / Subscription
 
 Текущее Android-приложение уже содержит:
 
-- Kotlin Android application shell
-- Rust native library
-- Rust ↔ Kotlin JNI bridge
-- Android `VpnService`
-- TUN interface creation
-- ARM64 Android build target
-- ARMv7 Android build target
-- x86_64 Android build target
-- GitHub Actions APK build
+- [x] Kotlin Android application
+- [x] Rust native library
+- [x] Rust ↔ Kotlin JNI bridge
+- [x] Rust VLESS URI parser
+- [x] Rust → sing-box JSON compiler для VLESS
+- [x] Android `VpnService`
+- [x] Android TUN adapter для libbox
+- [x] sing-box `libbox` integration
+- [x] ARM64 / ARMv7 / x86_64 builds
+- [x] GitHub Actions APK build
+- [x] Release APK artifact
+- [x] In-app update checker
+- [x] APK download/install flow
+- [x] Profile persistence
 
 ### ⚠️ Важно
 
-Текущий `VpnService` создаёт TUN-интерфейс, но **ещё не передаёт трафик через VLESS, sing-box, Xray или другое протокольное ядро**.
-
-Поэтому текущую сборку нужно воспринимать как фундамент архитектуры, а не как готовый рабочий клиент.
+Это первая интеграция реального сетевого движка. Перед объявлением VLESS production-ready нужно проверить реальные подключения, DNS, TLS/Reality, WS/gRPC, IPv6, reconnect и корректное отключение TUN.
 
 ## 📂 Структура репозитория
 
@@ -238,17 +241,30 @@ Workflow использует Android SDK, уже установленный н�
 - [x] GitHub Actions APK build
 
 ### Этап 2 — Реальное подключение
-- [ ] Unified profile model
-- [ ] `vless://` parser
-- [ ] Subscription parser
-- [ ] QR import
-- [ ] First real engine integration
-- [ ] TUN → engine traffic forwarding
-- [ ] Connect/disconnect state
+- [x] `vless://` parser
+- [x] First real engine integration — sing-box libbox
+- [x] Android TUN adapter
+- [x] Rust → sing-box configuration
+- [x] Profile persistence
+- [ ] Сквозное VLESS-тестирование
+- [ ] Connect/disconnect state machine
 - [ ] Connection logs
 - [ ] Traffic statistics
+- [ ] Reconnection
 
-### Этап 3 — Поддержка протоколов
+### Этап 3 — Импорт профилей
+- [ ] Unified profile model for all formats
+- [ ] VMess parser
+- [ ] Trojan parser
+- [ ] Shadowsocks parser
+- [ ] Hysteria2 parser
+- [ ] TUIC parser
+- [ ] Subscription parser
+- [ ] QR import
+- [ ] Import/export
+- [ ] Profile/server list
+
+### Этап 4 — Поддержка протоколов
 - [ ] sing-box integration
 - [ ] Xray integration
 - [ ] Hysteria2
@@ -261,7 +277,7 @@ Workflow использует Android SDK, уже установленный н�
 - [ ] OpenVPN
 - [ ] OpenFlux
 
-### Этап 4 — Возможности клиента
+### Этап 5 — Возможности клиента
 - [ ] Server/profile list
 - [ ] Subscription auto-update
 - [ ] Ping/latency
@@ -275,7 +291,7 @@ Workflow использует Android SDK, уже установленный н�
 - [ ] QR scanner
 - [ ] Import/export
 
-### Этап 5 — Кроссплатформенность
+### Этап 6 — Кроссплатформенность
 - [ ] Windows + Wintun
 - [ ] iOS + Network Extension
 - [ ] macOS + Network Extension
@@ -290,6 +306,26 @@ Workflow использует Android SDK, уже установленный н�
 - **Единая модель профиля:** разные форматы конфигураций преобразуются в общую внутреннюю структуру.
 - **Честный статус поддержки:** протокол считается поддержанным только после реального сквозного тестирования.
 - **Безопасность прежде всего:** ключи, UUID, пароли и приватные конфигурации нельзя случайно записывать в логи.
+
+## 🔄 Обновление приложения
+
+В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
+
+GitHub Release публикуется автоматически при push тега вида `v0.1.0`, `v0.2.0` и т. п. Без такого тега APK остаётся только Actions Artifact.
+
+## 🏷️ Выпуск новой версии
+
+1. Увеличить `versionCode` и `versionName` в `android/app/build.gradle.kts`.
+2. Создать и отправить тег, например:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+3. GitHub Actions соберёт Release APK и опубликует его в GitHub Releases.
+
+Production signing подключается через Secrets `NEOTUN_KEYSTORE_BASE64`, `NEOTUN_KEYSTORE_PASSWORD`, `NEOTUN_KEY_ALIAS`, `NEOTUN_KEY_PASSWORD`. Если они не настроены, Release APK временно подписывается debug-ключом.
 
 ## 📊 Текущая версия
 
