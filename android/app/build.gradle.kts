@@ -33,6 +33,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // CI signs the release variant with the standard debug keystore for installable builds.
+            // A production keystore should later be supplied through GitHub Actions secrets.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
