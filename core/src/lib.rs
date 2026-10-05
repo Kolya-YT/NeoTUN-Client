@@ -218,7 +218,7 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
     env: JNIEnv,
     _class: JClass,
 ) -> jstring {
-    let value = "NeoTUN Core 0.1.0 • Rust";
+    let value = "NeoTUN Core 0.2.0 • Rust";
     env.new_string(value)
         .map(JString::into_raw)
         .unwrap_or(std::ptr::null_mut())
@@ -274,8 +274,30 @@ mod tests {
         assert_eq!(profile.params.get("security").map(String::as_str), Some("tls"));
         assert_eq!(profile.params.get("path").map(String::as_str), Some("/neo"));
         let config = profile.to_sing_box_json().unwrap();
-        assert!(config.contains(""type": "vless""));
-        assert!(config.contains(""type": "tun""));
+        assert!(config.contains("\"type\": \"vless\""));
+        assert!(config.contains("\"type\": \"tun\""));
         assert!(config.contains("example.com"));
+    }
+
+    #[test]
+    fn xhttp_selects_xray() {
+        let profile = Profile::from_vless_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xhttp&path=%2Fneo"
+        ).unwrap();
+
+        assert_eq!(profile.engine(), "xray");
+        let config = profile.to_sing_box_json().unwrap();
+        assert!(config.contains("\"engine\":\"xray\""));
+        assert!(config.contains("\"transport\":\"xhttp\""));
+    }
+
+    #[test]
+    fn parses_ipv6_vless_uri() {
+        let profile = Profile::from_vless_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@[2001:db8::1]:443?type=tcp"
+        ).unwrap();
+
+        assert_eq!(profile.address, "2001:db8::1");
+        assert_eq!(profile.port, 443);
     }
 }
