@@ -147,7 +147,7 @@ impl Profile {
 
 fn normalize_vless_uri(input: &str) -> Result<String, String> {
     let uri = input.trim();
-    if uri.len() >= 8 && uri[..8].eq_ignore_ascii_case("vless://") {
+    if uri.get(..8).is_some_and(|scheme| scheme.eq_ignore_ascii_case("vless://")) {
         let mut normalized = uri.to_string();
         normalized.replace_range(..8, "vless://");
         return Ok(normalized);
@@ -157,7 +157,7 @@ fn normalize_vless_uri(input: &str) -> Result<String, String> {
     // only when the scheme itself is encoded, so encoded query values such as
     // %26 are not accidentally turned into separators.
     let decoded = percent_decode(uri)?;
-    if decoded.len() >= 8 && decoded[..8].eq_ignore_ascii_case("vless://") {
+    if decoded.get(..8).is_some_and(|scheme| scheme.eq_ignore_ascii_case("vless://")) {
         let mut normalized = decoded;
         normalized.replace_range(..8, "vless://");
         return Ok(normalized);
