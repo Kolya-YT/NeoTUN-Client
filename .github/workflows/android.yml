@@ -83,9 +83,12 @@ jobs:
           export GOOS=android
           export CGO_ENABLED=1
           XRAY_LDFLAGS="-s -w -checklinkname=0"
+          export GOTOOLCHAIN=local
+          export GOFLAGS="-buildvcs=false -ldflags=$XRAY_LDFLAGS"
+          export GOFLAGS="-buildvcs=false"
 
           GOARCH=arm64 CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" \
-            go build -buildmode=c-shared -trimpath -ldflags="$XRAY_LDFLAGS" \
+            go build -buildmode=c-shared -trimpath \
             -o ../android/app/src/main/jniLibs/arm64-v8a/libneotun_xray.so .
 
           GOARCH=arm CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang" \
