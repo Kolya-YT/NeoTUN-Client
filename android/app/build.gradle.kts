@@ -12,15 +12,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
+    packaging { jniLibs { useLegacyPackaging = true } }
 
     defaultConfig {
         applicationId = "com.neotun.app"
@@ -30,12 +24,26 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("NEOTUN_KEYSTORE_PATH")
+            val keystorePassword = System.getenv("NEOTUN_KEYSTORE_PASSWORD")
+            val keyAlias = System.getenv("NEOTUN_KEY_ALIAS")
+            val keyPassword = System.getenv("NEOTUN_KEY_PASSWORD")
+            if (!keystorePath.isNullOrBlank() && !keystorePassword.isNullOrBlank() && !keyAlias.isNullOrBlank() && !keyPassword.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // CI signs the release variant with the standard debug keystore for installable builds.
-            // A production keystore should later be supplied through GitHub Actions secrets.
-            signingConfig = signingConfigs.getByName("debug")
+            val hasProductionKey = !System.getenv("NEOTUN_KEYSTORE_PATH").isNullOrBlank()
+            signingConfig = if (hasProductionKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 
