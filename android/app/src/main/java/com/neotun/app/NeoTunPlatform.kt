@@ -1,6 +1,8 @@
 package com.neotun.app
 
 import android.net.ConnectivityManager
+import android.net.IpPrefix
+import java.net.InetAddress
 import android.net.VpnService
 import android.os.Build
 import android.os.Process
@@ -95,7 +97,7 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
                 val e4 = options.inet4RouteExcludeAddress
                 while (e4.hasNext()) {
                     val prefix = e4.next()
-                    builder.excludeRoute(prefix.address(), prefix.prefix())
+                    builder.excludeRoute(IpPrefix(InetAddress.getByName(prefix.address()), prefix.prefix()))
                 }
 
                 val e6 = options.inet6RouteExcludeAddress
