@@ -16,6 +16,12 @@ android {
         jvmTarget = "17"
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     defaultConfig {
         applicationId = "com.neotun.app"
         minSdk = 26
