@@ -54,6 +54,88 @@ impl Profile {
     }
 }
 
+
+impl Profile {
+    pub fn to_sing_box_json(&self) -> Result<String, String> {
+        if self.protocol != "vless" {
+            return Err("Пока реализована генерация sing-box только для VLESS".into());
+        }
+
+        let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
+        let security = self.params.get("security").map(String::as_str).unwrap_or("none");
+        let transport = self.params.get("type").map(String::as_str).unwrap_or("tcp");
+
+        let mut vless = serde_json::json!({
+            "type": "vless",
+            "tag": "proxy",
+            "server": self.address,
+            "server_port": self.port,
+            "uuid": uuid
+        });
+
+        if security == "tls" {
+            vless["tls"] = serde_json::json!({
+                "enabled": true,
+                "server_name": self.params.get("sni").or_else(|| self.params.get("host")).cloned()
+            });
+        } else if security == "reality" {
+            vless["tls"] = serde_json::json!({
+                "enabled": true,
+                "server_name": self.params.get("sni").or_else(|| self.params.get("host")).cloned(),
+                "reality": {
+                    "enabled": true,
+                    "public_key": self.params.get("pbk").cloned().unwrap_or_default(),
+                    "short_id": self.params.get("sid").cloned().unwrap_or_default()
+                }
+            });
+        }
+
+        match transport {
+            "ws" => {
+                vless["transport"] = serde_json::json!({
+                    "type": "ws",
+                    "path": self.params.get("path").cloned().unwrap_or_else(|| "/".into()),
+                    "headers": if let Some(host) = self.params.get("host") {
+                        serde_json::json!({"Host": host})
+                    } else {
+                        serde_json::json!({})
+                    }
+                });
+            }
+            "grpc" => {
+                vless["transport"] = serde_json::json!({
+                    "type": "grpc",
+                    "service_name": self.params.get("serviceName").or_else(|| self.params.get("service_name")).cloned().unwrap_or_default()
+                });
+            }
+            _ => {}
+        }
+
+        let config = serde_json::json!({
+            "log": {"level": "info"},
+            "inbounds": [{
+                "type": "tun",
+                "tag": "tun-in",
+                "interface_name": "neotun",
+                "address": ["172.19.0.1/30"],
+                "auto_route": true,
+                "strict_route": true
+            }],
+            "outbounds": [
+                vless,
+                {"type": "direct", "tag": "direct"},
+                {"type": "block", "tag": "block"}
+            ],
+            "route": {
+                "auto_detect_interface": true,
+                "final": "proxy"
+            }
+        });
+
+        serde_json::to_string_pretty(&config).map_err(|e| e.to_string())
+    }
+}
+
 fn percent_decode(input: &str) -> Result<String, String> {
     let mut out = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
@@ -137,5 +219,9 @@ mod tests {
         assert_eq!(profile.name.as_deref(), Some("My Server"));
         assert_eq!(profile.params.get("security").map(String::as_str), Some("tls"));
         assert_eq!(profile.params.get("path").map(String::as_str), Some("/neo"));
+        let config = profile.to_sing_box_json().unwrap();
+        assert!(config.contains(""type": "vless""));
+        assert!(config.contains(""type": "tun""));
+        assert!(config.contains(""server": "example.com""));
     }
 }
