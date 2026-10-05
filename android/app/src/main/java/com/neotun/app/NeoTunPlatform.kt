@@ -2,6 +2,9 @@ package com.neotun.app
 
 import android.net.ConnectivityManager
 import android.net.IpPrefix
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import java.net.InetAddress
 import android.net.VpnService
 import android.os.Build
@@ -24,6 +27,7 @@ import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
+import java.util.concurrent.ConcurrentHashMap
 
 class NeoTunStringIterator(
     private val values: List<String>,
@@ -43,6 +47,7 @@ class NeoTunNetworkInterfaceIterator(
 
 class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     private val connectivity = vpn.getSystemService(ConnectivityManager::class.java)
+    private val defaultNetworkCallbacks = ConcurrentHashMap<InterfaceUpdateListener, ConnectivityManager.NetworkCallback>()
 
     override fun localDNSTransport(): LocalDNSTransport? = null
 
@@ -135,8 +140,50 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         }
     }
 
-    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
-    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
+    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                updateDefaultInterface(listener, network)
+            }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                updateDefaultInterface(listener, network, capabilities)
+            }
+
+            override fun onLost(network: Network) {
+                val active = connectivity.activeNetwork
+                if (active != null) updateDefaultInterface(listener, active)
+                else listener.updateDefaultInterface("", -1, false, false)
+            }
+        }
+
+        defaultNetworkCallbacks[listener] = callback
+        runCatching {
+            connectivity.registerDefaultNetworkCallback(callback)
+        }.onFailure {
+            defaultNetworkCallbacks.remove(listener)
+            throw it
+        }
+    }
+
+    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        defaultNetworkCallbacks.remove(listener)?.let { callback ->
+            runCatching { connectivity.unregisterNetworkCallback(callback) }
+        }
+    }
+
+    private fun updateDefaultInterface(
+        listener: InterfaceUpdateListener,
+        network: Network,
+        capabilities: NetworkCapabilities? = connectivity.getNetworkCapabilities(network),
+    ) {
+        val linkProperties = connectivity.getLinkProperties(network)
+        val interfaceName = linkProperties?.interfaceName.orEmpty()
+        if (interfaceName.isBlank()) return
+        val expensive = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true
+        listener.updateDefaultInterface(interfaceName, network.hashCode(), expensive, false)
+        listener.updateNetworkPath(network.toString())
+    }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
         val result = NetworkInterface.getNetworkInterfaces()
