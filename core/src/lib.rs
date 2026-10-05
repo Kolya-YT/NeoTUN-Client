@@ -24,7 +24,7 @@ pub struct Profile {
 
 impl Profile {
     pub fn from_vless_uri(uri: &str) -> Result<Self, String> {
-        let uri = uri.trim();
+        let uri = normalize_vless_uri(uri)?;
         let rest = uri.strip_prefix("vless://").ok_or("Ожидалась ссылка vless://")?;
         let (main, fragment) = rest.split_once('#').map_or((rest, None), |(a, b)| (a, Some(b)));
         let (authority, query) = main.split_once('?').map_or((main, ""), |(a, b)| (a, b));
@@ -145,6 +145,27 @@ impl Profile {
     }
 }
 
+fn normalize_vless_uri(input: &str) -> Result<String, String> {
+    let uri = input.trim();
+    if uri.len() >= 8 && uri[..8].eq_ignore_ascii_case("vless://") {
+        let mut normalized = uri.to_string();
+        normalized.replace_range(..8, "vless://");
+        return Ok(normalized);
+    }
+
+    // Some clients/exporters percent-encode the entire share link. Decode it once
+    // only when the scheme itself is encoded, so encoded query values such as
+    // %26 are not accidentally turned into separators.
+    let decoded = percent_decode(uri)?;
+    if decoded.len() >= 8 && decoded[..8].eq_ignore_ascii_case("vless://") {
+        let mut normalized = decoded;
+        normalized.replace_range(..8, "vless://");
+        return Ok(normalized);
+    }
+
+    Err("Ожидалась ссылка vless://")
+}
+
 fn percent_decode(input: &str) -> Result<String, String> {
     let mut out = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
@@ -226,8 +247,8 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 
 impl Profile {
     pub fn engine(&self) -> &'static str {
-        match self.params.get("type").map(String::as_str) {
-            Some("xhttp") => "xray",
+        match self.params.get("type").map(|value| value.to_ascii_lowercase()) {
+            Some(value) if value == "xhttp" => "xray",
             _ => "sing-box",
         }
     }
@@ -289,6 +310,14 @@ mod tests {
         let config = profile.to_sing_box_json().unwrap();
         assert!(config.contains("\"engine\":\"xray\""));
         assert!(config.contains("\"transport\":\"xhttp\""));
+    }
+
+    #[test]
+    fn parses_percent_encoded_whole_uri() {
+        let encoded = "%76%6c%65%73%73%3a%2f%2f123e4567-e89b-12d3-a456-426614174000%40example.com%3a443%3fsecurity%3dtls%26type%3dxhttp%26path%3d%252Fneo";
+        let profile = Profile::from_vless_uri(encoded).unwrap();
+        assert_eq!(profile.engine(), "xray");
+        assert_eq!(profile.params.get("type").map(String::as_str), Some("xhttp"));
     }
 
     #[test]
