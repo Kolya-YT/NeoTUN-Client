@@ -117,8 +117,7 @@ impl Profile {
                 "type": "tun",
                 "tag": "tun-in",
                 "address": ["172.19.0.1/30"],
-                "auto_route": true,
-                "dns_mode": "system"
+                "auto_route": true
             }],
             "outbounds": [
                 vless,
