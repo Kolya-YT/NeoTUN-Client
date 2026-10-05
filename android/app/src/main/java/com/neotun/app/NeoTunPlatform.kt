@@ -9,7 +9,6 @@ import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
 import io.nekohasekai.libbox.ConnectionOwner
 import io.nekohasekai.libbox.InterfaceUpdateListener
-import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.LocalDNSTransport
 import io.nekohasekai.libbox.NeighborUpdateListener
 import io.nekohasekai.libbox.NetworkInterface as LibNetworkInterface
@@ -28,11 +27,8 @@ class NeoTunStringIterator(
     private val values: List<String>,
 ) : StringIterator {
     private var index = 0
-
     override fun len(): Int = values.size
-
     override fun hasNext(): Boolean = index < values.size
-
     override fun next(): String = values[index++]
 }
 
@@ -51,17 +47,15 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
 
     override fun autoDetectInterfaceControl(fd: Int) {
-        if (!vpn.protect(fd)) error("Не удалось защитить сокет VPN")
+        vpn.protect(fd)
     }
 
     override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
 
     override fun openTun(options: TunOptions): Int {
         val builder = VpnService.Builder(vpn)
+            .setSession("NeoTUN")
             .setMtu(options.mtu)
-
-        val sessionName = "NeoTUN"
-        builder.setSession(sessionName)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             builder.setMetered(false)
@@ -85,19 +79,19 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
                 builder.addDnsServer(dns.next())
             }
 
+            val r4 = options.inet4RouteRange
+            while (r4.hasNext()) {
+                val prefix = r4.next()
+                builder.addRoute(prefix.address(), prefix.prefix())
+            }
+
+            val r6 = options.inet6RouteRange
+            while (r6.hasNext()) {
+                val prefix = r6.next()
+                builder.addRoute(prefix.address(), prefix.prefix())
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val r4 = options.inet4RouteAddress
-                while (r4.hasNext()) {
-                    val prefix = r4.next()
-                    builder.addRoute(prefix.address(), prefix.prefix())
-                }
-
-                val r6 = options.inet6RouteAddress
-                while (r6.hasNext()) {
-                    val prefix = r6.next()
-                    builder.addRoute(prefix.address(), prefix.prefix())
-                }
-
                 val e4 = options.inet4RouteExcludeAddress
                 while (e4.hasNext()) {
                     val prefix = e4.next()
@@ -108,22 +102,6 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
                 while (e6.hasNext()) {
                     val prefix = e6.next()
                     builder.excludeRoute(prefix.address(), prefix.prefix())
-                }
-
-                if (options.inet4RouteAddress.len() == 0) {
-                    builder.addRoute("0.0.0.0", 0)
-                }
-            } else {
-                val r4 = options.inet4RouteRange
-                while (r4.hasNext()) {
-                    val prefix = r4.next()
-                    builder.addRoute(prefix.address(), prefix.prefix())
-                }
-
-                val r6 = options.inet6RouteRange
-                while (r6.hasNext()) {
-                    val prefix = r6.next()
-                    builder.addRoute(prefix.address(), prefix.prefix())
                 }
             }
         }
@@ -141,16 +119,12 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             error("Определение владельца соединения доступно с Android 10")
         }
-
         val uid = connectivity.getConnectionOwnerUid(
             ipProtocol,
             InetSocketAddress(sourceAddress, sourcePort),
             InetSocketAddress(destinationAddress, destinationPort),
         )
-        if (uid == Process.INVALID_UID) {
-            error("Владелец соединения не найден")
-        }
-
+        if (uid == Process.INVALID_UID) error("Владелец соединения не найден")
         val packages = vpn.packageManager.getPackagesForUid(uid).orEmpty()
         return ConnectionOwner().apply {
             userId = uid
@@ -160,7 +134,6 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     }
 
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
-
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
 
     override fun getInterfaces(): NetworkInterfaceIterator {
@@ -181,39 +154,27 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
                     if (ni.isLoopback) flags = flags or OsConstants.IFF_LOOPBACK
                     if (ni.isPointToPoint) flags = flags or OsConstants.IFF_POINTOPOINT
                     if (ni.supportsMulticast()) flags = flags or OsConstants.IFF_MULTICAST
-                    type = Libbox.InterfaceTypeOther
+                    type = io.nekohasekai.libbox.Libbox.InterfaceTypeOther
                     dnsServer = NeoTunStringIterator(emptyList())
                     dnsSearchDomain = NeoTunStringIterator(emptyList())
                     gateway = NeoTunStringIterator(emptyList())
                     metered = false
                 }
             }
-
         return NeoTunNetworkInterfaceIterator(result.iterator())
     }
 
     override fun underNetworkExtension(): Boolean = false
-
     override fun includeAllNetworks(): Boolean = false
-
     override fun readWIFIState(): WIFIState? = null
-
     override fun clearDNSCache() = Unit
-
     override fun sendNotification(notification: Notification) = Unit
-
     override fun cancelNotification(identifier: String, typeID: Int) = Unit
-
     override fun startNeighborMonitor(listener: NeighborUpdateListener) = Unit
-
     override fun closeNeighborMonitor(listener: NeighborUpdateListener) = Unit
-
     override fun registerMyInterface(name: String) = Unit
-
     override fun usePlatformShell(): Boolean = false
-
     override fun checkPlatformShell() = Unit
-
     override fun openShellSession(
         user: PlatformUser,
         command: String,
@@ -232,14 +193,8 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     }
 
     override fun lookupSFTPServer(): String = error("unsupported")
-
     override fun readSystemSSHHostKey(): String = error("unsupported")
-
-    override fun tailscaleHostname(): String =
-        Build.MANUFACTURER + " " + Build.MODEL
-
+    override fun tailscaleHostname(): String = Build.MANUFACTURER + " " + Build.MODEL
     override fun usePlatformBridge(): Boolean = false
-
-    override fun createBridge(options: BridgeOptions): BridgeSession =
-        error("unsupported")
+    override fun createBridge(options: BridgeOptions): BridgeSession = error("unsupported")
 }
