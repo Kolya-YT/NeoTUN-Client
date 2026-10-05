@@ -25,22 +25,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up JDK
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
           cache: gradle
-
-      - name: Install Gradle
-        run: |
-          curl -fsSL https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o /tmp/gradle.zip
-          sudo unzip -q /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-8.10.2/bin" >> "$GITHUB_PATH"
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/**/gradle-wrapper.properties
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: stable
+          cache: true
+          cache-dependency-path: xraybridge/go.mod
 
       - name: Set up Android NDK
         id: ndk
@@ -53,6 +52,17 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('core/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --locked
@@ -86,6 +96,11 @@ jobs:
             -o ../android/app/src/main/jniLibs/x86_64/libneotun_xray.so .
 
           ls -lh ../android/app/src/main/jniLibs/*/libneotun_xray.so
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.10.2"
 
       - name: Build APK with production signing
         if: ${{ env.NEOTUN_KEYSTORE_BASE64 != '' && env.NEOTUN_KEYSTORE_PASSWORD != '' && env.NEOTUN_KEY_ALIAS != '' && env.NEOTUN_KEY_PASSWORD != '' }}
