@@ -10,7 +10,7 @@ pub struct CoreInfo {
     pub protocol: &'static str,
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
     mut env: JNIEnv,
     _class: JClass,
