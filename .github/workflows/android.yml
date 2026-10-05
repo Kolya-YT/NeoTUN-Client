@@ -37,6 +37,18 @@ jobs:
           sudo unzip -q /tmp/gradle.zip -d /opt
           echo "/opt/gradle-8.10.2/bin" >> "$GITHUB_PATH"
 
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Set up Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r29
+          add-to-path: true
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -49,20 +61,31 @@ jobs:
         working-directory: core
         run: cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o ../android/app/src/main/jniLibs build --release
 
-      - name: Download official libXray Android engine
+      - name: Build Xray native engine
+        working-directory: xraybridge
         env:
-          GH_TOKEN: ${{ github.token }}
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
-          mkdir -p android/app/libs /tmp/libxray
-          ASSET="$(gh api repos/XTLS/libXray/releases/tags/v26.9.30 --jq '.assets[].name' | grep -i 'android' | grep -E '\.zip$' | head -n1)"
-          test -n "$ASSET"
-          gh release download v26.9.30 --repo XTLS/libXray --pattern "$ASSET" --dir /tmp/libxray
-          unzip -q "/tmp/libxray/$ASSET" -d /tmp/libxray/unpacked
-          AAR="$(find /tmp/libxray/unpacked -name 'libXray.aar' -type f | head -n1)"
-          test -n "$AAR"
-          cp "$AAR" android/app/libs/libXray.aar
-          ls -lh android/app/libs/libXray.aar
+          mkdir -p ../android/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}
+          go mod download
+
+          export GOOS=android
+          export CGO_ENABLED=1
+
+          GOARCH=arm64 CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" \
+            go build -buildmode=c-shared -trimpath -ldflags="-s -w" \
+            -o ../android/app/src/main/jniLibs/arm64-v8a/libneotun_xray.so .
+
+          GOARCH=arm CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang" \
+            go build -buildmode=c-shared -trimpath -ldflags="-s -w" \
+            -o ../android/app/src/main/jniLibs/armeabi-v7a/libneotun_xray.so .
+
+          GOARCH=amd64 CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang" \
+            go build -buildmode=c-shared -trimpath -ldflags="-s -w" \
+            -o ../android/app/src/main/jniLibs/x86_64/libneotun_xray.so .
+
+          ls -lh ../android/app/src/main/jniLibs/*/libneotun_xray.so
 
       - name: Build APK with production signing
         if: ${{ env.NEOTUN_KEYSTORE_BASE64 != '' && env.NEOTUN_KEYSTORE_PASSWORD != '' && env.NEOTUN_KEY_ALIAS != '' && env.NEOTUN_KEY_PASSWORD != '' }}
