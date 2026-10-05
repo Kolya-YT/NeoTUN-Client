@@ -39,7 +39,7 @@ jobs:
         with:
           go-version: stable
           cache: true
-          cache-dependency-path: xraybridge/go.mod
+          cache-dependency-path: xraybridge/go.sum
 
       - name: Set up Android NDK
         id: ndk
@@ -82,9 +82,10 @@ jobs:
 
           export GOOS=android
           export CGO_ENABLED=1
+          XRAY_LDFLAGS="-s -w -checklinkname=0"
 
           GOARCH=arm64 CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" \
-            go build -buildmode=c-shared -trimpath -ldflags="-s -w" \
+            go build -buildmode=c-shared -trimpath -ldflags="$XRAY_LDFLAGS" \
             -o ../android/app/src/main/jniLibs/arm64-v8a/libneotun_xray.so .
 
           GOARCH=arm CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang" \
