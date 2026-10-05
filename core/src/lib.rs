@@ -196,6 +196,24 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVlessConfig(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVlessEngine(
+    mut env: JNIEnv,
+    _class: JClass,
+    uri: JString,
+) -> jstring {
+    let value = env
+        .get_string(&uri)
+        .ok()
+        .and_then(|s| Profile::from_vless_uri(s.to_str().ok()?).ok())
+        .map(|p| p.engine())
+        .unwrap_or("unknown");
+
+    env.new_string(value)
+        .map(JString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
     env: JNIEnv,
     _class: JClass,
