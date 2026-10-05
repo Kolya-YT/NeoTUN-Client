@@ -2,7 +2,7 @@
 
 Кроссплатформенный клиент с общим **ядром на Rust** и нативными сетевыми адаптерами для каждой платформы.
 
-> 🚧 **Текущий статус:** Android уже перешёл к первой реальной интеграции сетевого движка. Подключён **sing-box libbox**, реализован Android TUN через `VpnService`, а Rust разбирает VLESS и генерирует конфигурацию sing-box. Проект всё ещё в активной разработке и пока не считается production-клиентом.
+> 🚧 **Текущий статус:** Android использует два изолированных сетевых движка: **sing-box libbox** и **Xray/libXray**. VLESS + XHTTP автоматически отправляется в Xray, остальные реализованные VLESS-транспорты — в sing-box. Проект всё ещё в активной разработке и пока не считается production-клиентом.
 
 ## 🎯 Цели проекта
 
@@ -73,7 +73,7 @@ Android — первая целевая платформа. Сначала те�
 Основной подход — интегрировать проверенные нативные движки там, где это целесообразно:
 
 - **sing-box** — primary engine for a large set of modern protocols.
-- **Xray-core** — compatibility path for Xray-based configurations.
+- **Xray/libXray** — Xray-based configurations, включая VLESS + XHTTP.
 - **WireGuard / AmneziaWG** — native/platform integration where appropriate.
 - **OpenVPN** — dedicated native integration.
 - **OpenFlux** — separate adapter/engine integration once its runtime requirements are finalized.
@@ -123,6 +123,9 @@ Link / QR / File / Subscription
 - [x] Android `VpnService`
 - [x] Android TUN adapter для libbox
 - [x] sing-box `libbox` integration
+- [x] Xray/libXray integration для VLESS + XHTTP
+- [x] Автоматический выбор движка по типу транспорта
+- [x] Изолированный Android `:xray` process для совместимости двух Go runtime
 - [x] ARM64 / ARMv7 / x86_64 builds
 - [x] GitHub Actions APK build
 - [x] Release APK artifact
@@ -225,8 +228,10 @@ Workflow выполняет:
 4. Installs the Rust Android targets.
 5. Installs `cargo-ndk`.
 6. Builds the Rust library for ARM64, ARMv7 and x86_64.
-7. Builds the Android debug APK.
-8. Publishes `NeoTUN-debug` as a GitHub Actions artifact.
+7. Downloads the official libXray Android engine.
+8. Builds the Android debug and release APKs.
+9. Publishes `NeoTUN-debug` and `NeoTUN-release` artifacts.
+10. On `main`, publishes a GitHub Release automatically.
 
 Workflow использует Android SDK, уже установленный на GitHub Runner, и не устанавливает удалённый устаревший пакет `tools`.
 
@@ -246,7 +251,7 @@ Workflow использует Android SDK, уже установленный н�
 - [x] Android TUN adapter
 - [x] Rust → sing-box configuration
 - [x] Profile persistence
-- [ ] Сквозное VLESS-тестирование
+- [ ] Сквозное VLESS-тестирование sing-box и Xray/XHTTP
 - [ ] Connect/disconnect state machine
 - [ ] Connection logs
 - [ ] Traffic statistics
@@ -266,7 +271,8 @@ Workflow использует Android SDK, уже установленный н�
 
 ### Этап 4 — Поддержка протоколов
 - [ ] sing-box integration
-- [ ] Xray integration
+- [x] Xray integration
+- [x] VLESS XHTTP
 - [ ] Hysteria2
 - [ ] TUIC
 - [ ] Shadowsocks
@@ -324,9 +330,9 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 ## 📊 Текущая версия
 
 ```text
-NeoTUN Core 0.1.0
-Android app 0.1.0
-Статус: фундамент в разработке
+NeoTUN Core 0.2.0
+Android app 0.2.0
+Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
 ## 📄 Лицензия
