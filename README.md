@@ -311,19 +311,13 @@ Workflow использует Android SDK, уже установленный н�
 
 В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
 
-GitHub Release публикуется автоматически при push тега вида `v0.1.0`, `v0.2.0` и т. п. Без такого тега APK остаётся только Actions Artifact.
+После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.1.0`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
 
 ## 🏷️ Выпуск новой версии
 
 1. Увеличить `versionCode` и `versionName` в `android/app/build.gradle.kts`.
-2. Создать и отправить тег, например:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-3. GitHub Actions соберёт Release APK и опубликует его в GitHub Releases.
+2. Push в `main`.
+3. GitHub Actions соберёт Release APK и автоматически обновит/создаст соответствующий GitHub Release.
 
 Production signing подключается через Secrets `NEOTUN_KEYSTORE_BASE64`, `NEOTUN_KEYSTORE_PASSWORD`, `NEOTUN_KEY_ALIAS`, `NEOTUN_KEY_PASSWORD`. Если они не настроены, Release APK временно подписывается debug-ключом.
 
