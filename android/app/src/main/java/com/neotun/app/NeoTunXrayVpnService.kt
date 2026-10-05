@@ -128,7 +128,7 @@ class NeoTunXrayVpnService : VpnService() {
             .put("outbounds", outbounds)
 
         val testConfig = JSONObject().put("outbounds", outbounds)
-        val testResponse = LibXray.invoke(
+        val testResponse = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
                 .put("apiVersion", 3)
                 .put("method", "testXray")
@@ -146,7 +146,7 @@ class NeoTunXrayVpnService : VpnService() {
             )
         }
 
-        val runResponse = LibXray.invoke(
+        val runResponse = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
                 .put("apiVersion", 3)
                 .put("method", "runXray")
@@ -170,7 +170,7 @@ class NeoTunXrayVpnService : VpnService() {
     override fun onDestroy() {
         if (running || tunFd >= 0) {
             runCatching {
-                LibXray.invoke(
+                NeoTunXrayBridge.nativeInvoke(
                     JSONObject()
                         .put("apiVersion", 3)
                         .put("method", "stopXray")
@@ -201,7 +201,7 @@ class NeoTunXrayVpnService : VpnService() {
             runCatching { android.system.Os.close(tunFd) }
             tunFd = -1
         }
-        LibXray.resetDNS()
+        NeoTunXrayBridge.nativeResetDns()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
