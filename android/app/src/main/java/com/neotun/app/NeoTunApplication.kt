@@ -14,7 +14,9 @@ class NeoTunApplication : Application() {
             basePath = filesDir.path
             workingPath = working.path
             tempPath = cacheDir.path
-            appVersion = applicationInfo.longVersionCode.toString()
+            appVersion = packageManager
+                .getPackageInfo(packageName, 0)
+                .versionName ?: "0.1.0"
             appMarketingVersion = packageManager
                 .getPackageInfo(packageName, 0)
                 .versionName ?: "0.1.0"
