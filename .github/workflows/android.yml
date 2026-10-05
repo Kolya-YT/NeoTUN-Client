@@ -55,9 +55,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p android/app/libs /tmp/libxray
-          ASSET="$(gh api repos/XTLS/libXray/releases/tags/v26.9.9 --jq '.assets[].name' | grep -i 'android' | grep -E '\\.zip$' | head -n1)"
+          ASSET="$(gh api repos/XTLS/libXray/releases/tags/v26.9.30 --jq '.assets[].name' | grep -i 'android' | grep -E '\\.zip$' | head -n1)"
           test -n "$ASSET"
-          gh release download v26.9.9 --repo XTLS/libXray --pattern "$ASSET" --dir /tmp/libxray
+          gh release download v26.9.30 --repo XTLS/libXray --pattern "$ASSET" --dir /tmp/libxray
           unzip -q "/tmp/libxray/$ASSET" -d /tmp/libxray/unpacked
           AAR="$(find /tmp/libxray/unpacked -name 'libXray.aar' -type f | head -n1)"
           test -n "$AAR"
