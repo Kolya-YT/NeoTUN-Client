@@ -79,30 +79,61 @@ class MainActivity : Activity() {
             return
         }
 
-        val config = NeoTunCore.nativeVlessConfig(uri)
-        if (config.isBlank()) {
+        val engine = NeoTunCore.nativeVlessEngine(uri)
+        if (engine == "unknown") {
             status.text = "Не удалось разобрать VLESS-ссылку"
             return
         }
 
-        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        val editor = prefs.edit()
             .putString(NeoTunVpnService.KEY_URI, uri)
-            .putString(NeoTunVpnService.KEY_CONFIG, config)
-            .apply()
+            .putString(NeoTunVpnService.KEY_ENGINE, engine)
+
+        if (engine == NeoTunVpnService.ENGINE_XRAY) {
+            editor.remove(NeoTunVpnService.KEY_CONFIG)
+        } else {
+            val config = NeoTunCore.nativeVlessConfig(uri)
+            if (config.isBlank()) {
+                status.text = "Не удалось собрать конфигурацию sing-box"
+                return
+            }
+            editor.putString(NeoTunVpnService.KEY_CONFIG, config)
+        }
+        editor.remove(NeoTunVpnService.KEY_ERROR).apply()
 
         val intent = VpnService.prepare(this)
         if (intent != null) {
             startActivityForResult(intent, REQUEST_VPN)
         } else {
-            startVpn(config)
+            startVpnFromPrefs()
         }
     }
 
-    private fun startVpn(config: String) {
-        val serviceIntent = Intent(this, NeoTunVpnService::class.java)
-            .putExtra(NeoTunVpnService.EXTRA_CONFIG, config)
-        ContextCompat.startForegroundService(this, serviceIntent)
-        status.text = "Запускаем sing-box TUN…"
+    private fun startVpnFromPrefs() {
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        val engine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+        if (engine == NeoTunVpnService.ENGINE_XRAY) {
+            val uri = prefs.getString(NeoTunVpnService.KEY_URI, null)
+            if (uri.isNullOrBlank()) {
+                status.text = "Нет VLESS-профиля"
+                return
+            }
+            val serviceIntent = Intent(this, NeoTunXrayVpnService::class.java)
+                .putExtra(NeoTunXrayVpnService.EXTRA_URI, uri)
+            ContextCompat.startForegroundService(this, serviceIntent)
+            status.text = "Запускаем Xray + XHTTP TUN…"
+        } else {
+            val config = prefs.getString(NeoTunVpnService.KEY_CONFIG, null)
+            if (config.isNullOrBlank()) {
+                status.text = "Нет конфигурации sing-box"
+                return
+            }
+            val serviceIntent = Intent(this, NeoTunVpnService::class.java)
+                .putExtra(NeoTunVpnService.EXTRA_CONFIG, config)
+            ContextCompat.startForegroundService(this, serviceIntent)
+            status.text = "Запускаем sing-box TUN…"
+        }
     }
 
     override fun onResume() {
@@ -140,9 +171,7 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) {
-            val config = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-                .getString(NeoTunVpnService.KEY_CONFIG, null)
-            if (config != null) startVpn(config)
+            startVpnFromPrefs()
         }
     }
 
