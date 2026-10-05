@@ -103,7 +103,7 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
                 val e6 = options.inet6RouteExcludeAddress
                 while (e6.hasNext()) {
                     val prefix = e6.next()
-                    builder.excludeRoute(prefix.address(), prefix.prefix())
+                    builder.excludeRoute(IpPrefix(InetAddress.getByName(prefix.address()), prefix.prefix()))
                 }
             }
         }
