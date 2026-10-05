@@ -181,7 +181,9 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         val interfaceName = linkProperties?.interfaceName.orEmpty()
         if (interfaceName.isBlank()) return
         val expensive = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true
-        listener.updateDefaultInterface(interfaceName, network.hashCode(), expensive, false)
+        val interfaceIndex = runCatching { NetworkInterface.getByName(interfaceName)?.index ?: -1 }
+            .getOrDefault(-1)
+        listener.updateDefaultInterface(interfaceName, interfaceIndex, expensive, false)
         listener.updateNetworkPath(network.toString())
     }
 
