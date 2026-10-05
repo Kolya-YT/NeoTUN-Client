@@ -4,10 +4,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
 import io.nekohasekai.libbox.OverrideOptions
@@ -25,14 +27,20 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             platform = NeoTunPlatform(this)
             commandServer = CommandServer(this, platform)
             commandServer.start()
+
             val config = intent?.getStringExtra(EXTRA_CONFIG)
                 ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CONFIG, null)
+
             if (config.isNullOrBlank()) {
                 stopWithError("Нет профиля. Добавьте VLESS-ссылку.")
             } else {
                 runCatching {
                     commandServer.startOrReloadService(config, OverrideOptions())
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_CONFIG, config).apply()
+                    getSharedPreferences(PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putString(KEY_CONFIG, config)
+                        .remove(KEY_ERROR)
+                        .apply()
                     running = true
                 }.onFailure {
                     stopWithError(it.message ?: "Не удалось запустить sing-box")
@@ -42,9 +50,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         return START_NOT_STICKY
     }
 
-    override fun onBind(intent: Intent): IBinder {
-        return super.onBind(intent) ?: error("VPN binder unavailable")
-    }
+    override fun onBind(intent: Intent): IBinder =
+        super.onBind(intent) ?: error("VPN binder unavailable")
 
     override fun onDestroy() {
         if (::commandServer.isInitialized) {
@@ -67,7 +74,16 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
 
     private fun stopWithError(message: String) {
         running = false
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_ERROR, message).apply()
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+            .edit()
+            .putString(KEY_ERROR, message)
+            .apply()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         stopSelf()
     }
 
@@ -75,9 +91,14 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         val channelId = "neotun-service"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(channelId, "NeoTUN", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(
+                    channelId,
+                    "NeoTUN",
+                    NotificationManager.IMPORTANCE_LOW,
+                ),
             )
         }
+
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("NeoTUN")
@@ -89,11 +110,18 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                     this,
                     0,
                     Intent(this, MainActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE
-                )
+                    PendingIntent.FLAG_IMMUTABLE,
+                ),
             )
             .build()
-        startForeground(1, notification)
+
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        } else {
+            0
+        }
+
+        ServiceCompat.startForeground(this, 1, notification, type)
     }
 
     companion object {
