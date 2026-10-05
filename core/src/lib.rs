@@ -116,10 +116,9 @@ impl Profile {
             "inbounds": [{
                 "type": "tun",
                 "tag": "tun-in",
-                "interface_name": "neotun",
                 "address": ["172.19.0.1/30"],
                 "auto_route": true,
-                "strict_route": true
+                "dns_mode": "system"
             }],
             "outbounds": [
                 vless,
