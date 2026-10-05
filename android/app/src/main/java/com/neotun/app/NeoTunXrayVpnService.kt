@@ -64,8 +64,9 @@ class NeoTunXrayVpnService : VpnService() {
             ?.hostAddress
             ?: "1.1.1.1"
 
+        val dnsEndpoint = if (dns.contains(":")) "[$dns]:53" else "$dns:53"
         val dnsError = runCatching {
-            LibXray.setDNS(dialerController, "$dns:53")
+            LibXray.setDNS(dialerController, dnsEndpoint)
         }.exceptionOrNull()
         if (dnsError != null) {
             throw IllegalStateException("Не удалось настроить DNS Xray: ${dnsError.message}")
@@ -133,13 +134,14 @@ class NeoTunXrayVpnService : VpnService() {
             )
             .put("outbounds", outbounds)
 
+        val testConfig = JSONObject().put("outbounds", outbounds)
         val testResponse = LibXray.invoke(
             JSONObject()
                 .put("apiVersion", 3)
                 .put("method", "testXray")
                 .put(
                     "payload",
-                    JSONObject().put("xrayJson", config.toString()),
+                    JSONObject().put("xrayJson", testConfig.toString()),
                 )
                 .toString(),
         )
