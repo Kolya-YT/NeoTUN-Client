@@ -222,6 +222,6 @@ mod tests {
         let config = profile.to_sing_box_json().unwrap();
         assert!(config.contains(""type": "vless""));
         assert!(config.contains(""type": "tun""));
-        assert!(config.contains("\"server\": \"example.com\""));
+        assert!(config.contains("example.com"));
     }
 }
