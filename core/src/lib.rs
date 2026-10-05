@@ -169,6 +169,24 @@ fn hex(b: u8) -> Option<u8> {
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVlessConfig(
+    mut env: JNIEnv,
+    _class: JClass,
+    uri: JString,
+) -> jstring {
+    let value = env
+        .get_string(&uri)
+        .ok()
+        .and_then(|s| Profile::from_vless_uri(s.to_str().ok()?).ok())
+        .and_then(|p| p.to_sing_box_json().ok())
+        .unwrap_or_else(|| String::new());
+
+    env.new_string(value)
+        .map(JString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
     env: JNIEnv,
     _class: JClass,
