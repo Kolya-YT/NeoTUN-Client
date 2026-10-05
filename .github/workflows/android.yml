@@ -46,3 +46,5 @@ jobs:
         with:
           name: NeoTUN-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+# CI uses the runner-provided Android SDK; no legacy sdkmanager package installation.
