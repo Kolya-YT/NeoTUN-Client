@@ -47,9 +47,13 @@ jobs:
           name: NeoTUN-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-# CI uses the runner-provided Android SDK; no legacy sdkmanager package installation.
+      - name: Verify APK outputs
+        working-directory: android
+        run: |
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/release/app-release.apk
 
-      - name: Upload Release APK
+      - name: Upload Release APK/
         uses: actions/upload-artifact@v4
         with:
           name: NeoTUN-release
