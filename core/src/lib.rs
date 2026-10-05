@@ -12,7 +12,7 @@ pub struct CoreInfo {
 
 #[no_mangle]
 pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
 ) -> jstring {
     let value = "NeoTUN Core 0.1.0 • Rust";
