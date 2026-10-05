@@ -63,6 +63,7 @@ class MainActivity : Activity() {
         setContentView(root)
 
         status.text = NeoTunCore.nativeVersion() + " • Android"
+        showSavedServiceState()
 
         updater.checkForUpdates { result ->
             if (result is UpdateResult.Available) {
@@ -102,6 +103,19 @@ class MainActivity : Activity() {
             .putExtra(NeoTunVpnService.EXTRA_CONFIG, config)
         ContextCompat.startForegroundService(this, serviceIntent)
         status.text = "Запускаем sing-box TUN…"
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::status.isInitialized) showSavedServiceState()
+    }
+
+    private fun showSavedServiceState() {
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        val error = prefs.getString(NeoTunVpnService.KEY_ERROR, null)
+        if (!error.isNullOrBlank()) {
+            status.text = "Ошибка подключения: $error"
+        }
     }
 
     private fun checkUpdates() {
