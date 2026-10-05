@@ -39,7 +39,7 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -48,3 +48,9 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
 # CI uses the runner-provided Android SDK; no legacy sdkmanager package installation.
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeoTUN-release
+          path: android/app/build/outputs/apk/release/app-release.apk
