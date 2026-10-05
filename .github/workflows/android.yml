@@ -12,6 +12,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NEOTUN_KEYSTORE_BASE64: ${{ secrets.NEOTUN_KEYSTORE_BASE64 }}
+      NEOTUN_KEYSTORE_PASSWORD: ${{ secrets.NEOTUN_KEYSTORE_PASSWORD }}
+      NEOTUN_KEY_ALIAS: ${{ secrets.NEOTUN_KEY_ALIAS }}
+      NEOTUN_KEY_PASSWORD: ${{ secrets.NEOTUN_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,25 +46,18 @@ jobs:
         run: cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o ../android/app/src/main/jniLibs build --release
 
       - name: Prepare production signing
-        env:
-          NEOTUN_KEYSTORE_BASE64: ${{ secrets.NEOTUN_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$NEOTUN_KEYSTORE_BASE64" ]; then
-            echo "$NEOTUN_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/neotun-release.jks"
-          fi
+        if: ${{ env.NEOTUN_KEYSTORE_BASE64 != '' }}
+        run: echo "$NEOTUN_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/neotun-release.jks"
 
       - name: Build APK with production signing
-        if: ${{ secrets.NEOTUN_KEYSTORE_BASE64 != '' && secrets.NEOTUN_KEYSTORE_PASSWORD != '' && secrets.NEOTUN_KEY_ALIAS != '' && secrets.NEOTUN_KEY_PASSWORD != '' }}
+        if: ${{ env.NEOTUN_KEYSTORE_BASE64 != '' && env.NEOTUN_KEYSTORE_PASSWORD != '' && env.NEOTUN_KEY_ALIAS != '' && env.NEOTUN_KEY_PASSWORD != '' }}
         working-directory: android
         env:
           NEOTUN_KEYSTORE_PATH: ${{ runner.temp }}/neotun-release.jks
-          NEOTUN_KEYSTORE_PASSWORD: ${{ secrets.NEOTUN_KEYSTORE_PASSWORD }}
-          NEOTUN_KEY_ALIAS: ${{ secrets.NEOTUN_KEY_ALIAS }}
-          NEOTUN_KEY_PASSWORD: ${{ secrets.NEOTUN_KEY_PASSWORD }}
         run: gradle assembleDebug assembleRelease --no-daemon
 
       - name: Build APK with temporary debug signing
-        if: ${{ secrets.NEOTUN_KEYSTORE_BASE64 == '' || secrets.NEOTUN_KEYSTORE_PASSWORD == '' || secrets.NEOTUN_KEY_ALIAS == '' || secrets.NEOTUN_KEY_PASSWORD == '' }}
+        if: ${{ env.NEOTUN_KEYSTORE_BASE64 == '' || env.NEOTUN_KEYSTORE_PASSWORD == '' || env.NEOTUN_KEY_ALIAS == '' || env.NEOTUN_KEY_PASSWORD == '' }}
         working-directory: android
         run: gradle assembleDebug assembleRelease --no-daemon
 
