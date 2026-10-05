@@ -1,14 +1,14 @@
 # NeoTUN Client
 
-Cross-platform, native-first network client built around a shared **Rust core**.
+Кроссплатформенный клиент с общим **ядром на Rust** и нативными сетевыми адаптерами для каждой платформы.
 
-> 🚧 **Current status:** Android-first development. The repository currently contains the Rust/JNI foundation and Android TUN/VpnService layer. It is **not yet a production-ready client** and protocol connections are not implemented yet.
+> 🚧 **Текущий статус:** разработка начинается с Android. В репозитории сейчас находится фундамент Rust/JNI и Android TUN/VpnService. Это **ещё не готовый клиент**, реальные подключения через протоколы пока не реализованы.
 
-## Goals
+## 🎯 Цели проекта
 
-NeoTUN is being designed as one client with a shared core and platform-specific networking adapters.
+NeoTUN создаётся как единый клиент с общим ядром и отдельными сетевыми адаптерами для разных платформ.
 
-### Platforms
+### 📱 Платформы
 
 | Platform | Status | Planned networking layer |
 |---|---|---|
@@ -18,9 +18,9 @@ NeoTUN is being designed as one client with a shared core and platform-specific 
 | macOS | ⚪ Planned | Network Extension |
 | Linux | ⚪ Planned | TUN |
 
-Android is the first target so the core and profile model can be tested before adding desktop/mobile platforms.
+Android — первая целевая платформа. Сначала тестируем ядро и модель профилей, после чего добавляем Windows, iOS и другие платформы.
 
-## Architecture
+## 🏗️ Архитектура
 
 ```text
 ┌──────────────────────────────────────────────┐
@@ -46,13 +46,13 @@ Android is the first target so the core and profile model can be tested before a
         └──────────────┘ └──────────────────┘
 ```
 
-The important separation is that the **Rust core owns profiles, configuration, state and orchestration**, while mature protocol engines and platform networking APIs handle the low-level transport work.
+Главное разделение ответственности: **Rust Core управляет профилями, конфигурацией, состоянием и ядрами**, а зрелые протокольные движки и системные API выполняют низкоуровневую сетевую работу.
 
-## Protocol roadmap
+## 🔌 План поддержки протоколов
 
-The target is broad protocol compatibility, but protocols are **not claimed as working until their engine and end-to-end traffic path are implemented and tested**.
+Цель — широкая совместимость с протоколами, но протокол **не считается работающим**, пока его движок и полный путь передачи трафика не реализованы и не протестированы.
 
-### Planned / target support
+### Планируемая поддержка
 
 - VLESS
 - VMess
@@ -66,11 +66,11 @@ The target is broad protocol compatibility, but protocols are **not claimed as w
 - OpenFlux
 - Additional formats supported by the selected engines
 
-### Engine strategy
+### Стратегия использования ядер
 
-The project is intentionally not trying to reimplement every protocol from scratch in Rust.
+Проект намеренно не пытается реализовать каждый протокол с нуля на Rust.
 
-The planned approach is to integrate proven native engines where appropriate:
+Основной подход — интегрировать проверенные нативные движки там, где это целесообразно:
 
 - **sing-box** — primary engine for a large set of modern protocols.
 - **Xray-core** — compatibility path for Xray-based configurations.
@@ -78,11 +78,11 @@ The planned approach is to integrate proven native engines where appropriate:
 - **OpenVPN** — dedicated native integration.
 - **OpenFlux** — separate adapter/engine integration once its runtime requirements are finalized.
 
-This keeps the application fast and maintainable while avoiding duplicated protocol implementations.
+Так приложение остаётся быстрым и поддерживаемым, а сложная реализация протоколов не дублируется.
 
-## Configuration formats
+## 📥 Форматы конфигураций
 
-The profile layer will provide one normalized internal model and parsers for common inputs:
+Слой профилей будет использовать единую внутреннюю модель и парсеры распространённых форматов:
 
 ```text
 vless://
@@ -97,7 +97,7 @@ Subscription URLs
 QR codes
 ```
 
-The intended flow is:
+Предполагаемый поток:
 
 ```text
 Link / QR / File / Subscription
@@ -111,9 +111,9 @@ Link / QR / File / Subscription
           TUN adapter
 ```
 
-## Android foundation
+## 📱 Android — текущий фундамент
 
-The current Android application already contains:
+Текущее Android-приложение уже содержит:
 
 - Kotlin Android application shell
 - Rust native library
@@ -125,13 +125,13 @@ The current Android application already contains:
 - x86_64 Android build target
 - GitHub Actions APK build
 
-### Important
+### ⚠️ Важно
 
-The current `VpnService` establishes a TUN interface, but it **does not yet forward traffic through VLESS, sing-box, Xray or another protocol engine**.
+Текущий `VpnService` создаёт TUN-интерфейс, но **ещё не передаёт трафик через VLESS, sing-box, Xray или другое протокольное ядро**.
 
-Therefore the current build should be treated as an architectural foundation, not as a finished working client.
+Поэтому текущую сборку нужно воспринимать как фундамент архитектуры, а не как готовый рабочий клиент.
 
-## Repository structure
+## 📂 Структура репозитория
 
 ```text
 NeoTUN-Client/
@@ -156,9 +156,9 @@ NeoTUN-Client/
 └── README.md
 ```
 
-## Build locally
+## 🛠️ Локальная сборка
 
-### Requirements
+### Требования
 
 - JDK 17
 - Android SDK
@@ -170,7 +170,7 @@ NeoTUN-Client/
 
 ### Rust core
 
-Install the Android targets:
+Установите Android targets:
 
 ```bash
 rustup target add aarch64-linux-android
@@ -178,13 +178,13 @@ rustup target add armv7-linux-androideabi
 rustup target add x86_64-linux-android
 ```
 
-Install cargo-ndk:
+Установите cargo-ndk:
 
 ```bash
 cargo install cargo-ndk --locked
 ```
 
-Build native libraries:
+Соберите нативные библиотеки:
 
 ```bash
 cd core
@@ -197,24 +197,24 @@ cargo ndk \
   build --release
 ```
 
-Build the APK:
+Соберите APK:
 
 ```bash
 cd ../android
 gradle assembleDebug --no-daemon
 ```
 
-APK output:
+Готовый APK:
 
 ```text
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## GitHub Actions
+## 🤖 GitHub Actions
 
-Every push runs the Android build workflow.
+Каждый push запускает workflow сборки Android.
 
-The workflow:
+Workflow выполняет:
 
 1. Checks out the repository.
 2. Installs JDK 17.
@@ -225,11 +225,11 @@ The workflow:
 7. Builds the Android debug APK.
 8. Publishes `NeoTUN-debug` as a GitHub Actions artifact.
 
-The workflow uses the Android SDK already provided by the GitHub runner and does not install the removed legacy `tools` SDK package.
+Workflow использует Android SDK, уже установленный на GitHub Runner, и не устанавливает удалённый устаревший пакет `tools`.
 
-## Development roadmap
+## 🗺️ План разработки
 
-### Phase 1 — Foundation
+### Этап 1 — Фундамент
 - [x] Rust workspace
 - [x] JNI bridge
 - [x] Android project
@@ -237,7 +237,7 @@ The workflow uses the Android SDK already provided by the GitHub runner and does
 - [x] Multi-ABI Rust build
 - [x] GitHub Actions APK build
 
-### Phase 2 — Real connection
+### Этап 2 — Реальное подключение
 - [ ] Unified profile model
 - [ ] `vless://` parser
 - [ ] Subscription parser
@@ -248,7 +248,7 @@ The workflow uses the Android SDK already provided by the GitHub runner and does
 - [ ] Connection logs
 - [ ] Traffic statistics
 
-### Phase 3 — Protocol coverage
+### Этап 3 — Поддержка протоколов
 - [ ] sing-box integration
 - [ ] Xray integration
 - [ ] Hysteria2
@@ -261,7 +261,7 @@ The workflow uses the Android SDK already provided by the GitHub runner and does
 - [ ] OpenVPN
 - [ ] OpenFlux
 
-### Phase 4 — Client features
+### Этап 4 — Возможности клиента
 - [ ] Server/profile list
 - [ ] Subscription auto-update
 - [ ] Ping/latency
@@ -275,30 +275,30 @@ The workflow uses the Android SDK already provided by the GitHub runner and does
 - [ ] QR scanner
 - [ ] Import/export
 
-### Phase 5 — Cross-platform
+### Этап 5 — Кроссплатформенность
 - [ ] Windows + Wintun
 - [ ] iOS + Network Extension
 - [ ] macOS + Network Extension
 - [ ] Linux + TUN
 
-## Design principles
+## 🔐 Принципы разработки
 
-- **Rust-first:** shared logic and orchestration live in Rust.
-- **Native performance:** avoid unnecessary managed-language overhead in the networking path.
-- **Engine reuse:** use mature protocol implementations instead of rewriting complex cryptographic/networking stacks.
-- **Platform abstraction:** Android-specific networking stays outside the shared core.
-- **One profile model:** different protocol formats should map into a common internal representation.
-- **Explicit support status:** a protocol is marked supported only after real end-to-end testing.
-- **Security first:** credentials, keys and private configuration data must be handled carefully and never logged accidentally.
+- **Rust-first:** общая логика и управление ядрами находятся в Rust.
+- **Нативная производительность:** избегаем лишних уровней абстракции в сетевом пути.
+- **Переиспользование ядер:** используем зрелые реализации вместо переписывания сложных криптографических и сетевых стеков.
+- **Абстракция платформы:** Android-специфичная сеть остаётся за пределами общего ядра.
+- **Единая модель профиля:** разные форматы конфигураций преобразуются в общую внутреннюю структуру.
+- **Честный статус поддержки:** протокол считается поддержанным только после реального сквозного тестирования.
+- **Безопасность прежде всего:** ключи, UUID, пароли и приватные конфигурации нельзя случайно записывать в логи.
 
-## Current version
+## 📊 Текущая версия
 
 ```text
 NeoTUN Core 0.1.0
 Android app 0.1.0
-Status: development foundation
+Статус: фундамент в разработке
 ```
 
-## License
+## 📄 Лицензия
 
-See [LICENSE](LICENSE).
+Смотрите файл [LICENSE](LICENSE).
