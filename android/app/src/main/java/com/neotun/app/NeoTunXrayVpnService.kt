@@ -11,18 +11,12 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import libXray.DialerController
-import libXray.LibXray
 import org.json.JSONArray
 import org.json.JSONObject
 
 class NeoTunXrayVpnService : VpnService() {
     private var tunFd: Int = -1
     private var running = false
-
-    private val dialerController = object : DialerController {
-        override fun protectFd(fd: Int): Boolean = this@NeoTunXrayVpnService.protect(fd)
-    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (running) return START_NOT_STICKY
@@ -54,8 +48,7 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun startXray(uri: String) {
-        LibXray.registerDialerController(dialerController)
-        LibXray.registerListenerController(dialerController)
+        NeoTunXrayBridge.nativeInit(this)
 
         val dns = getSystemService(ConnectivityManager::class.java)
             .getLinkProperties(getSystemService(ConnectivityManager::class.java).activeNetwork)
@@ -66,10 +59,10 @@ class NeoTunXrayVpnService : VpnService() {
 
         val dnsEndpoint = if (dns.contains(":")) "[$dns]:53" else "$dns:53"
         val dnsError = runCatching {
-            LibXray.setDNS(dialerController, dnsEndpoint)
-        }.exceptionOrNull()
-        if (dnsError != null) {
-            throw IllegalStateException("Не удалось настроить DNS Xray: ${dnsError.message}")
+            NeoTunXrayBridge.nativePrepare(dnsEndpoint)
+        }.getOrNull()
+        if (!dnsError.isNullOrBlank()) {
+            throw IllegalStateException("Не удалось настроить DNS Xray: $dnsError")
         }
 
         val vpnInterface = Builder()
@@ -85,7 +78,7 @@ class NeoTunXrayVpnService : VpnService() {
 
         tunFd = vpnInterface.detachFd()
 
-        val converted = LibXray.invoke(
+        val converted = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
                 .put("apiVersion", 3)
                 .put("method", "convertShareLinksToXrayJson")
@@ -186,7 +179,7 @@ class NeoTunXrayVpnService : VpnService() {
                 )
             }
         }
-        LibXray.resetDNS()
+        NeoTunXrayBridge.nativeResetDns()
 
         if (tunFd >= 0) {
             runCatching { android.system.Os.close(tunFd) }
