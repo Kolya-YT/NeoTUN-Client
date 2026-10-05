@@ -100,6 +100,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         const val EXTRA_CONFIG = "neotun.config"
         const val PREFS = "neotun"
         const val KEY_CONFIG = "config"
+        const val KEY_URI = "uri"
         const val KEY_ERROR = "error"
     }
 }
