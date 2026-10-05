@@ -85,6 +85,12 @@ class MainActivity : Activity() {
             return
         }
 
+        status.text = if (engine == NeoTunVpnService.ENGINE_XRAY) {
+            "VLESS XHTTP → Xray"
+        } else {
+            "VLESS → sing-box"
+        }
+
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         val editor = prefs.edit()
             .putString(NeoTunVpnService.KEY_URI, uri)
