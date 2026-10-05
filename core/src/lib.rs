@@ -31,7 +31,13 @@ impl Profile {
 
         let (userinfo, hostport) = authority.rsplit_once('@').ok_or("В ссылке VLESS отсутствует UUID")?;
         let uuid = percent_decode(userinfo)?;
-        let (address, port_str) = hostport.rsplit_once(':').ok_or("В ссылке VLESS отсутствует порт")?;
+        let (address, port_str) = if let Some(stripped) = hostport.strip_prefix('[') {
+            let (ipv6, rest) = stripped.split_once(']').ok_or("Некорректный IPv6-адрес VLESS")?;
+            let port = rest.strip_prefix(':').ok_or("В ссылке VLESS отсутствует порт")?;
+            (ipv6, port)
+        } else {
+            hostport.rsplit_once(':').ok_or("В ссылке VLESS отсутствует порт")?
+        };
         let port: u16 = port_str.parse().map_err(|_| "Некорректный порт VLESS")?;
 
         let mut params = HashMap::new();
@@ -64,6 +70,11 @@ impl Profile {
         let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
         let security = self.params.get("security").map(String::as_str).unwrap_or("none");
         let transport = self.params.get("type").map(String::as_str).unwrap_or("tcp");
+        let engine = self.engine();
+
+        if engine == "xray" {
+            return Ok(serde_json::json!({"engine": "xray", "protocol": "vless", "transport": "xhttp"}).to_string());
+        }
 
         let mut vless = serde_json::json!({
             "type": "vless",
@@ -193,6 +204,15 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
     env.new_string(value)
         .map(JString::into_raw)
         .unwrap_or(std::ptr::null_mut())
+}
+
+impl Profile {
+    pub fn engine(&self) -> &'static str {
+        match self.params.get("type").map(String::as_str) {
+            Some("xhttp") => "xray",
+            _ => "sing-box",
+        }
+    }
 }
 
 pub fn supported_protocols() -> Vec<CoreInfo> {
