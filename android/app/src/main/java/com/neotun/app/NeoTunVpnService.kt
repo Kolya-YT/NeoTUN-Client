@@ -130,5 +130,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         const val KEY_CONFIG = "config"
         const val KEY_URI = "uri"
         const val KEY_ERROR = "error"
+        const val KEY_ENGINE = "engine"
+        const val ENGINE_SING_BOX = "sing-box"
+        const val ENGINE_XRAY = "xray"
     }
 }
