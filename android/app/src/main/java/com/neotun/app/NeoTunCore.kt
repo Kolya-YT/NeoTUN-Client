@@ -5,4 +5,5 @@ object NeoTunCore {
 
     external fun nativeVersion(): String
     external fun nativeVlessConfig(uri: String): String
+    external fun nativeVlessEngine(uri: String): String
 }
