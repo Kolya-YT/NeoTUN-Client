@@ -338,3 +338,8 @@ Android app 0.2.0
 ## 📄 Лицензия
 
 Смотрите файл [LICENSE](LICENSE).
+
+
+### XHTTP + REALITY
+
+Для VLESS XHTTP поверх REALITY NeoTUN явно использует эффективный режим `stream-one` при `mode=auto`, как это делает актуальный Xray-core.
