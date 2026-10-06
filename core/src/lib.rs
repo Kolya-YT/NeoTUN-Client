@@ -163,7 +163,7 @@ fn normalize_vless_uri(input: &str) -> Result<String, String> {
         return Ok(normalized);
     }
 
-    Err("Ожидалась ссылка vless://")
+    Err("Ожидалась ссылка vless://".to_string())
 }
 
 fn percent_decode(input: &str) -> Result<String, String> {
