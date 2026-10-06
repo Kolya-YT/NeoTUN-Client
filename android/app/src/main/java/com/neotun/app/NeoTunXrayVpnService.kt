@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import org.json.JSONArray
@@ -182,7 +183,7 @@ class NeoTunXrayVpnService : VpnService() {
         NeoTunXrayBridge.nativeResetDns()
 
         if (tunFd >= 0) {
-            runCatching { android.system.Os.close(tunFd) }
+            runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
             tunFd = -1
         }
 
