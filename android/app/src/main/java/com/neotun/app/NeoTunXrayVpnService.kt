@@ -106,6 +106,24 @@ class NeoTunXrayVpnService : VpnService() {
             throw IllegalArgumentException("VLESS-ссылка не содержит рабочего outbound")
         }
 
+        // XHTTP + REALITY: Xray resolves mode=auto to stream-one. Force the
+        // effective value explicitly so the generated config cannot regress
+        // when the share-link converter or Xray defaults change.
+        for (index in 0 until outbounds.length()) {
+            val outbound = outbounds.optJSONObject(index) ?: continue
+            val streamSettings = outbound.optJSONObject("streamSettings") ?: continue
+            if (streamSettings.optString("network").equals("xhttp", ignoreCase = true) &&
+                streamSettings.optString("security").equals("reality", ignoreCase = true)
+            ) {
+                val xhttpSettings = streamSettings.optJSONObject("xhttpSettings")
+                    ?: JSONObject().also { streamSettings.put("xhttpSettings", it) }
+                val mode = xhttpSettings.optString("mode", "auto")
+                if (mode.isBlank() || mode.equals("auto", ignoreCase = true)) {
+                    xhttpSettings.put("mode", "stream-one")
+                }
+            }
+        }
+
         val config = JSONObject()
             .put("log", JSONObject().put("loglevel", "warning"))
             .put(
