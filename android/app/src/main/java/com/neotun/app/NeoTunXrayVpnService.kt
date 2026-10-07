@@ -70,7 +70,10 @@ class NeoTunXrayVpnService : VpnService() {
         NeoTunDiagnostics.log(this, "Этап 2/8: системный DNS=$dns, Xray DNS endpoint=$dnsEndpoint")
         val dnsError = runCatching {
             NeoTunXrayBridge.nativePrepare(dnsEndpoint)
-        }.getOrNull()
+        }.fold(
+            onSuccess = { it },
+            onFailure = { "JNI exception: " + (it.message ?: it::class.java.simpleName) },
+        )
         if (!dnsError.isNullOrBlank()) {
             NeoTunDiagnostics.log(this, "DNS ERROR: $dnsError")
             throw IllegalStateException("Не удалось настроить DNS Xray: $dnsError")
