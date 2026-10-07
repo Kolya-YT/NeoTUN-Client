@@ -22,6 +22,8 @@ class NeoTunXrayVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (running) return START_NOT_STICKY
 
+        NeoTunDiagnostics.clear(this)
+        NeoTunDiagnostics.log(this, "Xray service: onStartCommand")
         startForegroundNotification()
 
         val uri = intent?.getStringExtra(EXTRA_URI)
@@ -33,6 +35,8 @@ class NeoTunXrayVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
+        NeoTunDiagnostics.log(this, "Профиль получен: VLESS-ссылка (секретные параметры скрыты)")
+
         runCatching {
             startXray(uri)
             getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
@@ -43,6 +47,7 @@ class NeoTunXrayVpnService : VpnService() {
                 .apply()
             running = true
         }.onFailure {
+            NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", it)
             stopWithError(it.message ?: "Не удалось запустить Xray")
         }
 
@@ -50,7 +55,9 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun startXray(uri: String) {
+        NeoTunDiagnostics.log(this, "Этап 1/8: инициализация JNI/Xray")
         NeoTunXrayBridge.nativeInit(this)
+        NeoTunDiagnostics.log(this, "JNI/Xray bridge инициализирован")
 
         val dns = getSystemService(ConnectivityManager::class.java)
             .getLinkProperties(getSystemService(ConnectivityManager::class.java).activeNetwork)
@@ -60,13 +67,17 @@ class NeoTunXrayVpnService : VpnService() {
             ?: "1.1.1.1"
 
         val dnsEndpoint = if (dns.contains(":")) "[$dns]:53" else "$dns:53"
+        NeoTunDiagnostics.log(this, "Этап 2/8: системный DNS=$dns, Xray DNS endpoint=$dnsEndpoint")
         val dnsError = runCatching {
             NeoTunXrayBridge.nativePrepare(dnsEndpoint)
         }.getOrNull()
         if (!dnsError.isNullOrBlank()) {
+            NeoTunDiagnostics.log(this, "DNS ERROR: $dnsError")
             throw IllegalStateException("Не удалось настроить DNS Xray: $dnsError")
         }
+        NeoTunDiagnostics.log(this, "DNS Xray настроен")
 
+        NeoTunDiagnostics.log(this, "Этап 3/8: создание Android VpnService TUN")
         val vpnInterface = Builder()
             .setSession("NeoTUN Xray")
             .setMtu(1500)
@@ -79,7 +90,9 @@ class NeoTunXrayVpnService : VpnService() {
             ?: error("Не удалось создать Android TUN")
 
         tunFd = vpnInterface.detachFd()
+        NeoTunDiagnostics.log(this, "TUN создан, fd=$tunFd, MTU=1500, route=IPv4+IPv6")
 
+        NeoTunDiagnostics.log(this, "Этап 4/8: разбор VLESS через libXray")
         val converted = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
                 .put("apiVersion", 3)
@@ -92,6 +105,11 @@ class NeoTunXrayVpnService : VpnService() {
         )
 
         val convertedResponse = JSONObject(converted)
+        NeoTunDiagnostics.log(
+            this,
+            "convertShareLinksToXrayJson: success=" +
+                convertedResponse.optBoolean("success", false)
+        )
         if (!convertedResponse.optBoolean("success", false)) {
             throw IllegalArgumentException(
                 "Xray не смог разобрать VLESS: " +
@@ -106,6 +124,14 @@ class NeoTunXrayVpnService : VpnService() {
         if (outbounds.length() == 0) {
             throw IllegalArgumentException("VLESS-ссылка не содержит рабочего outbound")
         }
+        val firstOutbound = outbounds.optJSONObject(0)
+        val streamForLog = firstOutbound?.optJSONObject("streamSettings")
+        NeoTunDiagnostics.log(
+            this,
+            "Outbound: protocol=" + firstOutbound?.optString("protocol", "?") +
+                ", network=" + streamForLog?.optString("network", "?") +
+                ", security=" + streamForLog?.optString("security", "?")
+        )
 
         // XHTTP + REALITY: Xray resolves mode=auto to stream-one. Force the
         // effective value explicitly so the generated config cannot regress
@@ -121,6 +147,9 @@ class NeoTunXrayVpnService : VpnService() {
                 val mode = xhttpSettings.optString("mode", "auto")
                 if (mode.isBlank() || mode.equals("auto", ignoreCase = true)) {
                     xhttpSettings.put("mode", "stream-one")
+                    NeoTunDiagnostics.log(this, "XHTTP REALITY: mode auto -> stream-one")
+                } else {
+                    NeoTunDiagnostics.log(this, "XHTTP REALITY: mode=" + mode)
                 }
             }
         }
@@ -147,6 +176,7 @@ class NeoTunXrayVpnService : VpnService() {
             )
             .put("outbounds", outbounds)
 
+        NeoTunDiagnostics.log(this, "Этап 6/8: проверка Xray-конфигурации testXray")
         val testConfig = JSONObject().put("outbounds", outbounds)
         val testResponse = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
@@ -159,6 +189,11 @@ class NeoTunXrayVpnService : VpnService() {
                 .toString(),
         )
         val test = JSONObject(testResponse)
+        NeoTunDiagnostics.log(
+            this,
+            "testXray: success=" + test.optBoolean("success", false) +
+                if (test.optBoolean("success", false)) "" else ", error=" + test.optString("error", "unknown")
+        )
         if (!test.optBoolean("success", false)) {
             throw IllegalArgumentException(
                 "Некорректная Xray-конфигурация: " +
@@ -166,6 +201,7 @@ class NeoTunXrayVpnService : VpnService() {
             )
         }
 
+        NeoTunDiagnostics.log(this, "Этап 7/8: запуск Xray instance, TUN fd=$tunFd")
         val runResponse = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
                 .put("apiVersion", 3)
@@ -177,17 +213,46 @@ class NeoTunXrayVpnService : VpnService() {
                 .toString(),
         )
         val run = JSONObject(runResponse)
+        NeoTunDiagnostics.log(
+            this,
+            "runXray: success=" + run.optBoolean("success", false) +
+                if (run.optBoolean("success", false)) "" else ", error=" + run.optString("error", "unknown")
+        )
         if (!run.optBoolean("success", false)) {
             throw IllegalStateException(
                 "Xray не запустился: " +
                     run.optString("error", "неизвестная ошибка"),
             )
         }
+
+        NeoTunDiagnostics.log(this, "Этап 8/8: проверка фактического состояния Xray")
+        val stateResponse = NeoTunXrayBridge.nativeInvoke(
+            JSONObject()
+                .put("apiVersion", 3)
+                .put("method", "getXrayState")
+                .put("payload", JSONObject())
+                .toString(),
+        )
+        val state = JSONObject(stateResponse)
+        val runningState = state.optJSONObject("data")?.optBoolean("running", false) ?: false
+        NeoTunDiagnostics.log(
+            this,
+            "getXrayState: success=" + state.optBoolean("success", false) +
+                ", running=" + runningState
+        )
+        if (!state.optBoolean("success", false) || !runningState) {
+            throw IllegalStateException(
+                "Xray не перешёл в состояние running: " +
+                    state.optString("error", "running=false"),
+            )
+        }
+        NeoTunDiagnostics.log(this, "Xray запущен успешно. Ждём трафик через TUN.")
     }
 
     override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
 
     override fun onDestroy() {
+        NeoTunDiagnostics.log(this, "Xray service: onDestroy")
         if (running || tunFd >= 0) {
             runCatching {
                 NeoTunXrayBridge.nativeInvoke(
@@ -215,6 +280,7 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun stopWithError(message: String) {
+        NeoTunDiagnostics.error(this, "Остановка с ошибкой: $message")
         running = false
 
         // Always stop Xray before releasing the Android TUN fd. Xray owns the
