@@ -217,7 +217,7 @@ class NeoTunXrayVpnService : VpnService() {
             .apply()
 
         if (tunFd >= 0) {
-            runCatching { android.system.Os.close(tunFd) }
+            runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
             tunFd = -1
         }
         NeoTunXrayBridge.nativeResetDns()
