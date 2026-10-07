@@ -1,12 +1,16 @@
 package com.neotun.app
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 
@@ -14,6 +18,13 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var profileInput: EditText
     private lateinit var updater: AppUpdater
+    private val stateHandler = Handler(Looper.getMainLooper())
+    private val statePoll = object : Runnable {
+        override fun run() {
+            if (::status.isInitialized) showSavedServiceState()
+            stateHandler.postDelayed(this, 700)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,12 +66,20 @@ class MainActivity : Activity() {
             setOnClickListener { checkUpdates() }
         }
 
+        val logs = Button(this).apply {
+            text = "ЛОГ ПОДКЛЮЧЕНИЯ"
+            setOnClickListener { showDiagnostics() }
+        }
+
         root.addView(title)
         root.addView(status)
         root.addView(profileInput)
         root.addView(connect)
         root.addView(update)
+        root.addView(logs)
         setContentView(root)
+
+        stateHandler.post(statePoll)
 
         status.text = NeoTunCore.nativeVersion() + " • Android"
         showSavedServiceState()
@@ -145,6 +164,27 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::status.isInitialized) showSavedServiceState()
+    }
+
+    override fun onDestroy() {
+        stateHandler.removeCallbacks(statePoll)
+        super.onDestroy()
+    }
+
+    private fun showDiagnostics() {
+        val log = NeoTunDiagnostics.read(this)
+        val text = if (log.isBlank()) "Лог пока пуст." else log
+        val view = TextView(this).apply {
+            text = text
+            textSize = 12f
+            setPadding(24, 16, 24, 16)
+            setTextIsSelectable(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Диагностика NeoTUN")
+            .setView(ScrollView(this).apply { addView(view) })
+            .setPositiveButton("Закрыть", null)
+            .show()
     }
 
     private fun showSavedServiceState() {
