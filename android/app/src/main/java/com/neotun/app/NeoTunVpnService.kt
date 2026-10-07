@@ -40,6 +40,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                         .edit()
                         .putString(KEY_CONFIG, config)
                         .remove(KEY_ERROR)
+                        .putBoolean(KEY_RUNNING, true)
                         .apply()
                     running = true
                 }.onFailure {
@@ -59,6 +60,10 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             runCatching { commandServer.close() }
         }
         running = false
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_RUNNING, false)
+            .apply()
         super.onDestroy()
     }
 
@@ -77,6 +82,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         getSharedPreferences(PREFS, MODE_PRIVATE)
             .edit()
             .putString(KEY_ERROR, message)
+            .putBoolean(KEY_RUNNING, false)
             .apply()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -131,6 +137,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         const val KEY_URI = "uri"
         const val KEY_ERROR = "error"
         const val KEY_ENGINE = "engine"
+        const val KEY_RUNNING = "running"
         const val ENGINE_SING_BOX = "sing-box"
         const val ENGINE_XRAY = "xray"
     }
