@@ -43,7 +43,7 @@ object NeoTunDiagnostics {
 
     @Synchronized
     fun log(context: Context, message: String) {
-        val line = "[\${format.format(Date())}] $message\n"
+        val line = "[" + format.format(Date()) + "] " + message + "\n"
         Log.i(TAG, line.trimEnd())
         try {
             withLock(context) { raf ->
@@ -62,10 +62,11 @@ object NeoTunDiagnostics {
             message
         } else {
             val stack = throwable.stackTraceToString()
-            "$message\n\${throwable::class.java.simpleName}: \${throwable.message ?: ""}\n$stack"
+            message + "\n" + throwable::class.java.simpleName + ": " +
+                (throwable.message ?: "") + "\n" + stack
         }
         Log.e(TAG, details, throwable)
-        val line = "[\${format.format(Date())}] ERROR: $details\n"
+        val line = "[" + format.format(Date()) + "] ERROR: " + details + "\n"
         try {
             withLock(context) { raf ->
                 raf.seek(raf.length())
@@ -79,12 +80,14 @@ object NeoTunDiagnostics {
 
     fun read(context: Context): String {
         return try {
+            var result = ""
             withLock(context) { raf ->
                 raf.seek(0)
                 val bytes = ByteArray(raf.length().coerceAtMost(MAX_LOG.toLong()).toInt())
                 raf.readFully(bytes)
-                return String(bytes, Charsets.UTF_8)
+                result = String(bytes, Charsets.UTF_8)
             }
+            result
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to read diagnostics", t)
             ""
