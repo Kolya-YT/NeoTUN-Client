@@ -60,8 +60,11 @@ Java_com_neotun_app_NeoTunXrayBridge_nativeInit(
 
     if (g_vpn_service != NULL) {
         (*env)->DeleteGlobalRef(env, g_vpn_service);
+        g_vpn_service = NULL;
     }
-    g_vpn_service = (*env)->NewGlobalRef(env, vpn_service);
+    if (vpn_service != NULL) {
+        g_vpn_service = (*env)->NewGlobalRef(env, vpn_service);
+    }
 }
 
 JNIEXPORT jstring JNICALL
