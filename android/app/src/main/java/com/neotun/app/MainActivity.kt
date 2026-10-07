@@ -152,6 +152,16 @@ class MainActivity : Activity() {
         val error = prefs.getString(NeoTunVpnService.KEY_ERROR, null)
         if (!error.isNullOrBlank()) {
             status.text = "Ошибка подключения: $error"
+            return
+        }
+
+        if (prefs.getBoolean(NeoTunVpnService.KEY_RUNNING, false)) {
+            val engine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+            status.text = if (engine == NeoTunVpnService.ENGINE_XRAY) {
+                "Подключено • Xray + XHTTP"
+            } else {
+                "Подключено • sing-box"
+            }
         }
     }
 
