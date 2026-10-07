@@ -43,6 +43,7 @@ Android — первая целевая платформа. Сначала те�
         │ WireGuard    │ │ iOS NetworkExt.  │
         │ AmneziaWG    │ │ Linux TUN        │
         │ OpenVPN      │ │                  │
+        │ OpenFlux     │ │                  │
         └──────────────┘ └──────────────────┘
 ```
 
@@ -132,6 +133,7 @@ Link / QR / File / Subscription
 - [x] In-app update checker
 - [x] APK download/install flow
 - [x] Profile persistence
+- [x] Cross-process connection diagnostics
 
 ### ⚠️ Важно
 
@@ -147,7 +149,8 @@ NeoTUN-Client/
 │   │   │   ├── java/com/neotun/app/
 │   │   │   │   ├── MainActivity.kt
 │   │   │   │   ├── NeoTunCore.kt
-│   │   │   │   └── NeoTunVpnService.kt
+│   │   │   │   ├── NeoTunDiagnostics.kt
+│   │   │   │   └── NeoTunXrayVpnService.kt
 │   │   │   └── res/
 │   │   ├── build.gradle.kts
 │   │   └── ...
@@ -156,6 +159,9 @@ NeoTUN-Client/
 ├── core/
 │   ├── src/lib.rs
 │   └── Cargo.toml
+├── xraybridge/
+│   ├── main.go
+│   └── bridge.c
 ├── .github/workflows/
 │   └── android.yml
 ├── Cargo.toml
@@ -228,7 +234,7 @@ Workflow выполняет:
 4. Installs the Rust Android targets.
 5. Installs `cargo-ndk`.
 6. Builds the Rust library for ARM64, ARMv7 and x86_64.
-7. Downloads the official libXray Android engine.
+7. Builds the Xray native engine.
 8. Builds the Android debug and release APKs.
 9. Publishes `NeoTUN-debug` and `NeoTUN-release` artifacts.
 10. On `main`, publishes a GitHub Release automatically.
@@ -253,7 +259,7 @@ Workflow использует Android SDK, уже установленный н�
 - [x] Profile persistence
 - [ ] Сквозное VLESS-тестирование sing-box и Xray/XHTTP
 - [ ] Connect/disconnect state machine
-- [ ] Connection logs
+- [x] Connection diagnostics
 - [ ] Traffic statistics
 - [ ] Reconnection
 
@@ -317,7 +323,9 @@ Workflow использует Android SDK, уже установленный н�
 
 В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
 
-После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.1.0`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
+После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.2.1`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
+
+> ⚠️ Release APK, подписанный временным debug-ключом, нельзя гарантированно установить поверх APK, подписанного другим ключом. Для нормальных in-place обновлений нужно настроить production keystore в GitHub Secrets.
 
 ## 🏷️ Выпуск новой версии
 
@@ -331,7 +339,7 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 
 ```text
 NeoTUN Core 0.2.0
-Android app 0.2.0
+Android app 0.2.1
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
@@ -339,14 +347,12 @@ Android app 0.2.0
 
 Смотрите файл [LICENSE](LICENSE).
 
-
 ### XHTTP + REALITY
 
 Для VLESS XHTTP поверх REALITY NeoTUN явно использует эффективный режим `stream-one` при `mode=auto`, как это делает актуальный Xray-core.
 
+### Диагностика подключения Android
 
-## Диагностика подключения Android
-
-Если подключение не запускается, откройте в приложении кнопку **«ЛОГ ПОДКЛЮЧЕНИЯ»**. NeoTUN сохраняет пошаговый журнал запуска Xray в памяти приложения и одновременно пишет технические сообщения с тегом `NeoTUN` в Android Logcat.
+Если подключение не запускается, откройте в приложении кнопку **«ЛОГ ПОДКЛЮЧЕНИЯ»**. NeoTUN сохраняет пошаговый журнал запуска Xray в общем файле приложения, доступном обоим Android-процессам, и одновременно пишет технические сообщения с тегом `NeoTUN` в Android Logcat.
 
 Лог показывает этапы JNI, DNS, Android TUN, разбор VLESS, проверку конфигурации, запуск Xray и фактический результат `getXrayState`. Секретные параметры VLESS-профиля в журнал намеренно не записываются.
