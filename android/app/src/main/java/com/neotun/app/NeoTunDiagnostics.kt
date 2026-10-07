@@ -57,7 +57,7 @@ object NeoTunDiagnostics {
     }
 
     @Synchronized
-    fun error(context: Context, message: String, throwable: Throwable?) {
+    fun error(context: Context, message: String, throwable: Throwable? = null) {
         val details = if (throwable == null) {
             message
         } else {
