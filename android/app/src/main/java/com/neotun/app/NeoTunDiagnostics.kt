@@ -2,51 +2,105 @@ package com.neotun.app
 
 import android.content.Context
 import android.util.Log
+import java.io.File
+import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 object NeoTunDiagnostics {
     private const val TAG = "NeoTUN"
-    private const val PREFS = "neotun"
-    private const val KEY_LOG = "diagnostic_log"
     private const val MAX_LOG = 16000
+    private const val FILE_NAME = "neotun_diagnostics.log"
 
     private val format = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
+    private fun file(context: Context): File =
+        File(context.filesDir, FILE_NAME)
+
+    private fun withLock(context: Context, action: (RandomAccessFile) -> Unit) {
+        val target = file(context)
+        target.parentFile?.mkdirs()
+        RandomAccessFile(target, "rw").use { raf ->
+            raf.channel.use { channel ->
+                channel.lock().use {
+                    action(raf)
+                }
+            }
+        }
+    }
+
     @Synchronized
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_LOG)
-            .commit()
+        try {
+            withLock(context) { raf ->
+                raf.setLength(0)
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to clear diagnostics", t)
+        }
     }
 
     @Synchronized
     fun log(context: Context, message: String) {
-        val line = "[${format.format(Date())}] $message"
-        Log.i(TAG, line)
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val old = prefs.getString(KEY_LOG, "") ?: ""
-        val updated = (old + line + "\n").takeLast(MAX_LOG)
-        prefs.edit().putString(KEY_LOG, updated).commit()
+        val line = "[\${format.format(Date())}] $message\n"
+        Log.i(TAG, line.trimEnd())
+        try {
+            withLock(context) { raf ->
+                raf.seek(raf.length())
+                raf.write(line.toByteArray(Charsets.UTF_8))
+                trimLocked(raf)
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to write diagnostics", t)
+        }
     }
 
     @Synchronized
     fun error(context: Context, message: String, throwable: Throwable? = null) {
-        val details = if (throwable == null) message else {
+        val details = if (throwable == null) {
+            message
+        } else {
             val stack = throwable.stackTraceToString()
-            "$message\n${throwable::class.java.simpleName}: ${throwable.message ?: ""}\n$stack"
+            "$message\n\${throwable::class.java.simpleName}: \${throwable.message ?: ""}\n$stack"
         }
         Log.e(TAG, details, throwable)
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val old = prefs.getString(KEY_LOG, "") ?: ""
-        val line = "[${format.format(Date())}] ERROR: $details\n"
-        prefs.edit().putString(KEY_LOG, (old + line).takeLast(MAX_LOG)).commit()
+        val line = "[\${format.format(Date())}] ERROR: $details\n"
+        try {
+            withLock(context) { raf ->
+                raf.seek(raf.length())
+                raf.write(line.toByteArray(Charsets.UTF_8))
+                trimLocked(raf)
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to write diagnostics", t)
+        }
     }
 
-    fun read(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_LOG, "")
-            .orEmpty()
+    fun read(context: Context): String {
+        return try {
+            withLock(context) { raf ->
+                raf.seek(0)
+                val bytes = ByteArray(raf.length().coerceAtMost(MAX_LOG.toLong()).toInt())
+                raf.readFully(bytes)
+                return String(bytes, Charsets.UTF_8)
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to read diagnostics", t)
+            ""
+        }
+    }
+
+    private fun trimLocked(raf: RandomAccessFile) {
+        val length = raf.length()
+        if (length <= MAX_LOG) return
+
+        val keep = ByteArray(MAX_LOG)
+        raf.seek(length - MAX_LOG)
+        raf.readFully(keep)
+
+        raf.setLength(0)
+        raf.seek(0)
+        raf.write(keep)
+    }
 }
