@@ -173,9 +173,9 @@ class MainActivity : Activity() {
 
     private fun showDiagnostics() {
         val log = NeoTunDiagnostics.read(this)
-        val text = if (log.isBlank()) "Лог пока пуст." else log
+        val messageText = if (log.isBlank()) "Лог пока пуст." else log
         val view = TextView(this).apply {
-            text = text
+            text = messageText
             textSize = 12f
             setPadding(24, 16, 24, 16)
             setTextIsSelectable(true)
