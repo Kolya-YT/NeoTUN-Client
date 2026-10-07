@@ -211,6 +211,19 @@ class NeoTunXrayVpnService : VpnService() {
 
     private fun stopWithError(message: String) {
         running = false
+
+        // Always stop Xray before releasing the Android TUN fd. Xray owns the
+        // fd while the core is running; closing it first can leave a stale
+        // core instance and break the next connection attempt.
+        runCatching {
+            NeoTunXrayBridge.nativeInvoke(
+                JSONObject()
+                    .put("apiVersion", 3)
+                    .put("method", "stopXray")
+                    .put("payload", JSONObject())
+                    .toString(),
+            )
+        }
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
             .edit()
             .putString(NeoTunVpnService.KEY_ERROR, message)
