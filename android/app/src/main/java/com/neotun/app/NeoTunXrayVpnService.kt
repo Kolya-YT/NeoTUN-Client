@@ -39,6 +39,7 @@ class NeoTunXrayVpnService : VpnService() {
                 .edit()
                 .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
                 .remove(NeoTunVpnService.KEY_ERROR)
+                .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
                 .apply()
             running = true
         }.onFailure {
@@ -206,6 +207,10 @@ class NeoTunXrayVpnService : VpnService() {
         }
 
         running = false
+        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .edit()
+            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+            .apply()
         super.onDestroy()
     }
 
@@ -227,6 +232,7 @@ class NeoTunXrayVpnService : VpnService() {
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
             .edit()
             .putString(NeoTunVpnService.KEY_ERROR, message)
+            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
             .apply()
 
         if (tunFd >= 0) {
