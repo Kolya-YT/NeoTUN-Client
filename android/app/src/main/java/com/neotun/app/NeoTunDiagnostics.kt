@@ -18,14 +18,14 @@ object NeoTunDiagnostics {
     private fun file(context: Context): File =
         File(context.filesDir, FILE_NAME)
 
-    private fun withLock(context: Context, action: (RandomAccessFile) -> Unit) {
+    private fun append(context: Context, line: String) {
         val target = file(context)
         target.parentFile?.mkdirs()
         RandomAccessFile(target, "rw").use { raf ->
-            raf.channel.use { channel ->
-                channel.lock().use {
-                    action(raf)
-                }
+            raf.channel.lock().use {
+                raf.seek(raf.length())
+                raf.write(line.toByteArray(Charsets.UTF_8))
+                trimLocked(raf)
             }
         }
     }
@@ -33,8 +33,12 @@ object NeoTunDiagnostics {
     @Synchronized
     fun clear(context: Context) {
         try {
-            withLock(context) { raf ->
-                raf.setLength(0)
+            val target = file(context)
+            target.parentFile?.mkdirs()
+            RandomAccessFile(target, "rw").use { raf ->
+                raf.channel.lock().use {
+                    raf.setLength(0)
+                }
             }
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to clear diagnostics", t)
@@ -46,33 +50,23 @@ object NeoTunDiagnostics {
         val line = "[" + format.format(Date()) + "] " + message + "\n"
         Log.i(TAG, line.trimEnd())
         try {
-            withLock(context) { raf ->
-                raf.seek(raf.length())
-                raf.write(line.toByteArray(Charsets.UTF_8))
-                trimLocked(raf)
-            }
+            append(context, line)
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to write diagnostics", t)
         }
     }
 
     @Synchronized
-    fun error(context: Context, message: String, throwable: Throwable? = null) {
+    fun error(context: Context, message: String, throwable: Throwable?) {
         val details = if (throwable == null) {
             message
         } else {
-            val stack = throwable.stackTraceToString()
-            message + "\n" + throwable::class.java.simpleName + ": " +
-                (throwable.message ?: "") + "\n" + stack
+            message + "\n" + throwable.stackTraceToString()
         }
         Log.e(TAG, details, throwable)
         val line = "[" + format.format(Date()) + "] ERROR: " + details + "\n"
         try {
-            withLock(context) { raf ->
-                raf.seek(raf.length())
-                raf.write(line.toByteArray(Charsets.UTF_8))
-                trimLocked(raf)
-            }
+            append(context, line)
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to write diagnostics", t)
         }
@@ -80,14 +74,19 @@ object NeoTunDiagnostics {
 
     fun read(context: Context): String {
         return try {
-            var result = ""
-            withLock(context) { raf ->
-                raf.seek(0)
-                val bytes = ByteArray(raf.length().coerceAtMost(MAX_LOG.toLong()).toInt())
-                raf.readFully(bytes)
-                result = String(bytes, Charsets.UTF_8)
+            val target = file(context)
+            if (!target.exists()) {
+                return ""
             }
-            result
+
+            RandomAccessFile(target, "r").use { raf ->
+                raf.channel.lock(0L, Long.MAX_VALUE, true).use {
+                    val length = raf.length().coerceAtMost(MAX_LOG.toLong()).toInt()
+                    val bytes = ByteArray(length)
+                    raf.readFully(bytes)
+                    String(bytes, Charsets.UTF_8)
+                }
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to read diagnostics", t)
             ""
@@ -96,12 +95,13 @@ object NeoTunDiagnostics {
 
     private fun trimLocked(raf: RandomAccessFile) {
         val length = raf.length()
-        if (length <= MAX_LOG) return
+        if (length <= MAX_LOG) {
+            return
+        }
 
         val keep = ByteArray(MAX_LOG)
         raf.seek(length - MAX_LOG)
         raf.readFully(keep)
-
         raf.setLength(0)
         raf.seek(0)
         raf.write(keep)
