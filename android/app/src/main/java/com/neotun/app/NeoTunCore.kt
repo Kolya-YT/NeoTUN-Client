@@ -6,4 +6,6 @@ object NeoTunCore {
     external fun nativeVersion(): String
     external fun nativeVlessConfig(uri: String): String
     external fun nativeVlessEngine(uri: String): String
+    external fun nativeShareConfig(uri: String): String
+    external fun nativeShareEngine(uri: String): String
 }
