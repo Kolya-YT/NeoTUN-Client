@@ -55,8 +55,6 @@ NeoTUN использует адаптерную архитектуру: при�
 | Shadowsocks | ✅ | sing-box | 🟡 адаптер |
 | WireGuard | 🚧 | native | следующий этап |
 | AmneziaWG | 🚧 | native | следующий этап |
-| OpenVPN | 🚧 | native | следующий этап |
-| OpenFlux | 🚧 | adapter | следующий этап |
 
 > 🟡 «Адаптер» означает, что формат и конфигурационный путь уже закладываются в архитектуру. Перед объявлением протокола стабильным требуется реальный end-to-end тест.
 
@@ -91,7 +89,7 @@ Android TUN
 ### Сейчас
 
 - ✅ сохранение подписки
-- ✅ URL подписки
+- ✅ импорт подписки из буфера обмена по HTTP(S)-ссылке
 - ✅ Base64 subscription
 - ✅ обычный текстовый список ссылок
 - ✅ импорт нескольких серверов
@@ -117,7 +115,6 @@ Android TUN
 ```text
 Импорт
 
-├─ Добавить подписку
 ├─ Вставить из буфера обмена
 ├─ QR-код
 ├─ Ручной ввод
@@ -490,17 +487,17 @@ Android installer
 
 ## Этап 4 — Protocol engines
 
-- [x] VLESS
-- [x] VLESS XHTTP
-- [🟡] VMess
-- [🟡] Trojan
-- [🟡] Hysteria2
-- [🟡] TUIC
-- [🟡] Shadowsocks
+- [🟡] VLESS — Xray: TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP
+- [🟡] VMess — sing-box
+- [🟡] Trojan — sing-box
+- [🟡] Hysteria2 — sing-box
+- [🟡] TUIC — sing-box
+- [🟡] Shadowsocks — sing-box
 - [ ] WireGuard
 - [ ] AmneziaWG
-- [ ] OpenVPN
-- [ ] OpenFlux
+- [ ] AnyTLS
+- [ ] NaiveProxy
+- [ ] ShadowTLS
 
 > 🟡 Конфигурационный адаптер есть, но полноценный сетевой путь должен пройти реальные тесты перед объявлением протокола стабильным.
 
@@ -583,8 +580,8 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.0
-versionCode: 20
+NeoTUN Android: 0.4.2
+versionCode: 22
 
 Core: Rust
 Platform: Android
