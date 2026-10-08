@@ -297,6 +297,30 @@ class MainActivity : Activity() {
         content.removeAllViews()
         addBackHeader("Профили", "Выберите сервер или добавьте новый")
         content.addView(button("+  Добавить профиль") { showImportMenu() }, margins(bottom = 12))
+
+        val subs = subscriptions.all()
+        if (subs.isNotEmpty()) {
+            val subCard = card()
+            subCard.addView(txt("ПОДПИСКИ", 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
+            subs.forEach { sub ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(8), 0, dp(8))
+                }
+                val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                info.addView(txt(sub.name, 14f, Color.WHITE, Typeface.BOLD))
+                info.addView(txt(
+                    if (sub.lastUpdated > 0) "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
+                    else "Ещё не обновлялась",
+                    11f, Color.rgb(125, 130, 148)
+                ), margins(top = 3))
+                row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(button("↻") { refreshSubscription(sub) }, LinearLayout.LayoutParams(dp(52), dp(42)))
+                subCard.addView(row)
+            }
+            content.addView(subCard, margins(bottom = 12))
+        }
         val selected = selectedProfileId()
         val profiles = store.all()
         if (profiles.isEmpty()) {
