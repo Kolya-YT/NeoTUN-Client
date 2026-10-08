@@ -401,7 +401,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         addView(txt(icon, 17f, Color.rgb(125, 108, 255), Typeface.BOLD, Gravity.CENTER))
         addView(txt(value, 17f, Color.WHITE, Typeface.BOLD, Gravity.CENTER), margins(top = 3))
-        addView(txt(label, 10f, Color.rgb(130, 134, 146), gravity = Gravity.CENTER), margins(top = 2))
+        addView(txt(label, 10f, Color.rgb(130, 134, 146), textGravity = Gravity.CENTER), margins(top = 2))
     }
 
     private fun txt(value: String, size: Float, color: Int, style: Int = Typeface.NORMAL, textGravity: Int = android.view.Gravity.NO_GRAVITY) =
