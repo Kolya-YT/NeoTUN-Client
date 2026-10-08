@@ -29,7 +29,7 @@
 - 🧪 диагностика запуска
 - 🔄 встроенная проверка обновлений приложения
 - 📱 адаптивный интерфейс без переполнения экрана
-- ⚙️ рабочие настройки DNS / IPv6 / MTU / уведомлений / автообновления
+- ⚙️ рабочие настройки DNS / IPv6 / MTU / автообновления
 - 🎨 NeoTUN Dark UI с компактным режимом списка
 
 ---
@@ -519,7 +519,7 @@ Android installer
 - [🟢] VLESS — Xray: TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP — активно тестируется
 - [🟡] VMess — sing-box
 - [🟡] Trojan — sing-box
-- [🟡] Hysteria2 — sing-box — crash fix + config regression test, требуется реальный QUIC/UDP тест
+- [🟡] Hysteria2 — sing-box — URI/port-hopping/public-key-pin adapters, требуется реальный QUIC/UDP тест
 - [🟡] TUIC — sing-box
 - [🟡] Shadowsocks — sing-box
 - [ ] WireGuard
@@ -541,8 +541,7 @@ Android installer
 - [x] MTU setting
 - [x] IPv6 setting
 - [x] Subscription auto-update setting
-- [x] Compact profile list
-- [x] Notification preference
+- [x] Responsive server list
 - [ ] Routing rules
 - [ ] Split tunneling
 - [ ] Kill switch
@@ -614,12 +613,12 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.4
-versionCode: 24
+NeoTUN Android: 0.4.5
+versionCode: 25
 
-Core: Rust
+Core: Rust 0.2.4
 Platform: Android
-Engines: sing-box + Xray
+Engines: sing-box 1.14.1 + Xray
 Status: Active development — Android-first
 ```
 
