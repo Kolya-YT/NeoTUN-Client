@@ -113,10 +113,11 @@ jobs:
           echo "$NEOTUN_KEYSTORE_BASE64" | base64 --decode > "$NEOTUN_KEYSTORE_PATH"
           gradle assembleDebug assembleRelease --no-daemon
 
-      - name: Build APK with temporary debug signing
+      - name: Fail if production signing is not configured
         if: ${{ env.NEOTUN_KEYSTORE_BASE64 == '' || env.NEOTUN_KEYSTORE_PASSWORD == '' || env.NEOTUN_KEY_ALIAS == '' || env.NEOTUN_KEY_PASSWORD == '' }}
-        working-directory: android
-        run: gradle assembleDebug assembleRelease --no-daemon
+        run: |
+          echo "::error::Production signing is not configured. Refusing to publish an APK that cannot update an existing installation."
+          exit 1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -142,7 +143,10 @@ jobs:
         working-directory: android
         run: |
           VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
+          CODE=$(grep -o 'versionCode = [0-9]*' app/build.gradle.kts | head -1 | awk '{print $3}')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION ($CODE)"
 
       - name: Publish GitHub Release from main
         if: github.ref == 'refs/heads/main'
