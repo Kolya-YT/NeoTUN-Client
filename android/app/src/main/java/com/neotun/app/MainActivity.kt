@@ -54,7 +54,9 @@ class MainActivity : Activity() {
         store = ProfileStore(this)
         subscriptions = SubscriptionStore(this)
         migrateLegacyProfile()
-        refreshDueSubscriptions()
+        if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("subscriptions_auto_update", true)) {
+            refreshDueSubscriptions()
+        }
         buildShell()
         showScreen(Screen.HOME)
         handler.post(poll)
@@ -129,7 +131,8 @@ class MainActivity : Activity() {
         val profiles = store.all()
         val selected = selectedProfile(profiles)
         val running = isRunning()
-        val compact = resources.displayMetrics.widthPixels < dp(380)
+        val compact = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("compact_profiles", false) ||
+            resources.displayMetrics.widthPixels < dp(360)
 
         // Top bar — intentionally minimal like HAPP, but with NeoTUN's purple accent.
         val top = LinearLayout(this).apply {
@@ -346,10 +349,12 @@ class MainActivity : Activity() {
             row.addView(box, LinearLayout.LayoutParams(0, -2, 1f))
             if (p.id == selected) row.addView(txt("✓", 20f, Color.rgb(92, 213, 142), Typeface.BOLD))
             item.addView(row)
-            item.addView(txt(maskUri(p.uri), 11f, Color.rgb(105, 110, 128)), margins(top = 10))
+            val compactProfiles = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("compact_profiles", false)
+            item.addView(txt(maskUri(p.uri), if (compactProfiles) 10f else 11f, Color.rgb(105, 110, 128)), margins(top = if (compactProfiles) 6 else 10))
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val actionHeight = if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("compact_profiles", false)) 40 else 44
             actions.addView(button(if (p.id == selected) "Выбран" else "Выбрать") { selectProfile(p) },
-                LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(0, dp(10), dp(5), 0) })
+                LinearLayout.LayoutParams(0, dp(actionHeight), 1f).apply { setMargins(0, dp(8), dp(5), 0) })
             actions.addView(button("⋮") { profileActions(p) },
                 LinearLayout.LayoutParams(dp(54), dp(44)).apply { setMargins(dp(5), dp(10), 0, 0) })
             item.addView(actions)
@@ -365,7 +370,7 @@ class MainActivity : Activity() {
         val about = card()
         about.addView(txt("NeoTUN", 21f, Color.WHITE, Typeface.BOLD))
         about.addView(txt("Core " + NeoTunCore.nativeVersion() + " • Rust", 13f, Color.rgb(145, 150, 168)), margins(top = 5))
-        about.addView(txt("Настройки применяются сразу. Сетевой движок выбирается автоматически по профилю.", 13f, Color.rgb(145, 150, 168)), margins(top = 9))
+        about.addView(txt("MTU, DNS и IPv6 применяются при следующем подключении. Остальные параметры работают сразу.", 13f, Color.rgb(145, 150, 168)), margins(top = 9))
         content.addView(about, margins(bottom = 10))
 
         val connection = settingsSection("СОЕДИНЕНИЕ")
@@ -505,19 +510,111 @@ class MainActivity : Activity() {
             .putString(NeoTunVpnService.KEY_ENGINE, profile.engine)
             .remove(NeoTunVpnService.KEY_ERROR)
             .apply()
+
         if (profile.engine == NeoTunVpnService.ENGINE_XRAY) {
             prefs.edit().remove(NeoTunVpnService.KEY_CONFIG).apply()
         } else {
-            val config = NeoTunCore.nativeShareConfig(profile.uri)
-            if (config.isBlank()) {
-                prefs.edit().putString(NeoTunVpnService.KEY_ERROR, "Не удалось собрать конфигурацию").apply()
+            val rawConfig = NeoTunCore.nativeShareConfig(profile.uri)
+            if (rawConfig.isBlank()) {
+                prefs.edit()
+                    .putString(NeoTunVpnService.KEY_ERROR, "Не удалось собрать конфигурацию")
+                    .apply()
+                renderHome()
+                return
+            }
+            val config = runCatching { applyConnectionSettings(rawConfig) }.getOrElse {
+                prefs.edit()
+                    .putString(NeoTunVpnService.KEY_ERROR, "Ошибка настроек: " + (it.message ?: "некорректная конфигурация"))
+                    .apply()
                 renderHome()
                 return
             }
             prefs.edit().putString(NeoTunVpnService.KEY_CONFIG, config).apply()
         }
+
         val intent = VpnService.prepare(this)
         if (intent != null) startActivityForResult(intent, REQUEST_VPN) else startVpnFromPrefs()
+    }
+
+    /**
+     * Applies the settings screen to the real sing-box configuration.
+     * MTU, DNS and IPv6 are written into the config used by libbox.
+     */
+    private fun applyConnectionSettings(rawConfig: String): String {
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val root = JSONObject(rawConfig)
+        val mtu = prefs.getInt("mtu", 1500).coerceIn(1280, 1500)
+        val ipv6 = prefs.getBoolean("ipv6_enabled", false)
+        val dnsMode = prefs.getString("dns_mode", "Автоматический") ?: "Автоматический"
+
+        val inbounds = root.optJSONArray("inbounds") ?: JSONArray()
+        for (i in 0 until inbounds.length()) {
+            val inbound = inbounds.optJSONObject(i) ?: continue
+            if (!"tun".equals(inbound.optString("type"), true)) continue
+
+            inbound.put("mtu", mtu)
+            val addresses = JSONArray().put("172.19.0.1/30")
+            val routes = JSONArray().put("0.0.0.0/0")
+            if (ipv6) {
+                addresses.put("fdfe:dcba:9876::1/126")
+                routes.put("::/0")
+            }
+            inbound.put("address", addresses)
+            inbound.put("route_address", routes)
+            inbound.remove("inet4_address")
+            inbound.remove("inet6_address")
+            inbound.remove("inet4_route_address")
+            inbound.remove("inet6_route_address")
+            inbound.put("dns_mode", "hijack")
+            inbound.put("dns_address", JSONArray().put("172.19.0.2"))
+        }
+
+        val dnsIp = when {
+            dnsMode.contains("1.1.1.1") -> "1.1.1.1"
+            dnsMode.contains("8.8.8.8") -> "8.8.8.8"
+            dnsMode.contains("9.9.9.9") -> "9.9.9.9"
+            else -> null
+        }
+
+        if (dnsIp == null) {
+            root.remove("dns")
+        } else {
+            root.put("dns", JSONObject()
+                .put("servers", JSONArray().put(
+                    JSONObject()
+                        .put("type", "udp")
+                        .put("tag", "selected-dns")
+                        .put("server", dnsIp)
+                        .put("server_port", 53)
+                ))
+                .put("final", "selected-dns")
+                .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only")
+            )
+        }
+
+        val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
+        route.put("auto_detect_interface", true)
+        route.put("final", "proxy")
+        if (dnsIp != null) {
+            route.put("rules", JSONArray().put(
+                JSONObject().put("protocol", JSONArray().put("dns")).put("outbound", "dns-out")
+            ))
+            val outbounds = root.optJSONArray("outbounds") ?: JSONArray().also { root.put("outbounds", it) }
+            var hasDnsOutbound = false
+            for (i in 0 until outbounds.length()) {
+                if (outbounds.optJSONObject(i)?.optString("tag") == "dns-out") {
+                    hasDnsOutbound = true
+                    break
+                }
+            }
+            if (!hasDnsOutbound) {
+                outbounds.put(JSONObject().put("type", "dns").put("tag", "dns-out"))
+            }
+        } else {
+            route.remove("rules")
+        }
+
+        return root.toString()
     }
 
     private fun startVpnFromPrefs() {
@@ -1079,8 +1176,9 @@ class MainActivity : Activity() {
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(16), dp(16), dp(16))
-        background = rounded(Color.rgb(18, 19, 26), 18, Color.rgb(30, 31, 41), 1)
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        background = rounded(Color.rgb(15, 18, 30), 20, Color.rgb(35, 39, 61), 1)
+        elevation = dp(1).toFloat()
     }
 
     private fun rounded(fill: Int, radius: Int, stroke: Int? = null, strokeWidth: Int = 0): GradientDrawable =
@@ -1100,7 +1198,7 @@ class MainActivity : Activity() {
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(8), 0, dp(8), 0)
-        background = rounded(Color.rgb(35, 36, 46), 14, Color.rgb(48, 49, 61), 1)
+        background = rounded(Color.rgb(30, 34, 55), 14, Color.rgb(62, 59, 103), 1)
         setOnClickListener { action() }
     }
 
