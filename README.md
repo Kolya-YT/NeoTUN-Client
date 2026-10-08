@@ -134,6 +134,9 @@ Link / QR / File / Subscription
 - [x] APK download/install flow
 - [x] Profile persistence
 - [x] Cross-process connection diagnostics
+- [x] Android profile/server list UI
+- [x] Profile add/rename/delete/select UI
+- [x] Home / Profiles / Settings navigation
 
 ### ⚠️ Важно
 
@@ -264,6 +267,7 @@ Workflow использует Android SDK, уже установленный н�
 - [ ] Reconnection
 
 ### Этап 3 — Импорт профилей
+- [x] Initial unified profile storage for Android UI
 - [ ] Unified profile model for all formats
 - [ ] VMess parser
 - [ ] Trojan parser
@@ -290,7 +294,7 @@ Workflow использует Android SDK, уже установленный н�
 - [ ] OpenFlux
 
 ### Этап 5 — Возможности клиента
-- [ ] Server/profile list
+- [x] Server/profile list
 - [ ] Subscription auto-update
 - [ ] Ping/latency
 - [ ] Upload/download statistics
@@ -323,7 +327,7 @@ Workflow использует Android SDK, уже установленный н�
 
 В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
 
-После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.2.7`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
+После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.3.0`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
 
 > ⚠️ Release APK, подписанный временным debug-ключом, нельзя гарантированно установить поверх APK, подписанного другим ключом. Для нормальных in-place обновлений нужно настроить production keystore в GitHub Secrets.
 
@@ -339,7 +343,7 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 
 ```text
 NeoTUN Core 0.2.0
-Android app 0.2.7
+Android app 0.3.0
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
@@ -370,3 +374,14 @@ Android app 0.2.7
 ### Android UI и управление соединением
 
 В версии 0.2.7 кнопка подключения стала переключателем состояния: при активном туннеле она превращается в **«Отключить»** и корректно останавливает Android VPN/Xray или sing-box. Во время активного соединения поле профиля блокируется, чтобы случайно не изменить конфигурацию работающего туннеля.
+
+
+### Android UI 0.3.0
+
+Версия 0.3.0 начинает полноценную оболочку клиента без изменения уже работающего сетевого пути.
+
+На главном экране находятся состояние соединения, выбранный сервер, кнопка подключения/отключения, задел под статистику и диагностика. Отдельный экран **«Профили»** хранит несколько VLESS-конфигураций локально: профиль можно добавить, выбрать, переименовать или удалить. Экран **«Настройки»** содержит updater, диагностику и текущий статус протоколов.
+
+Старый одиночный VLESS-профиль автоматически переносится в новое хранилище при первом запуске после обновления.
+
+Следующий шаг этапа 0.3 — реальные **traffic statistics + ping + reconnect**, затем QR/import/subscription и расширение парсеров.
