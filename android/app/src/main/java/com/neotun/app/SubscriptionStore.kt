@@ -54,8 +54,7 @@ class SubscriptionStore(context: Context) {
 
         var imported = 0
         links.forEach { uri ->
-            if (!uri.startsWith("vless://", true)) return@forEach
-            val engine = NeoTunCore.nativeVlessEngine(uri)
+            val engine = NeoTunCore.nativeShareEngine(uri)
             if (engine == "unknown") return@forEach
             profiles.save(NeoTunProfile(
                 UUID.randomUUID().toString(),
@@ -65,7 +64,7 @@ class SubscriptionStore(context: Context) {
             ))
             imported++
         }
-        if (imported == 0) error("В подписке нет поддерживаемых VLESS-профилей")
+        if (imported == 0) error("В подписке нет поддерживаемых профилей")
         save(subscription.copy(lastUpdated = System.currentTimeMillis()))
         imported
     }
