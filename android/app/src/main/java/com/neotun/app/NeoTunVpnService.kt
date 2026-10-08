@@ -22,6 +22,11 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     private var running = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DISCONNECT) {
+            stopServiceInternal()
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (!running) {
             startForegroundNotification()
             platform = NeoTunPlatform(this)
@@ -55,6 +60,11 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         super.onBind(intent) ?: error("VPN binder unavailable")
 
     override fun onDestroy() {
+        stopServiceInternal()
+        super.onDestroy()
+    }
+
+    private fun stopServiceInternal() {
         if (::commandServer.isInitialized) {
             runCatching { commandServer.closeService() }
             runCatching { commandServer.close() }
@@ -64,7 +74,6 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             .edit()
             .putBoolean(KEY_RUNNING, false)
             .apply()
-        super.onDestroy()
     }
 
     override fun serviceStop() = stopSelf()
@@ -140,5 +149,6 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         const val KEY_RUNNING = "running"
         const val ENGINE_SING_BOX = "sing-box"
         const val ENGINE_XRAY = "xray"
+        const val ACTION_DISCONNECT = "com.neotun.app.action.DISCONNECT_SINGBOX"
     }
 }
