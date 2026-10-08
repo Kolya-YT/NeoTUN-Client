@@ -20,6 +20,11 @@ class NeoTunXrayVpnService : VpnService() {
     private var running = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DISCONNECT) {
+            stopTunnel()
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (running) return START_NOT_STICKY
 
         NeoTunDiagnostics.clear(this)
@@ -292,6 +297,11 @@ class NeoTunXrayVpnService : VpnService() {
 
     override fun onDestroy() {
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
+        stopTunnel()
+        super.onDestroy()
+    }
+
+    private fun stopTunnel() {
         if (running || tunFd >= 0) {
             runCatching {
                 NeoTunXrayBridge.nativeInvoke(
@@ -315,7 +325,6 @@ class NeoTunXrayVpnService : VpnService() {
             .edit()
             .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
             .apply()
-        super.onDestroy()
     }
 
     private fun stopWithError(message: String) {
@@ -393,5 +402,6 @@ class NeoTunXrayVpnService : VpnService() {
 
     companion object {
         const val EXTRA_URI = "neotun.xray.uri"
+        const val ACTION_DISCONNECT = "com.neotun.app.action.DISCONNECT_XRAY"
     }
 }
