@@ -2,9 +2,10 @@
 <resources>
     <style name="Theme.NeoTUN" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#6C63FF</item>
+        <item name="android:colorAccent">#7D6CFF</item>
         <item name="android:navigationBarColor">#0B0B0F</item>
         <item name="android:statusBarColor">#0B0B0F</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
 </resources>
