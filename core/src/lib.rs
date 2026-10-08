@@ -460,7 +460,6 @@ mod tests {
         assert_eq!(profile.port, 443);
     }
 }
-}
 
 fn add_tls(outbound: &mut serde_json::Value, params: &HashMap<String,String>) {
     let enabled=params.get("security").map(|v| v=="tls" || v=="reality" || v.is_empty()).unwrap_or(true);
