@@ -79,7 +79,6 @@ class NeoTunXrayVpnService : VpnService() {
 
         NeoTunDiagnostics.log(this, "Этап 3/8: создание Android VpnService TUN")
         val vpnBuilder = Builder()
-            .setSession("NeoTUN Xray")
             .setMtu(1500)
             .setMetered(false)
             // Keep NeoTUN/Xray process sockets outside its own VPN. The Xray
@@ -90,17 +89,8 @@ class NeoTunXrayVpnService : VpnService() {
             .addRoute("::", 0)
             .addDnsServer(vpnDns)
 
-        val vpnInterface = vpnBuilder
-            .also { setUnderlyingNetworks(activeNetwork?.let { network -> arrayOf(network) }) }
-            .establish()
-            .setSession("NeoTUN Xray")
-            .setMtu(1500)
-            .setMetered(false)
-            .addAddress("172.19.0.1", 30)
-            .addRoute("0.0.0.0", 0)
-            .addRoute("::", 0)
-            .addDnsServer(dns)
-            .establish()
+        setUnderlyingNetworks(activeNetwork?.let { network -> arrayOf(network) })
+        val vpnInterface = vpnBuilder.establish()
             ?: error("Не удалось создать Android TUN")
 
         tunFd = vpnInterface.detachFd()
@@ -158,7 +148,7 @@ class NeoTunXrayVpnService : VpnService() {
         val streamForLog = firstOutbound.optJSONObject("streamSettings")
         NeoTunDiagnostics.log(
             this,
-            "Outbound: protocol=" + firstOutbound?.optString("protocol", "?") +
+            "Outbound: protocol=" + firstOutbound.optString("protocol", "?") +
                 ", network=" + streamForLog?.optString("network", "?") +
                 ", security=" + streamForLog?.optString("security", "?")
         )
