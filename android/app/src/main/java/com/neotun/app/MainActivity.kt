@@ -360,36 +360,142 @@ class MainActivity : Activity() {
     private fun renderSettings() {
         content.removeAllViews()
         addBackHeader("Настройки", "NeoTUN • Android")
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+
         val about = card()
         about.addView(txt("NeoTUN", 21f, Color.WHITE, Typeface.BOLD))
-        about.addView(txt("Core " + NeoTunCore.nativeVersion(), 13f, Color.rgb(145, 150, 168)), margins(top = 5))
-        about.addView(txt("Сетевой движок выбирается автоматически по профилю.", 13f, Color.rgb(145, 150, 168)), margins(top = 10))
+        about.addView(txt("Core " + NeoTunCore.nativeVersion() + " • Rust", 13f, Color.rgb(145, 150, 168)), margins(top = 5))
+        about.addView(txt("Настройки применяются сразу. Сетевой движок выбирается автоматически по профилю.", 13f, Color.rgb(145, 150, 168)), margins(top = 9))
         content.addView(about, margins(bottom = 10))
-        content.addView(button("Проверить обновления") { checkUpdates() }, margins(bottom = 8))
-        content.addView(button("Лог подключения") { diagnostics() }, margins(bottom = 14))
 
-        val protocols = card()
-        protocols.addView(txt("ПРОТОКОЛЫ", 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
+        val connection = settingsSection("СОЕДИНЕНИЕ")
+        connection.addView(settingsRow("⚡ Режим подключения", "Автоматический", "NeoTUN выбирает Xray или sing-box по профилю") { toast("Автоматический выбор движка включён") })
+        connection.addView(settingsRow("🌐 DNS", prefs.getString("dns_mode", "Автоматический") ?: "Автоматический", "DNS внутри VPN") { showDnsSettings() })
+        connection.addView(settingsRow("📡 IPv6", if (prefs.getBoolean("ipv6_enabled", false)) "Включён" else "Выключен", "IPv6-маршрутизация через TUN") { toggleSetting("ipv6_enabled", "IPv6") { renderSettings() } })
+        connection.addView(settingsRow("🔌 MTU", prefs.getInt("mtu", 1500).toString(), "Размер пакета VPN-интерфейса") { showMtuSettings() })
+        content.addView(connection, margins(bottom = 10))
+
+        val subscriptionsSection = settingsSection("ПОДПИСКИ")
+        subscriptionsSection.addView(settingsRow("🔄 Автообновление", if (prefs.getBoolean("subscriptions_auto_update", true)) "Включено" else "Выключено", "Обновлять подписки при запуске приложения") { toggleSetting("subscriptions_auto_update", "Автообновление") { renderSettings() } })
+        subscriptionsSection.addView(settingsRow("📋 Импорт из буфера", "Автоматический", "HTTP(S) → подписка, share-link → профиль") { toast("Импорт из буфера настроен автоматически") })
+        subscriptionsSection.addView(settingsRow("🗂️ Управление профилями", "${store.all().size} профилей", "Удаление, переименование и выбор профиля") { showScreen(Screen.PROFILES) })
+        content.addView(subscriptionsSection, margins(bottom = 10))
+
+        val appearance = settingsSection("ВНЕШНИЙ ВИД")
+        appearance.addView(settingsRow("🎨 Тема", "NeoTUN Dark", "Тёмная тема приложения") { toast("NeoTUN Dark — основной стиль приложения") })
+        appearance.addView(settingsRow("📱 Компактный список", if (prefs.getBoolean("compact_profiles", false)) "Включён" else "Выключен", "Уменьшить высоту карточек профилей") { toggleSetting("compact_profiles", "Компактный список") { renderSettings(); showScreen(Screen.PROFILES) } })
+        content.addView(appearance, margins(bottom = 10))
+
+        val behavior = settingsSection("ПОВЕДЕНИЕ")
+        behavior.addView(settingsRow("🔔 Уведомления", if (prefs.getBoolean("notifications_enabled", true)) "Включены" else "Выключены", "Системное уведомление активного соединения") { toggleSetting("notifications_enabled", "Уведомления") { renderSettings() } })
+        behavior.addView(settingsRow("🧪 Диагностика", "Журнал", "Ошибки запуска, TUN, DNS и сетевого движка") { diagnostics() })
+        behavior.addView(settingsRow("♻️ Сбросить настройки", "", "Профили и подписки не удаляются") { confirmResetSettings() })
+        content.addView(behavior, margins(bottom = 10))
+
+        val protocols = settingsSection("ПРОТОКОЛЫ")
         listOf(
-            "VLESS" to "Xray • TCP / WS / gRPC / XHTTP",
-            "VMess" to "sing-box • тестируется",
-            "Trojan" to "sing-box • тестируется",
-            "Hysteria2" to "sing-box • тестируется",
-            "TUIC" to "sing-box • тестируется",
-            "Shadowsocks" to "sing-box • тестируется",
+            "VLESS" to "Xray • TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP",
+            "VMess" to "sing-box • проверяется",
+            "Trojan" to "sing-box • проверяется",
+            "Hysteria2" to "sing-box • проверяется",
+            "TUIC" to "sing-box • проверяется",
+            "Shadowsocks" to "sing-box • проверяется",
             "WireGuard / AmneziaWG" to "Следующий этап"
         ).forEach { pair ->
-            val r = LinearLayout(this).apply {
+            val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(9), 0, dp(9))
             }
-            r.addView(txt(pair.first, 14f, Color.WHITE), LinearLayout.LayoutParams(0, -2, 1f))
-            r.addView(txt(pair.second, 12f, Color.rgb(137, 142, 160), Gravity.END),
-                LinearLayout.LayoutParams(0, -2, 1f))
-            protocols.addView(r)
+            row.addView(txt(pair.first, 14f, Color.WHITE), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(txt(pair.second, 11f, Color.rgb(137, 142, 160), Gravity.END).apply {
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, -2, 1.25f))
+            protocols.addView(row)
         }
-        content.addView(protocols)
+        content.addView(protocols, margins(bottom = 12))
+        content.addView(button("Проверить обновления") { checkUpdates() }, margins(bottom = 8))
+        content.addView(button("Лог подключения") { diagnostics() }, margins(bottom = 18))
+    }
+
+    private fun settingsSection(title: String): LinearLayout {
+        val section = card()
+        section.addView(txt(title, 12f, Color.rgb(139, 126, 255), Typeface.BOLD), margins(bottom = 4))
+        return section
+    }
+
+    private fun settingsRow(title: String, value: String, summary: String, action: () -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(11), 0, dp(11))
+            isClickable = true
+            setOnClickListener { action() }
+        }
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(txt(title, 14f, Color.WHITE, Typeface.BOLD))
+        if (summary.isNotBlank()) texts.addView(txt(summary, 11f, Color.rgb(125, 130, 148)).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 3))
+        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        if (value.isNotBlank()) row.addView(txt(value, 12f, Color.rgb(151, 139, 255), textGravity = Gravity.END).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, LinearLayout.LayoutParams(dp(125), -2))
+        row.addView(txt("›", 25f, Color.rgb(100, 102, 120), textGravity = Gravity.CENTER), LinearLayout.LayoutParams(dp(28), dp(42)))
+        return row
+    }
+
+    private fun toggleSetting(key: String, label: String, after: () -> Unit) {
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val enabled = !prefs.getBoolean(key, key != "ipv6_enabled")
+        prefs.edit().putBoolean(key, enabled).apply()
+        toast("$label: " + if (enabled) "включено" else "выключено")
+        after()
+    }
+
+    private fun showDnsSettings() {
+        val values = arrayOf("Автоматический", "Cloudflare • 1.1.1.1", "Google • 8.8.8.8", "Quad9 • 9.9.9.9")
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val checked = values.indexOf(prefs.getString("dns_mode", values[0])).coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("DNS").setSingleChoiceItems(values, checked) { dialog, which ->
+            prefs.edit().putString("dns_mode", values[which]).apply()
+            dialog.dismiss()
+            renderSettings()
+        }.setNegativeButton("Отмена", null).show()
+    }
+
+    private fun showMtuSettings() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(getSharedPreferences(UI_PREFS, MODE_PRIVATE).getInt("mtu", 1500).toString())
+            selectAll()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("MTU")
+            .setMessage("Рекомендуется 1500. Для проблемных сетей можно попробовать 1280–1500.")
+            .setView(input)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val mtu = input.text.toString().toIntOrNull()?.coerceIn(1280, 1500) ?: 1500
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().putInt("mtu", mtu).apply()
+                toast("MTU: $mtu")
+                renderSettings()
+            }.show()
+    }
+
+    private fun confirmResetSettings() {
+        AlertDialog.Builder(this)
+            .setTitle("Сбросить настройки?")
+            .setMessage("Будут сброшены настройки интерфейса. Профили и подписки не удаляются.")
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сбросить") { _, _ ->
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().clear().apply()
+                toast("Настройки сброшены")
+                renderSettings()
+            }.show()
     }
 
     private fun connect(profile: NeoTunProfile) {
