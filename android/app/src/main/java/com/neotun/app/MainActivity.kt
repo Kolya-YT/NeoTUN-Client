@@ -278,10 +278,10 @@ class MainActivity : Activity() {
         val singBox = Intent(this, NeoTunVpnService::class.java)
             .setAction(NeoTunVpnService.ACTION_DISCONNECT)
 
+        // Let each VPN service receive the explicit disconnect action and
+        // perform its own Xray/sing-box shutdown before releasing the TUN.
         runCatching { startService(xray) }
         runCatching { startService(singBox) }
-        runCatching { stopService(xray) }
-        runCatching { stopService(singBox) }
 
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
             .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
