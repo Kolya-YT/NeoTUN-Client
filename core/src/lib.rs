@@ -113,14 +113,93 @@ impl Profile {
 
     fn from_hysteria2_uri(uri: &str) -> Result<Self, String> {
         let scheme = if uri.to_ascii_lowercase().starts_with("hy2://") {"hy2://"} else {"hysteria2://"};
-        let (user, hostport, query) = Self::from_authority_uri(uri, scheme)?;
-        let (address, port) = Self::split_hostport(hostport)?;
+        let (user, hostport_raw, query) = Self::from_authority_uri(uri, scheme)?;
+        let hostport = hostport_raw.trim_end_matches('/');
+
+        // Hysteria 2 supports both a normal port and port-hopping ranges
+        // such as 443,5000-6000. sing-box exposes the latter as server_ports.
+        let (address, port, server_ports) = Self::split_hysteria_hostport(hostport)?;
         let mut params=HashMap::new();
+
         for pair in query.split('&').filter(|x| !x.is_empty()) {
             let (k,v)=pair.split_once('=').unwrap_or((pair,""));
             params.insert(percent_decode(k)?, percent_decode(v)?);
         }
-        Ok(Self { protocol:"hysteria2".into(), address, port, name: uri.split_once('#').and_then(|(_,x)| percent_decode(x).ok()), uuid:None, password:Some(percent_decode(user)?), params })
+
+        // Common exporters use these aliases. Normalize them once here so
+        // the engine adapter stays simple and deterministic.
+        if !params.contains_key("server_ports") {
+            if let Some(ports) = params.get("mport").or_else(|| params.get("ports")).cloned() {
+                params.insert("server_ports".into(), ports);
+            } else if let Some(ports) = server_ports {
+                params.insert("server_ports".into(), ports);
+            }
+        }
+        if !params.contains_key("hop_interval") {
+            if let Some(value) = params.get("mportHopInt").or_else(|| params.get("portHopInt")).cloned() {
+                if let Ok(seconds) = value.parse::<u64>() {
+                    params.insert("hop_interval".into(), format!("{}s", seconds));
+                }
+            }
+        }
+        if let Some(value) = params.get("up").cloned() {
+            if !params.contains_key("up_mbps") {
+                params.insert("up_mbps".into(), value);
+            }
+        }
+        if let Some(value) = params.get("down").cloned() {
+            if !params.contains_key("down_mbps") {
+                params.insert("down_mbps".into(), value);
+            }
+        }
+
+        Ok(Self {
+            protocol:"hysteria2".into(),
+            address,
+            port,
+            name: uri.split_once('#').and_then(|(_,x)| percent_decode(x).ok()),
+            uuid:None,
+            password:Some(percent_decode(user)?),
+            params
+        })
+    }
+
+    fn split_hysteria_hostport(hostport: &str) -> Result<(String, u16, Option<String>), String> {
+        if let Some(stripped) = hostport.strip_prefix('[') {
+            let (host, rest) = stripped.split_once(']').ok_or("Некорректный IPv6")?;
+            let port_part = rest.strip_prefix(':').unwrap_or("");
+            if port_part.is_empty() {
+                return Ok((host.to_string(), 443, None));
+            }
+            let first_port = port_part
+                .split(',')
+                .next()
+                .and_then(|v| v.split('-').next())
+                .ok_or("Порт отсутствует")?
+                .parse::<u16>()
+                .map_err(|_| "Некорректный порт")?;
+            return Ok((host.to_string(), first_port, Some(port_part.to_string())));
+        }
+
+        let (host, port_part) = hostport.rsplit_once(':').unwrap_or((hostport, ""));
+        if port_part.is_empty() {
+            return Ok((percent_decode(host)?, 443, None));
+        }
+
+        let first_port = port_part
+            .split(',')
+            .next()
+            .and_then(|v| v.split('-').next())
+            .ok_or("Порт отсутствует")?
+            .parse::<u16>()
+            .map_err(|_| "Некорректный порт")?;
+
+        let ports = if port_part.contains(',') || port_part.contains('-') {
+            Some(port_part.to_string())
+        } else {
+            None
+        };
+        Ok((percent_decode(host)?, first_port, ports))
     }
 
     fn from_tuic_uri(uri: &str) -> Result<Self, String> {
@@ -186,19 +265,34 @@ impl Profile {
                     "network":"udp",
                     "tls":{"enabled":true}
                 });
-                // Hysteria2 is QUIC/UDP. Keep the outbound explicitly on UDP and
-                // provide the standard h3 ALPN when the share link does not carry
-                // one. This avoids ambiguous defaults in libbox on Android.
+
+                if let Some(ports) = self.params.get("server_ports")
+                    .filter(|v| !v.trim().is_empty()) {
+                    o["server_ports"] = serde_json::json!(
+                        ports.split(',')
+                            .map(str::trim)
+                            .filter(|v| !v.is_empty())
+                            .map(str::to_string)
+                            .collect::<Vec<_>>()
+                    );
+                }
+
+                if let Some(interval)=self.params.get("hop_interval").filter(|v| !v.is_empty()) {
+                    o["hop_interval"]=serde_json::json!(interval);
+                }
+
                 if let Some(sni)=self.params.get("sni")
                     .or_else(||self.params.get("peer"))
                     .filter(|v| !v.trim().is_empty()) {
                     o["tls"]["server_name"]=serde_json::json!(sni);
                 }
+
                 if self.params.get("insecure")
                     .map(|v| v=="1" || v.eq_ignore_ascii_case("true"))
                     .unwrap_or(false) {
                     o["tls"]["insecure"]=serde_json::json!(true);
                 }
+
                 if let Some(alpn)=self.params.get("alpn").filter(|v| !v.trim().is_empty()) {
                     let values: Vec<String> = alpn.split(',')
                         .map(str::trim)
@@ -211,21 +305,33 @@ impl Profile {
                 } else {
                     o["tls"]["alpn"]=serde_json::json!(["h3"]);
                 }
+
+                // Hysteria 2 exporters may expose a TLS fingerprint as "fp".
+                // Keep it compatible with sing-box's uTLS adapter when present.
+                if let Some(fp)=self.params.get("fp").filter(|v| !v.trim().is_empty()) {
+                    o["tls"]["utls"]=serde_json::json!({"enabled":true,"fingerprint":fp});
+                }
+
                 if let Some(obfs)=self.params.get("obfs").map(|v|v.to_ascii_lowercase()) {
                     if obfs=="salamander" || obfs=="gecko" {
                         if let Some(password)=self.params.get("obfs-password")
                             .or_else(||self.params.get("obfs_password"))
                             .filter(|v| !v.is_empty()) {
-                            o["obfs"]=serde_json::json!({"type":obfs,"password":password});
+                            let mut obfs_value=serde_json::json!({"type":obfs,"password":password});
+                            if obfs=="gecko" {
+                                obfs_value["min_packet_size"]=serde_json::json!(512);
+                                obfs_value["max_packet_size"]=serde_json::json!(1200);
+                            }
+                            o["obfs"]=obfs_value;
                         }
                     }
                 }
+
                 let up = self.params.get("up_mbps").and_then(|v|v.parse::<u64>().ok());
                 let down = self.params.get("down_mbps").and_then(|v|v.parse::<u64>().ok());
-                if let (Some(up), Some(down)) = (up, down) {
-                    o["up_mbps"]=serde_json::json!(up);
-                    o["down_mbps"]=serde_json::json!(down);
-                }
+                if let Some(up)=up { o["up_mbps"]=serde_json::json!(up); }
+                if let Some(down)=down { o["down_mbps"]=serde_json::json!(down); }
+
                 o
             },
             "tuic" => {
@@ -301,7 +407,7 @@ impl Profile {
             },
             _ => return Err("Протокол не поддерживается".into())
         };
-        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"route":{"auto_detect_interface":true,"final":"proxy"}});
+        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"auto_detect_interface":true,"final":"proxy"}});
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
     }
 
@@ -589,6 +695,15 @@ mod tests {
         assert!(config.contains("\"server_name\":\"example.com\""));
         assert!(config.contains("\"type\":\"salamander\""));
         assert!(config.contains("\"alpn\":[\"h3\"]"));
+
+        let hopping = Profile::from_share_uri(
+            "hy2://secret@example.com:443,5000-6000/?sni=example.com&mportHopInt=30&up=50&down=100"
+        ).unwrap();
+        let hopping_config = hopping.to_generic_sing_box_json().unwrap();
+        assert!(hopping_config.contains("\"server_ports\":[\"443\",\"5000-6000\"]"));
+        assert!(hopping_config.contains("\"hop_interval\":\"30s\""));
+        assert!(hopping_config.contains("\"up_mbps\":50"));
+        assert!(hopping_config.contains("\"down_mbps\":100"));
     }
 
     #[test]
