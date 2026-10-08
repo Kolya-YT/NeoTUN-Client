@@ -263,8 +263,8 @@ Workflow использует Android SDK, уже установленный н�
 - [ ] Сквозное VLESS-тестирование sing-box и Xray/XHTTP
 - [x] Connect/disconnect state machine
 - [x] Connection diagnostics
-- [ ] Traffic statistics
-- [ ] Reconnection
+- [x] Traffic statistics
+- [x] Reconnection
 
 ### Этап 3 — Импорт профилей
 - [x] Initial unified profile storage for Android UI
@@ -296,7 +296,7 @@ Workflow использует Android SDK, уже установленный н�
 ### Этап 5 — Возможности клиента
 - [x] Server/profile list
 - [ ] Subscription auto-update
-- [ ] Ping/latency
+- [x] Ping/latency
 - [x] Upload/download statistics
 - [ ] DNS configuration
 - [ ] Routing rules
@@ -342,8 +342,8 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 ## 📊 Текущая версия
 
 ```text
-NeoTUN Core 0.2.0
-Android app 0.3.3
+NeoTUN Core 0.2.3
+Android app 0.3.4
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
@@ -384,4 +384,6 @@ Android app 0.3.3
 
 Старый одиночный VLESS-профиль автоматически переносится в новое хранилище при первом запуске после обновления.
 
-Версия 0.3.1 добавляет реальные **traffic statistics** по Android TUN-интерфейсу: суммарный входящий/исходящий трафик сессии и текущую скорость. Имя активного TUN определяется через `ConnectivityManager`/`LinkProperties`, а счётчики читаются из `/proc/net/dev` без зависимости от трафика самого приложения.\n\nСледующий шаг этапа 0.3 — **ping + reconnect**, затем QR/import/subscription и расширение парсеров.
+Версия 0.3.1 добавляет реальные **traffic statistics** по Android TUN-интерфейсу: суммарный входящий/исходящий трафик сессии и текущую скорость. Имя активного TUN определяется через `ConnectivityManager`/`LinkProperties`. На устройствах, где userspace TUN не отдаёт обновляемые счётчики через `/proc/net/dev`, используется резервный счётчик `TrafficStats`.
+
+Версия 0.3.4 добавляет **ping профиля** через `libXray pingBatch` и безопасное **переподключение**: приложение ждёт полного освобождения VPN/TUN перед повторным запуском. Ping выполняется только когда туннель отключён, потому что актуальный libXray сериализует `pingBatch` с управляемым запущенным Xray instance. citeturn3view0\n\nСледующий шаг этапа 0.3 — **QR/import/subscription**, затем расширение парсеров и полноценное автоматическое восстановление соединения при смене сети.
