@@ -126,17 +126,32 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             error("Определение владельца соединения доступно с Android 10")
         }
-        val uid = connectivity.getConnectionOwnerUid(
-            ipProtocol,
-            InetSocketAddress(sourceAddress, sourcePort),
-            InetSocketAddress(destinationAddress, destinationPort),
-        )
-        if (uid == Process.INVALID_UID) error("Владелец соединения не найден")
-        val packages = vpn.packageManager.getPackagesForUid(uid).orEmpty()
-        return ConnectionOwner().apply {
-            userId = uid
-            userName = packages.firstOrNull() ?: ""
-            setAndroidPackageNames(NeoTunStringIterator(packages.toList()))
+        return runCatching {
+            val uid = connectivity.getConnectionOwnerUid(
+                ipProtocol,
+                InetSocketAddress(sourceAddress, sourcePort),
+                InetSocketAddress(destinationAddress, destinationPort),
+            )
+            val packages = if (uid != Process.INVALID_UID) {
+                vpn.packageManager.getPackagesForUid(uid).orEmpty()
+            } else {
+                emptyArray()
+            }
+            ConnectionOwner().apply {
+                userId = uid
+                userName = packages.firstOrNull() ?: ""
+                setAndroidPackageNames(NeoTunStringIterator(packages.toList()))
+            }
+        }.getOrElse {
+            // UDP/QUIC flows (notably Hysteria2) can arrive without a resolvable
+            // Android owner. Never throw from the libbox callback: a Kotlin
+            // exception crossing the gomobile boundary can terminate the app.
+            android.util.Log.w("NeoTUN", "Connection owner lookup failed", it)
+            ConnectionOwner().apply {
+                userId = Process.INVALID_UID
+                userName = ""
+                setAndroidPackageNames(NeoTunStringIterator(emptyList()))
+            }
         }
     }
 
