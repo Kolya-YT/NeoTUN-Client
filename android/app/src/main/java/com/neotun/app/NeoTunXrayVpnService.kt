@@ -172,8 +172,7 @@ class NeoTunXrayVpnService : VpnService() {
                         .put(
                             "settings",
                             JSONObject()
-                                .put("mtu", 1500)
-                                .put("gateway", JSONArray().put("172.19.0.1/30")),
+                                .put("mtu", 1500),
                         ),
                 ),
             )
