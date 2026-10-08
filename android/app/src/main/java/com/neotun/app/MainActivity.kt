@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.VpnService
+import android.net.LinkProperties
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -21,7 +22,13 @@ class MainActivity : Activity() {
     private lateinit var nav: LinearLayout
     private var screen = Screen.HOME
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val poll = object : Runnable {
+    private var trafficInterface: String? = null
+    private var trafficBaseRx = -1L
+    private var trafficBaseTx = -1L
+    private var trafficLastRx = -1L
+    private var trafficLastTx = -1L
+    private var trafficLastAt = 0L
+      private val poll = object : Runnable {
         override fun run() {
             if (!isFinishing) {
                 if (screen == Screen.HOME) renderHome()
@@ -106,17 +113,18 @@ class MainActivity : Activity() {
         }
         content.addView(connect, margins(bottom = 12))
 
+        val traffic = readVpnTraffic()
         val stats = card()
         stats.addView(txt("СТАТИСТИКА", 12f, Color.rgb(145, 149, 162), Typeface.BOLD))
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        row.addView(metric("↓", "—", "Получено"), LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(metric("↑", "—", "Отправлено"), LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(metric("◌", "—", "Задержка"), LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(metric("↓", formatBytes(traffic.sessionRx), "Получено"), LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(metric("↑", formatBytes(traffic.sessionTx), "Отправлено"), LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(metric("◌", if (traffic.hasTraffic) formatRate(traffic.rxRate) + " / " + formatRate(traffic.txRate) else "—", "Скорость"), LinearLayout.LayoutParams(0, -2, 1f))
         stats.addView(row, margins(top = 14))
-        stats.addView(txt("Статистика и ping подключим следующим шагом.", 12f, Color.rgb(125, 129, 141)), margins(top = 10))
+        stats.addView(txt(if (traffic.interfaceName != null) "TUN: " + traffic.interfaceName else "Ожидаем активный TUN-интерфейс…", 12f, Color.rgb(125, 129, 141)), margins(top = 10))
         content.addView(stats, margins(bottom = 12))
         content.addView(button("Открыть диагностику") { diagnostics() })
     }
@@ -436,6 +444,85 @@ class MainActivity : Activity() {
         setSelectedProfile(p.id)
     }
 
+    private data class TrafficSnapshot(
+        val interfaceName: String?,
+        val sessionRx: Long,
+        val sessionTx: Long,
+        val rxRate: Long,
+        val txRate: Long,
+        val hasTraffic: Boolean,
+    )
+
+    private fun readVpnTraffic(): TrafficSnapshot {
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val vpnNetwork = connectivity.allNetworks.firstOrNull { network ->
+            connectivity.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        }
+        val interfaceName = vpnNetwork?.let(connectivity::getLinkProperties)?.interfaceName
+        if (interfaceName.isNullOrBlank()) {
+            resetTrafficCounters()
+            return TrafficSnapshot(null, 0L, 0L, 0L, 0L, false)
+        }
+        val counters = readInterfaceCounters(interfaceName) ?: return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (trafficInterface != interfaceName || trafficBaseRx < 0L || trafficBaseTx < 0L) {
+            trafficInterface = interfaceName
+            trafficBaseRx = counters.first
+            trafficBaseTx = counters.second
+            trafficLastRx = counters.first
+            trafficLastTx = counters.second
+            trafficLastAt = now
+            return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
+        }
+        val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)
+        val rxRate = ((counters.first - trafficLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
+        val txRate = ((counters.second - trafficLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
+        trafficLastRx = counters.first
+        trafficLastTx = counters.second
+        trafficLastAt = now
+        return TrafficSnapshot(interfaceName, (counters.first - trafficBaseRx).coerceAtLeast(0L), (counters.second - trafficBaseTx).coerceAtLeast(0L), rxRate, txRate, rxRate > 0L || txRate > 0L)
+    }
+
+    private fun readInterfaceCounters(interfaceName: String): Pair<Long, Long>? {
+        return runCatching {
+            java.io.File("/proc/net/dev").useLines { lines ->
+                val line = lines.firstOrNull { it.trimStart().startsWith(interfaceName + ":") } ?: return@useLines null
+                val data = line.substringAfter(":").trim().split(" ").filter { it.isNotBlank() }
+                if (data.size < 9) return@useLines null
+                val rx = data[0].toLongOrNull() ?: return@useLines null
+                val tx = data[8].toLongOrNull() ?: return@useLines null
+                rx to tx
+            }
+        }.getOrNull()
+    }
+
+    private fun resetTrafficCounters() {
+        trafficInterface = null
+        trafficBaseRx = -1L
+        trafficBaseTx = -1L
+        trafficLastRx = -1L
+        trafficLastTx = -1L
+        trafficLastAt = 0L
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        val value = bytes.coerceAtLeast(0L).toDouble()
+        return when {
+            value >= 1024.0 * 1024.0 * 1024.0 -> String.format("%.1f GB", value / (1024.0 * 1024.0 * 1024.0))
+            value >= 1024.0 * 1024.0 -> String.format("%.1f MB", value / (1024.0 * 1024.0))
+            value >= 1024.0 -> String.format("%.0f KB", value / 1024.0)
+            else -> bytes.coerceAtLeast(0L).toString() + " B"
+        }
+    }
+
+    private fun formatRate(bytesPerSecond: Long): String {
+        val value = bytesPerSecond.coerceAtLeast(0L).toDouble()
+        return when {
+            value >= 1024.0 * 1024.0 -> String.format("%.1f MB/s", value / (1024.0 * 1024.0))
+            value >= 1024.0 -> String.format("%.0f KB/s", value / 1024.0)
+            else -> bytesPerSecond.coerceAtLeast(0L).toString() + " B/s"
+        }
+    }
     private fun isRunning(): Boolean {
         val connectivity = getSystemService(ConnectivityManager::class.java)
         val vpnActive = connectivity.allNetworks.any { network ->
