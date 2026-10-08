@@ -58,8 +58,6 @@ impl Profile {
             params,
         })
     }
-}
-
 
     pub fn from_share_uri(uri: &str) -> Result<Self, String> {
         let normalized = uri.trim();
@@ -84,7 +82,7 @@ impl Profile {
         Err("Неподдерживаемая ссылка".into())
     }
 
-    fn from_authority_uri(uri: &str, scheme: &str) -> Result<(&str, &str, &str), String> {
+    fn from_authority_uri<'a>(uri: &'a str, scheme: &str) -> Result<(&'a str, &'a str, &'a str), String> {
         let rest = uri.strip_prefix(scheme).ok_or("Некорректная схема")?;
         let (main, _) = rest.split_once('#').map_or((rest, ""), |(a,b)|(a,b));
         let (authority, query) = main.split_once('?').map_or((main, ""), |(a,b)|(a,b));
@@ -191,7 +189,6 @@ impl Profile {
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
     }
 
-impl Profile {
     pub fn to_sing_box_json(&self) -> Result<String, String> {
         if self.protocol != "vless" {
             return Err("Пока реализована генерация sing-box только для VLESS".into());
