@@ -16,7 +16,7 @@
 - 🦀 Rust Core
 - ⚡ sing-box / libbox
 - 🚀 Xray / libXray
-- 🔄 автоматический выбор движка
+- 🔄 автоматический выбор движка по профилю
 - 📋 несколько профилей
 - 📡 подписки
 - 🔄 обновление подписок
@@ -28,7 +28,9 @@
 - 🔁 переподключение
 - 🧪 диагностика запуска
 - 🔄 встроенная проверка обновлений приложения
-- 📱 адаптивный интерфейс
+- 📱 адаптивный интерфейс без переполнения экрана
+- ⚙️ рабочие настройки DNS / IPv6 / MTU / уведомлений / автообновления
+- 🎨 NeoTUN Dark UI с компактным режимом списка
 
 ---
 
@@ -41,18 +43,18 @@ NeoTUN использует адаптерную архитектуру: при�
 | Протокол | Импорт | Движок | Статус |
 |---|---:|---|---|
 | VLESS | ✅ | sing-box / Xray | 🟡 активно тестируется |
-| VLESS TCP | ✅ | sing-box | 🟡 активно тестируется |
+| VLESS TCP | ✅ | Xray | 🟢 проверяется реальным трафиком |
 | VLESS WebSocket | ✅ | sing-box | 🟡 активно тестируется |
 | VLESS gRPC | ✅ | sing-box | 🟡 активно тестируется |
 | VLESS HTTP | ✅ | sing-box | 🟡 активно тестируется |
 | VLESS HTTPUpgrade | ✅ | sing-box | 🟡 активно тестируется |
 | VLESS XHTTP | ✅ | Xray | 🟡 активно тестируется |
 | VLESS SplitHTTP | ✅ | Xray | 🟡 активно тестируется |
-| VMess | ✅ | sing-box | 🟡 адаптер |
-| Trojan | ✅ | sing-box | 🟡 адаптер |
-| Hysteria2 | ✅ | sing-box | 🟡 адаптер |
-| TUIC | ✅ | sing-box | 🟡 адаптер |
-| Shadowsocks | ✅ | sing-box | 🟡 адаптер |
+| VMess | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
+| Trojan | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
+| Hysteria2 | ✅ | sing-box | 🟡 исправлен конфиг, проходит end-to-end тестирование |
+| TUIC | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
+| Shadowsocks | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
 | WireGuard | 🚧 | native | следующий этап |
 | AmneziaWG | 🚧 | native | следующий этап |
 
@@ -101,8 +103,9 @@ Android TUN
 - ✅ Shadowsocks
 - ✅ ручное обновление
 - ✅ автоматическое обновление
-- 🚧 управление подписками в полноценном UI
-- 🚧 QR subscription import
+- 🟡 управление подписками в UI
+- 🟡 QR import
+- 🟡 автообновление с учётом настройки пользователя
 
 Автообновление сейчас выполняется примерно раз в **12 часов**.
 
@@ -133,7 +136,7 @@ tuic://
 ss://
 ```
 
-QR-сканер находится в ближайшем этапе разработки.
+QR-сканер пока находится в разработке.
 
 ---
 
@@ -191,11 +194,11 @@ NeoTUN автоматически выбирает подходящий движ
 ```text
 VLESS TCP
    ↓
-sing-box
+Xray
 
 VLESS Reality
    ↓
-sing-box / Xray
+Xray
 
 VLESS XHTTP
    ↓
@@ -247,6 +250,26 @@ sing-box
 ```
 
 Основная цель — минимум экранов и действий для обычного подключения.
+
+---
+
+
+# ⚙️ Настройки Android
+
+Настройки NeoTUN разделены на параметры интерфейса и параметры, которые реально передаются сетевому движку при следующем подключении.
+
+| Настройка | Поведение |
+|---|---|
+| 🌐 DNS | Автоматический / Cloudflare / Google / Quad9; применяется к sing-box и Xray |
+| 📡 IPv6 | Включает IPv6-адрес и маршрут TUN |
+| 🔌 MTU | 1280–1500; применяется к TUN |
+| 🔄 Автообновление | Управляет автоматическим обновлением подписок |
+| 📱 Компактный список | Меняет высоту и плотность карточек профилей |
+| 🔔 Уведомления | Меняет важность уведомления VPN-сервиса; системное уведомление активного VPN полностью убрать нельзя |
+| 🧪 Диагностика | Показывает журнал запуска и сетевого пути |
+| ♻️ Сброс настроек | Возвращает настройки интерфейса к значениям по умолчанию без удаления профилей |
+
+Изменения DNS / IPv6 / MTU применяются при следующем подключении, чтобы не ломать уже работающий TUN.
 
 ---
 
@@ -463,7 +486,13 @@ Android installer
 - [x] VLESS parser
 - [x] sing-box
 - [x] Xray
-- [x] VLESS TCP\n- [x] VLESS WebSocket\n- [x] VLESS gRPC\n- [x] VLESS HTTP\n- [x] VLESS HTTPUpgrade\n- [x] VLESS XHTTP\n- [x] VLESS SplitHTTP
+- [x] VLESS TCP
+- [x] VLESS WebSocket
+- [x] VLESS gRPC
+- [x] VLESS HTTP
+- [x] VLESS HTTPUpgrade
+- [x] VLESS XHTTP
+- [x] VLESS SplitHTTP
 - [x] Profile storage
 - [x] Connect / disconnect
 - [x] Reconnect
@@ -487,10 +516,10 @@ Android installer
 
 ## Этап 4 — Protocol engines
 
-- [🟡] VLESS — Xray: TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP
+- [🟢] VLESS — Xray: TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP — активно тестируется
 - [🟡] VMess — sing-box
 - [🟡] Trojan — sing-box
-- [🟡] Hysteria2 — sing-box
+- [🟡] Hysteria2 — sing-box — crash fix + config regression test, требуется реальный QUIC/UDP тест
 - [🟡] TUIC — sing-box
 - [🟡] Shadowsocks — sing-box
 - [ ] WireGuard
@@ -508,12 +537,17 @@ Android installer
 - [x] Traffic statistics
 - [x] Reconnect
 - [x] In-app updater
-- [ ] DNS settings
+- [x] DNS settings
+- [x] MTU setting
+- [x] IPv6 setting
+- [x] Subscription auto-update setting
+- [x] Compact profile list
+- [x] Notification preference
 - [ ] Routing rules
 - [ ] Split tunneling
 - [ ] Kill switch
 - [ ] Auto-connect
-- [ ] Background notifications
+- [x] Background VPN notification
 - [ ] Per-profile statistics
 - [ ] Speed graph
 - [ ] QR scanner
@@ -580,13 +614,13 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.2
-versionCode: 22
+NeoTUN Android: 0.4.4
+versionCode: 24
 
 Core: Rust
 Platform: Android
 Engines: sing-box + Xray
-Status: Active development
+Status: Active development — Android-first
 ```
 
 ---
@@ -594,6 +628,42 @@ Status: Active development
 # 📄 License
 
 Смотрите файл [LICENSE](LICENSE).
+
+---
+
+## 🧪 Статус тестирования
+
+На текущем этапе нельзя считать все протоколы стабильными только по успешному созданию конфигурации. Основной критерий — реальный трафик через Android TUN.
+
+### Проверяем в первую очередь
+
+1. VLESS TCP — реальный трафик, reconnect и disconnect.
+2. VLESS XHTTP / Reality — текущий рабочий путь.
+3. Hysteria2 — QUIC/UDP, включая запуск без crash.
+4. TUIC — QUIC/UDP.
+5. VMess / Trojan / Shadowsocks — TCP/UDP в зависимости от транспорта.
+
+Каждый протокол должен пройти цепочку:
+
+```text
+Share link
+ ↓
+Parser
+ ↓
+Config
+ ↓
+Engine
+ ↓
+Android TUN
+ ↓
+DNS
+ ↓
+Real traffic
+ ↓
+Reconnect
+ ↓
+Disconnect
+```
 
 ---
 
