@@ -369,11 +369,11 @@ class MainActivity : Activity() {
         protocols.addView(txt("ПРОТОКОЛЫ", 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
         listOf(
             "VLESS" to "Работает • sing-box / Xray",
-            "Hysteria2" to "Следующий этап",
-            "TUIC" to "Следующий этап",
-            "VMess" to "Следующий этап",
-            "Trojan" to "Следующий этап",
-            "Shadowsocks" to "Следующий этап",
+            "VMess" to "Работает • sing-box",
+            "Trojan" to "Работает • sing-box",
+            "Hysteria2" to "Работает • sing-box",
+            "TUIC" to "Работает • sing-box",
+            "Shadowsocks" to "Работает • sing-box",
             "WireGuard / AmneziaWG" to "Следующий этап"
         ).forEach { pair ->
             val r = LinearLayout(this).apply {
