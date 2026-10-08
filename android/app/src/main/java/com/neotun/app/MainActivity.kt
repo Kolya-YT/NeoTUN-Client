@@ -371,12 +371,12 @@ class MainActivity : Activity() {
         val protocols = card()
         protocols.addView(txt("ПРОТОКОЛЫ", 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
         listOf(
-            "VLESS" to "Работает • sing-box / Xray",
-            "VMess" to "Работает • sing-box",
-            "Trojan" to "Работает • sing-box",
-            "Hysteria2" to "Работает • sing-box",
-            "TUIC" to "Работает • sing-box",
-            "Shadowsocks" to "Работает • sing-box",
+            "VLESS" to "Xray • TCP / WS / gRPC / XHTTP",
+            "VMess" to "sing-box • тестируется",
+            "Trojan" to "sing-box • тестируется",
+            "Hysteria2" to "sing-box • тестируется",
+            "TUIC" to "sing-box • тестируется",
+            "Shadowsocks" to "sing-box • тестируется",
             "WireGuard / AmneziaWG" to "Следующий этап"
         ).forEach { pair ->
             val r = LinearLayout(this).apply {
@@ -474,14 +474,13 @@ class MainActivity : Activity() {
     }
 
     private fun showImportMenu() {
-        val items = arrayOf("Добавить подписку", "Вставить из буфера обмена", "QR-код", "Ручной ввод", "Импорт JSON")
+        val items = arrayOf("Вставить из буфера обмена", "QR-код", "Ручной ввод", "Импорт JSON")
         AlertDialog.Builder(this).setTitle("Импорт").setItems(items) { _, which ->
             when (which) {
-                0 -> addSubscriptionDialog()
-                1 -> importClipboard()
-                2 -> toast("QR-сканер добавим следующим этапом")
-                3 -> addProfileDialog()
-                4 -> importJsonDialog()
+                0 -> importClipboard()
+                1 -> toast("QR-сканер добавим следующим этапом")
+                2 -> addProfileDialog()
+                3 -> importJsonDialog()
             }
         }.show()
     }
@@ -539,8 +538,54 @@ class MainActivity : Activity() {
     private fun importClipboard() {
         val clipboard = getSystemService(android.content.ClipboardManager::class.java)
         val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString().orEmpty().trim()
-        if (text.isBlank()) { toast("Буфер обмена пуст"); return }
+        if (text.isBlank()) {
+            toast("Буфер обмена пуст")
+            return
+        }
+
+        // A single HTTP(S) URL is a subscription. Share links are imported as profiles.
+        val firstToken = text.lineSequence()
+            .flatMap { it.trim().split(Regex("[,\\s]+")).asSequence() }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+
+        if (firstToken.startsWith("http://", true) || firstToken.startsWith("https://", true)) {
+            addSubscriptionFromClipboard(firstToken)
+            return
+        }
+
         importText(text)
+    }
+
+    private fun addSubscriptionFromClipboard(url: String) {
+        val name = runCatching {
+            java.net.URI(url).host?.takeIf { it.isNotBlank() } ?: "Подписка"
+        }.getOrDefault("Подписка")
+
+        val existing = subscriptions.all().firstOrNull { it.url == url }
+        val subscription = existing ?: NeoTunSubscription(
+            UUID.randomUUID().toString(),
+            name,
+            url
+        )
+
+        subscriptions.save(subscription)
+        toast("Импорт подписки: $name…")
+        Thread {
+            val result = subscriptions.refresh(subscription, store)
+            runOnUiThread {
+                result.onSuccess {
+                    if (selectedProfileId() == null) {
+                        store.all().firstOrNull()?.let { setSelectedProfile(it.id) }
+                    }
+                    showScreen(Screen.HOME)
+                    toast("Подписка импортирована: $it профилей")
+                }.onFailure {
+                    showScreen(Screen.PROFILES)
+                    toast("Не удалось импортировать подписку: ${it.message ?: "ошибка"}")
+                }
+            }
+        }.start()
     }
 
     private fun importJsonDialog() {
@@ -616,7 +661,7 @@ class MainActivity : Activity() {
     }
     private fun addProfileDialog() {
         val input = EditText(this).apply {
-            hint = "vless://..."
+            hint = "vless:// / vmess:// / hy2:// / tuic:// / ss:// ..."
             minLines = 4
             maxLines = 8
             gravity = Gravity.TOP
@@ -629,7 +674,7 @@ class MainActivity : Activity() {
         }
         val dialog = AlertDialog.Builder(this)
             .setTitle("Добавить профиль")
-            .setMessage("Вставьте VLESS-ссылку. Название можно изменить позже.")
+            .setMessage("Вставьте ссылку VLESS, VMess, Trojan, Hysteria2, TUIC или Shadowsocks.")
             .setView(box)
             .setNegativeButton("Отмена", null)
             .setPositiveButton("Сохранить") { _, _ -> saveProfile(input.text.toString().trim()) }
@@ -647,19 +692,21 @@ class MainActivity : Activity() {
     }
 
     private fun saveProfile(uri: String) {
-        if (!uri.startsWith("vless://", true)) {
-            toast("Поддерживается VLESS-ссылка vless://...")
-            return
-        }
-        val engine = NeoTunCore.nativeVlessEngine(uri)
+        val engine = NeoTunCore.nativeShareEngine(uri)
         if (engine == "unknown") {
-            toast("Не удалось разобрать VLESS-ссылку")
+            toast("Не удалось разобрать ссылку")
             return
         }
-        val p = NeoTunProfile(java.util.UUID.randomUUID().toString(), ProfileStore.displayNameFromUri(uri), uri, engine)
+        val p = NeoTunProfile(
+            java.util.UUID.randomUUID().toString(),
+            ProfileStore.displayNameFromUri(uri),
+            uri,
+            engine
+        )
         store.save(p)
         setSelectedProfile(p.id)
         showScreen(Screen.PROFILES)
+        toast("Профиль добавлен")
     }
 
     private fun selectProfile(p: NeoTunProfile) {
