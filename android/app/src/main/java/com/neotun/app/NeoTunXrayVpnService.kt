@@ -81,12 +81,15 @@ class NeoTunXrayVpnService : VpnService() {
         val vpnBuilder = Builder()
             .setMtu(1500)
             .setMetered(false)
+            .setBlocking(true)
             // Keep NeoTUN/Xray process sockets outside its own VPN. The Xray
             // socket controller also calls VpnService.protect() as a second guard.
             .addDisallowedApplication(packageName)
             .addAddress("172.19.0.1", 30)
+            // Start with IPv4-only routing. Xray receives the Android TUN fd;
+            // enabling a parallel IPv6 default route here can blackhole IPv6-first
+            // Android connections until IPv6 handling is implemented end-to-end.
             .addRoute("0.0.0.0", 0)
-            .addRoute("::", 0)
             .addDnsServer(vpnDns)
 
         setUnderlyingNetworks(activeNetwork?.let { network -> arrayOf(network) })
@@ -94,7 +97,7 @@ class NeoTunXrayVpnService : VpnService() {
             ?: error("Не удалось создать Android TUN")
 
         tunFd = vpnInterface.detachFd()
-        NeoTunDiagnostics.log(this, "TUN создан, fd=$tunFd, MTU=1500, route=IPv4+IPv6")
+        NeoTunDiagnostics.log(this, "TUN создан, fd=$tunFd, MTU=1500, route=IPv4")
 
         // The VPN must already be established before VpnService.protect() can
         // protect Xray outbound sockets and the Go DNS resolver.
@@ -185,7 +188,6 @@ class NeoTunXrayVpnService : VpnService() {
                 JSONArray().put(
                     JSONObject()
                         .put("tag", "tun")
-                        .put("port", 0)
                         .put("protocol", "tun")
                         .put(
                             "settings",
