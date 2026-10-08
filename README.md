@@ -297,7 +297,7 @@ Workflow использует Android SDK, уже установленный н�
 - [x] Server/profile list
 - [ ] Subscription auto-update
 - [ ] Ping/latency
-- [ ] Upload/download statistics
+- [x] Upload/download statistics
 - [ ] DNS configuration
 - [ ] Routing rules
 - [ ] Split tunneling
@@ -327,7 +327,7 @@ Workflow использует Android SDK, уже установленный н�
 
 В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
 
-После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.3.0`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
+После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.3.1`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
 
 > ⚠️ Release APK, подписанный временным debug-ключом, нельзя гарантированно установить поверх APK, подписанного другим ключом. Для нормальных in-place обновлений нужно настроить production keystore в GitHub Secrets.
 
@@ -343,7 +343,7 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 
 ```text
 NeoTUN Core 0.2.0
-Android app 0.3.0
+Android app 0.3.1
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
@@ -384,4 +384,4 @@ Android app 0.3.0
 
 Старый одиночный VLESS-профиль автоматически переносится в новое хранилище при первом запуске после обновления.
 
-Следующий шаг этапа 0.3 — реальные **traffic statistics + ping + reconnect**, затем QR/import/subscription и расширение парсеров.
+Версия 0.3.1 добавляет реальные **traffic statistics** по Android TUN-интерфейсу: суммарный входящий/исходящий трафик сессии и текущую скорость. Имя активного TUN определяется через `ConnectivityManager`/`LinkProperties`, а счётчики читаются из `/proc/net/dev` без зависимости от трафика самого приложения.\n\nСледующий шаг этапа 0.3 — **ping + reconnect**, затем QR/import/subscription и расширение парсеров.
