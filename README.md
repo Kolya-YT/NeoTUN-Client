@@ -323,7 +323,7 @@ Workflow использует Android SDK, уже установленный н�
 
 В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
 
-После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.2.2`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
+После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.2.3`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
 
 > ⚠️ Release APK, подписанный временным debug-ключом, нельзя гарантированно установить поверх APK, подписанного другим ключом. Для нормальных in-place обновлений нужно настроить production keystore в GitHub Secrets.
 
@@ -339,7 +339,7 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 
 ```text
 NeoTUN Core 0.2.0
-Android app 0.2.2
+Android app 0.2.3
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
@@ -350,6 +350,10 @@ Android app 0.2.2
 ### XHTTP + REALITY
 
 Для VLESS XHTTP поверх REALITY NeoTUN явно использует эффективный режим `stream-one` при `mode=auto`, как это делает актуальный Xray-core.
+
+### Android Xray TUN и современные версии Android
+
+Для Android Xray получает уже созданный `VpnService` TUN через `xray.tun.fd`. В конфигурации задаётся стабильное имя TUN, чтобы Xray не пытался автоматически перечислять системные интерфейсы через Go `net.Interfaces()`: на современных Android такой доступ может завершаться `netlinkrib: permission denied`. Это обходится без изменения системных маршрутов — маршрутизацией управляет `VpnService`.
 
 ### Диагностика подключения Android
 
