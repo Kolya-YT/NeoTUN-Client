@@ -278,13 +278,23 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(4), dp(20), 0)
             addView(input, LinearLayout.LayoutParams(-1, dp(130)))
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Добавить профиль")
             .setMessage("Вставьте VLESS-ссылку. Название можно изменить позже.")
             .setView(box)
             .setNegativeButton("Отмена", null)
             .setPositiveButton("Сохранить") { _, _ -> saveProfile(input.text.toString().trim()) }
-            .show()
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun styleDialog(dialog: AlertDialog) {
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.rgb(24, 25, 32)))
+        dialog.window?.setDimAmount(0.72f)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.rgb(139, 120, 255))
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.rgb(155, 159, 170))
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(Color.rgb(155, 159, 170))
     }
 
     private fun saveProfile(uri: String) {
@@ -317,16 +327,18 @@ class MainActivity : Activity() {
 
     private fun rename(p: NeoTunProfile) {
         val input = EditText(this).apply { setText(p.name); selectAll() }
-        AlertDialog.Builder(this).setTitle("Переименовать").setView(input)
+        val dialog = AlertDialog.Builder(this).setTitle("Переименовать").setView(input)
             .setNegativeButton("Отмена", null)
             .setPositiveButton("Сохранить") { _, _ ->
                 store.rename(p.id, input.text.toString())
                 renderProfiles()
-            }.show()
+            }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun confirmDelete(p: NeoTunProfile) {
-        AlertDialog.Builder(this).setTitle("Удалить профиль?").setMessage(p.name)
+        val dialog = AlertDialog.Builder(this).setTitle("Удалить профиль?").setMessage(p.name)
             .setNegativeButton("Отмена", null)
             .setPositiveButton("Удалить") { _, _ ->
                 store.delete(p.id)
@@ -334,7 +346,12 @@ class MainActivity : Activity() {
                     getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().remove(SELECTED).apply()
                 }
                 renderProfiles()
-            }.show()
+            }.create()
+        dialog.setOnShowListener {
+            styleDialog(dialog)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.rgb(255, 102, 118))
+        }
+        dialog.show()
     }
 
     private fun diagnostics() {
@@ -344,9 +361,12 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(8), dp(20), dp(8))
             setTextIsSelectable(true)
         }
-        AlertDialog.Builder(this).setTitle("Диагностика NeoTUN")
+        val dialog = AlertDialog.Builder(this).setTitle("Диагностика NeoTUN")
             .setView(ScrollView(this).apply { addView(view) })
-            .setPositiveButton("Закрыть", null).show()
+            .setPositiveButton("Закрыть", null)
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun checkUpdates() {
