@@ -130,9 +130,9 @@ class AppUpdater(private val context: Context) {
         }
 
         val sameSigner = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val currentSigners = current.signingInfo.apkContentsSigners
-            val archiveSigners = archive.signingInfo?.apkContentsSigners
-            currentSigners.contentEquals(archiveSigners ?: emptyArray())
+            val currentSigners = current.signingInfo?.apkContentsSigners ?: emptyArray()
+            val archiveSigners = archive.signingInfo?.apkContentsSigners ?: emptyArray()
+            currentSigners.contentEquals(archiveSigners)
         } else {
             @Suppress("DEPRECATION")
             current.signatures.contentEquals(archive.signatures)
