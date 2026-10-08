@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Bundle
 import android.text.InputType
@@ -434,7 +436,16 @@ class MainActivity : Activity() {
         setSelectedProfile(p.id)
     }
 
-    private fun isRunning() = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+    private fun isRunning(): Boolean {
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val vpnActive = connectivity.allNetworks.any { network ->
+            connectivity.getNetworkCapabilities(network)
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        }
+        return vpnActive ||
+            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+    }
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
