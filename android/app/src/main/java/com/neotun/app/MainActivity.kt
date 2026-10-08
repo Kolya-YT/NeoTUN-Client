@@ -102,7 +102,7 @@ class MainActivity : Activity() {
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
 
-                val topInset = dp(18) + bars.top
+            val topInset = dp(18) + bars.top
             val bottomInset = dp(20) + bars.bottom
 
             content.setPadding(
@@ -129,14 +129,13 @@ class MainActivity : Activity() {
             insets
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(nav) { _, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            nav.setPadding(
-                dp(8) + bars.left,
-                dp(4),
-                dp(8) + bars.right,
-                dp(4) + bars.bottom
-            )
+        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val bottom = bars.bottom
+            view.setPadding(dp(8) + bars.left, dp(4), dp(8) + bars.right, dp(4))
+            val params = view.layoutParams
+            params.height = dp(60) + bottom
+            view.layoutParams = params
             insets
         }
 
