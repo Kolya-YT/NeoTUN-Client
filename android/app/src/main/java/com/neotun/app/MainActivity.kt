@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.VpnService
@@ -51,11 +53,11 @@ class MainActivity : Activity() {
     private fun buildShell() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(9, 10, 14))
+            setBackgroundColor(Color.rgb(7, 8, 12))
         }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(12))
+            setPadding(dp(18), dp(22), dp(18), dp(14))
         }
         root.addView(ScrollView(this).apply {
             isFillViewport = true
@@ -64,10 +66,10 @@ class MainActivity : Activity() {
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(10), dp(8), dp(10), dp(10))
+            setPadding(dp(10), dp(7), dp(10), dp(8))
             setBackgroundColor(Color.rgb(15, 16, 22))
         }
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(76)))
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(72)))
         setContentView(root)
     }
 
@@ -86,6 +88,14 @@ class MainActivity : Activity() {
         val profiles = store.all()
         val selected = selectedProfile(profiles)
         header("NeoTUN", if (isRunning()) "Защищённое соединение активно" else "Быстрое и простое подключение")
+        val error = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).getString(NeoTunVpnService.KEY_ERROR, null)
+        if (!error.isNullOrBlank() && !isRunning()) {
+            val errorCard = card()
+            errorCard.background = rounded(Color.rgb(45, 24, 29), 16, Color.rgb(104, 48, 57), 1)
+            errorCard.addView(txt("Не удалось подключиться", 14f, Color.rgb(255, 154, 165), Typeface.BOLD))
+            errorCard.addView(txt(error, 12f, Color.rgb(210, 165, 171)), margins(top = 5))
+            content.addView(errorCard, margins(bottom = 12))
+        }
 
         val state = card()
         state.addView(txt(if (isRunning()) "●  ПОДКЛЮЧЕНО" else "○  НЕ ПОДКЛЮЧЕНО", 13f,
@@ -104,7 +114,7 @@ class MainActivity : Activity() {
             isAllCaps = false
             setTextColor(Color.WHITE)
             minHeight = dp(56)
-            setBackgroundColor(if (isRunning()) Color.rgb(155, 54, 64) else Color.rgb(96, 78, 220))
+            background = rounded(if (isRunning()) Color.rgb(163, 57, 68) else Color.rgb(111, 91, 235), 16)
             setOnClickListener {
                 if (isRunning()) disconnect()
                 else if (selected == null) showScreen(Screen.PROFILES)
@@ -150,7 +160,7 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER_VERTICAL
             }
             val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            box.addView(txt(p.name, 18f, Color.WHITE, Typeface.BOLD))
+            box.addView(txt(p.name, 18f, Color.WHITE, Typeface.BOLD).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
             box.addView(txt("VLESS  •  " + engineLabel(p.engine), 12f, Color.rgb(150, 154, 166)), margins(top = 4))
             row.addView(box, LinearLayout.LayoutParams(0, -2, 1f))
             if (p.id == selected) row.addView(txt("✓", 20f, Color.rgb(92, 213, 142), Typeface.BOLD))
@@ -270,7 +280,7 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Добавить профиль")
-            .setMessage("Вставьте VLESS-ссылку. Название возьмём из #fragment.")
+            .setMessage("Вставьте VLESS-ссылку. Название можно изменить позже.")
             .setView(box)
             .setNegativeButton("Отмена", null)
             .setPositiveButton("Сохранить") { _, _ -> saveProfile(input.text.toString().trim()) }
@@ -386,15 +396,22 @@ class MainActivity : Activity() {
     }
 
     private fun header(title: String, subtitle: String) {
-        content.addView(txt(title, 30f, Color.WHITE, Typeface.BOLD))
+        content.addView(txt(title, 32f, Color.WHITE, Typeface.BOLD))
         content.addView(txt(subtitle, 14f, Color.rgb(145, 149, 162)), margins(top = 5, bottom = 18))
     }
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(18), dp(18), dp(18), dp(18))
-        setBackgroundColor(Color.rgb(20, 21, 28))
+        background = rounded(Color.rgb(18, 19, 26), 18, Color.rgb(30, 31, 41), 1)
     }
+
+    private fun rounded(fill: Int, radius: Int, stroke: Int? = null, strokeWidth: Int = 0): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(fill)
+            cornerRadius = dp(radius).toFloat()
+            if (stroke != null && strokeWidth > 0) setStroke(dp(strokeWidth), stroke)
+        }
 
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
         text = label
@@ -402,7 +419,7 @@ class MainActivity : Activity() {
         isAllCaps = false
         setTextColor(Color.WHITE)
         minHeight = dp(48)
-        setBackgroundColor(Color.rgb(35, 36, 46))
+        background = rounded(Color.rgb(35, 36, 46), 14, Color.rgb(48, 49, 61), 1)
         setOnClickListener { action() }
     }
 
@@ -416,6 +433,7 @@ class MainActivity : Activity() {
 
     private fun txt(value: String, size: Float, color: Int, style: Int = Typeface.NORMAL, textGravity: Int = android.view.Gravity.NO_GRAVITY) =
         TextView(this).apply {
+            includeFontPadding = false
             text = value
             textSize = size
             setTextColor(color)
@@ -430,7 +448,14 @@ class MainActivity : Activity() {
     private fun selectedProfile(list: List<NeoTunProfile>) = list.firstOrNull { it.id == selectedProfileId() } ?: list.firstOrNull()
     private fun selectedProfileId() = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getString(SELECTED, null)
     private fun setSelectedProfile(id: String) = getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().putString(SELECTED, id).apply()
-    private fun maskUri(uri: String) = uri.replace(Regex("(?<=://).{0,10}@"), "••••••••@")
+    private fun maskUri(uri: String): String {
+        val authority = uri.substringAfter("://", "").substringBefore('?').substringBefore('#')
+        val host = authority.substringAfter('@', authority).substringBeforeLast(':')
+        val query = uri.substringAfter('?', "").substringBefore('#')
+        val transport = Regex("(?:^|&)type=([^&]+)").find(query)?.groupValues?.getOrNull(1)?.uppercase()
+        val security = Regex("(?:^|&)security=([^&]+)").find(query)?.groupValues?.getOrNull(1)?.uppercase()
+        return listOfNotNull(host.ifBlank { null }, transport, security).joinToString("  •  ").ifBlank { "VLESS-подключение" }
+    }
 
     private fun migrateLegacyProfile() {
         if (store.all().isNotEmpty()) return
