@@ -330,3 +330,159 @@ mod tests {
         assert_eq!(profile.port, 443);
     }
 }
+    pub fn from_share_uri(uri: &str) -> Result<Self, String> {
+        let normalized = uri.trim();
+        if normalized.to_ascii_lowercase().starts_with("vless://") {
+            return Self::from_vless_uri(normalized);
+        }
+        if normalized.to_ascii_lowercase().starts_with("trojan://") {
+            return Self::from_trojan_uri(normalized);
+        }
+        if normalized.to_ascii_lowercase().starts_with("hysteria2://") || normalized.to_ascii_lowercase().starts_with("hy2://") {
+            return Self::from_hysteria2_uri(normalized);
+        }
+        if normalized.to_ascii_lowercase().starts_with("tuic://") {
+            return Self::from_tuic_uri(normalized);
+        }
+        if normalized.to_ascii_lowercase().starts_with("ss://") {
+            return Self::from_shadowsocks_uri(normalized);
+        }
+        if normalized.to_ascii_lowercase().starts_with("vmess://") {
+            return Self::from_vmess_uri(normalized);
+        }
+        Err("Неподдерживаемая ссылка".into())
+    }
+
+    fn from_authority_uri(uri: &str, scheme: &str) -> Result<(&str, &str, &str), String> {
+        let rest = uri.strip_prefix(scheme).ok_or("Некорректная схема")?;
+        let (main, _) = rest.split_once('#').map_or((rest, ""), |(a,b)|(a,b));
+        let (authority, query) = main.split_once('?').map_or((main, ""), |(a,b)|(a,b));
+        let (user, hostport) = authority.rsplit_once('@').ok_or("В ссылке отсутствуют учётные данные")?;
+        Ok((user, hostport, query))
+    }
+
+    fn split_hostport(hostport: &str) -> Result<(String, u16), String> {
+        if let Some(stripped) = hostport.strip_prefix('[') {
+            let (host, rest) = stripped.split_once(']').ok_or("Некорректный IPv6")?;
+            let port: u16 = rest.strip_prefix(':').ok_or("Порт отсутствует")?.parse().map_err(|_| "Некорректный порт")?;
+            return Ok((host.to_string(), port));
+        }
+        let (host, port) = hostport.rsplit_once(':').ok_or("Порт отсутствует")?;
+        Ok((percent_decode(host)?, port.parse().map_err(|_| "Некорректный порт")?))
+    }
+
+    fn from_trojan_uri(uri: &str) -> Result<Self, String> {
+        let (user, hostport, query) = Self::from_authority_uri(uri, "trojan://")?;
+        let (address, port) = Self::split_hostport(hostport)?;
+        let mut params = HashMap::new();
+        for pair in query.split('&').filter(|x| !x.is_empty()) {
+            let (k,v)=pair.split_once('=').unwrap_or((pair,""));
+            params.insert(percent_decode(k)?, percent_decode(v)?);
+        }
+        Ok(Self { protocol:"trojan".into(), address, port, name: uri.split_once('#').and_then(|(_,x)| percent_decode(x).ok()), uuid:None, password:Some(percent_decode(user)?), params })
+    }
+
+    fn from_hysteria2_uri(uri: &str) -> Result<Self, String> {
+        let scheme = if uri.to_ascii_lowercase().starts_with("hy2://") {"hy2://"} else {"hysteria2://"};
+        let (user, hostport, query) = Self::from_authority_uri(uri, scheme)?;
+        let (address, port) = Self::split_hostport(hostport)?;
+        let mut params=HashMap::new();
+        for pair in query.split('&').filter(|x| !x.is_empty()) {
+            let (k,v)=pair.split_once('=').unwrap_or((pair,""));
+            params.insert(percent_decode(k)?, percent_decode(v)?);
+        }
+        Ok(Self { protocol:"hysteria2".into(), address, port, name: uri.split_once('#').and_then(|(_,x)| percent_decode(x).ok()), uuid:None, password:Some(percent_decode(user)?), params })
+    }
+
+    fn from_tuic_uri(uri: &str) -> Result<Self, String> {
+        let (user, hostport, query) = Self::from_authority_uri(uri, "tuic://")?;
+        let (uuid, password) = user.split_once(':').ok_or("TUIC требует UUID:пароль")?;
+        let (address, port) = Self::split_hostport(hostport)?;
+        let mut params=HashMap::new();
+        for pair in query.split('&').filter(|x| !x.is_empty()) {
+            let (k,v)=pair.split_once('=').unwrap_or((pair,""));
+            params.insert(percent_decode(k)?, percent_decode(v)?);
+        }
+        Ok(Self { protocol:"tuic".into(), address, port, name: uri.split_once('#').and_then(|(_,x)| percent_decode(x).ok()), uuid:Some(percent_decode(uuid)?), password:Some(percent_decode(password)?), params })
+    }
+
+    fn from_shadowsocks_uri(uri: &str) -> Result<Self, String> {
+        let raw = uri.strip_prefix("ss://").ok_or("Ожидалась ss://")?;
+        let (main, _) = raw.split_once('#').map_or((raw,""), |(a,b)|(a,b));
+        let (encoded, query) = main.split_once('?').map_or((main,""), |(a,b)|(a,b));
+        let decoded = percent_decode(encoded)?;
+        let decoded = if decoded.contains('@') { decoded } else {
+            let bytes = base64_decode(&decoded)?;
+            String::from_utf8(bytes).map_err(|_| "Некорректный Shadowsocks")?
+        };
+        let (userinfo, hostport)=decoded.rsplit_once('@').ok_or("Shadowsocks: отсутствует сервер")?;
+        let (method,password)=userinfo.split_once(':').ok_or("Shadowsocks: отсутствует пароль")?;
+        let (address,port)=Self::split_hostport(hostport)?;
+        let mut params=HashMap::new();
+        params.insert("method".into(),method.into());
+        params.insert("password".into(),password.into());
+        if !query.is_empty() { params.insert("plugin".into(),query.into()); }
+        Ok(Self { protocol:"shadowsocks".into(), address, port, name: uri.split_once('#').and_then(|(_,x)| percent_decode(x).ok()), uuid:None, password:Some(password.into()), params })
+    }
+
+    fn from_vmess_uri(uri: &str) -> Result<Self, String> {
+        let raw=uri.strip_prefix("vmess://").ok_or("Ожидалась vmess://")?;
+        let bytes=base64_decode(raw)?;
+        let value: serde_json::Value=serde_json::from_slice(&bytes).map_err(|_| "Некорректный VMess JSON")?;
+        let address=value.get("add").and_then(|v|v.as_str()).ok_or("VMess: нет add")?;
+        let port=value.get("port").and_then(|v|v.as_str()).and_then(|v|v.parse().ok()).or_else(||value.get("port").and_then(|v|v.as_u64()).map(|v|v as u16)).ok_or("VMess: нет port")?;
+        let uuid=value.get("id").and_then(|v|v.as_str()).map(str::to_string);
+        let mut params=HashMap::new();
+        for (key,target) in [("net","type"),("host","host"),("path","path"),("tls","security"),("sni","sni"),("scy","encryption")] {
+            if let Some(v)=value.get(key).and_then(|v|v.as_str()) { params.insert(target.into(),v.into()); }
+        }
+        Ok(Self { protocol:"vmess".into(), address:address.into(), port, name:value.get("ps").and_then(|v|v.as_str()).map(str::to_string), uuid, password:None, params })
+    }
+
+    pub fn to_generic_sing_box_json(&self) -> Result<String, String> {
+        let outbound = match self.protocol.as_str() {
+            "vless" => serde_json::from_str::<serde_json::Value>(&self.to_sing_box_json()?).unwrap()["outbounds"][0].clone(),
+            "trojan" => {
+                let mut o=serde_json::json!({"type":"trojan","tag":"proxy","server":self.address,"server_port":self.port,"password":self.password.clone().unwrap_or_default()});
+                add_tls(&mut o,&self.params);
+                o
+            },
+            "hysteria2" => {
+                let mut o=serde_json::json!({"type":"hysteria2","tag":"proxy","server":self.address,"server_port":self.port,"password":self.password.clone().unwrap_or_default()});
+                add_tls(&mut o,&self.params); o
+            },
+            "tuic" => serde_json::json!({"type":"tuic","tag":"proxy","server":self.address,"server_port":self.port,"uuid":self.uuid.clone().unwrap_or_default(),"password":self.password.clone().unwrap_or_default(),"tls":{"enabled":true,"server_name":self.params.get("sni").or_else(||self.params.get("sni")).cloned()}}),
+            "shadowsocks" => serde_json::json!({"type":"shadowsocks","tag":"proxy","server":self.address,"server_port":self.port,"method":self.params.get("method").cloned().unwrap_or_default(),"password":self.params.get("password").cloned().unwrap_or_default()}),
+            "vmess" => serde_json::json!({"type":"vmess","tag":"proxy","server":self.address,"server_port":self.port,"uuid":self.uuid.clone().unwrap_or_default(),"security":self.params.get("encryption").cloned().unwrap_or_else(||"auto".into())}),
+            _ => return Err("Протокол не поддерживается".into())
+        };
+        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"route":{"auto_detect_interface":true,"final":"proxy"}});
+        serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
+    }
+
+fn add_tls(outbound: &mut serde_json::Value, params: &HashMap<String,String>) {
+    let enabled=params.get("security").map(|v| v=="tls" || v=="reality" || v.is_empty()).unwrap_or(true);
+    if enabled {
+        outbound["tls"]=serde_json::json!({"enabled":true,"server_name":params.get("sni").or_else(||params.get("host")).cloned()});
+    }
+}
+fn base64_decode(input:&str)->Result<Vec<u8>,String>{
+    let mut s=input.trim().replace("-","+").replace("_","/");
+    while s.len()%4!=0{s.push('=');}
+    let table=b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out=Vec::new(); let bytes=s.as_bytes(); let mut val=0u32; let mut bits=0;
+    for &b in bytes { if b==b'=' {break;} let idx=table.iter().position(|&x|x==b).ok_or("Некорректный Base64")? as u32; val=(val<<6)|idx; bits+=6; if bits>=8 {bits-=8; out.push(((val>>bits)&255) as u8);} }
+    Ok(out)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeShareConfig(mut env: JNIEnv,_class: JClass,uri:JString)->jstring{
+ let value=env.get_string(&uri).ok().and_then(|s|Profile::from_share_uri(s.to_str().ok()?).ok()).and_then(|p|p.to_generic_sing_box_json().ok()).unwrap_or_default();
+ env.new_string(value).map(JString::into_raw).unwrap_or(std::ptr::null_mut())
+}
+#[no_mangle]
+pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeShareEngine(mut env: JNIEnv,_class:JClass,uri:JString)->jstring{
+ let value=env.get_string(&uri).ok().and_then(|s|Profile::from_share_uri(s.to_str().ok()?).ok()).map(|p| if p.protocol=="vless" && p.engine()=="xray" {"xray"} else {"sing-box"}).unwrap_or("unknown");
+ env.new_string(value).map(JString::into_raw).unwrap_or(std::ptr::null_mut())
+}
+
