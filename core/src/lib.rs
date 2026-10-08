@@ -577,6 +577,21 @@ mod tests {
     }
 
     #[test]
+    fn hysteria2_generates_safe_udp_config() {
+        let profile = Profile::from_share_uri(
+            "hysteria2://secret@example.com:443?sni=example.com&insecure=1&alpn=h3&obfs=salamander&obfs-password=mask#HY2"
+        ).unwrap();
+
+        assert_eq!(profile.protocol, "hysteria2");
+        let config = profile.to_generic_sing_box_json().unwrap();
+        assert!(config.contains("\"type\":\"hysteria2\""));
+        assert!(config.contains("\"network\":\"udp\""));
+        assert!(config.contains("\"server_name\":\"example.com\""));
+        assert!(config.contains("\"type\":\"salamander\""));
+        assert!(config.contains("\"alpn\":[\"h3\"]"));
+    }
+
+    #[test]
     fn parses_ipv6_vless_uri() {
         let profile = Profile::from_vless_uri(
             "vless://123e4567-e89b-12d3-a456-426614174000@[2001:db8::1]:443?type=tcp"
