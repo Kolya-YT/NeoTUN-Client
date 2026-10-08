@@ -68,24 +68,40 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             clipToPadding = false
-            addView(content)
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(content, ScrollView.LayoutParams(-1, -2))
         }
+        val contentWidth = (resources.displayMetrics.widthPixels - dp(36)).coerceAtMost(dp(560))
+        content.layoutParams = ScrollView.LayoutParams(contentWidth, -2)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(10), dp(7), dp(10), dp(8))
+            minimumHeight = dp(64)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
             setBackgroundColor(Color.rgb(15, 16, 22))
         }
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(72)))
+        root.addView(nav, LinearLayout.LayoutParams(-1, -2))
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            content.setPadding(dp(18), bars.top + dp(18), dp(18), dp(14))
-            nav.setPadding(dp(10), dp(7), dp(10), dp(8) + bars.bottom)
+            content.setPadding(
+                dp(18) + bars.left,
+                bars.top + dp(18),
+                dp(18) + bars.right,
+                dp(14)
+            )
+            nav.setPadding(dp(8), dp(6), dp(8), dp(6) + bars.bottom)
+            val availableWidth = (root.width - bars.left - bars.right - dp(36)).coerceAtLeast(dp(280))
+            content.layoutParams = ScrollView.LayoutParams(
+                availableWidth.coerceAtMost(dp(560)),
+                -2
+            )
+            content.requestLayout()
             insets
         }
+        root.post { ViewCompat.requestApplyInsets(root) }
         ViewCompat.requestApplyInsets(root)
         setContentView(root)
     }
@@ -117,7 +133,13 @@ class MainActivity : Activity() {
         val state = card()
         state.addView(txt(if (isRunning()) "●  ПОДКЛЮЧЕНО" else "○  НЕ ПОДКЛЮЧЕНО", 13f,
             if (isRunning()) Color.rgb(72, 211, 130) else Color.rgb(160, 164, 175), Typeface.BOLD))
-        state.addView(txt(selected?.name ?: "Профиль не выбран", 23f, Color.WHITE, Typeface.BOLD), margins(8))
+        state.addView(txt(selected?.name ?: "Профиль не выбран",
+            if (resources.displayMetrics.widthPixels < dp(360)) 20f else 23f,
+            Color.WHITE, Typeface.BOLD
+        ).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(8))
         state.addView(txt(
             if (selected != null) "VLESS  •  " + engineLabel(selected.engine) else "Добавьте VLESS-профиль, чтобы начать",
             14f, Color.rgb(165, 169, 181)
@@ -146,6 +168,7 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            weightSum = 3f
         }
         row.addView(metric("↓", formatBytes(traffic.sessionRx), "Получено"), LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(metric("↑", formatBytes(traffic.sessionTx), "Отправлено"), LinearLayout.LayoutParams(0, -2, 1f))
@@ -159,11 +182,11 @@ class MainActivity : Activity() {
         }
         actions.addView(
             button("Проверить ping") { pingSelected(selected) },
-            LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(0, 0, dp(5), 0) }
+            LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(0, 0, dp(4), 0) }
         )
         actions.addView(
             button("Переподключить") { reconnectSelected(selected) },
-            LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(5), 0, 0, 0) }
+            LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(4), 0, 0, 0) }
         )
         content.addView(actions, margins(bottom = 10))
         content.addView(button("Открыть диагностику") { diagnostics() })
@@ -234,7 +257,11 @@ class MainActivity : Activity() {
                 setPadding(0, dp(10), 0, dp(10))
             }
             r.addView(txt(pair.first, 14f, Color.WHITE), LinearLayout.LayoutParams(0, -2, 1f))
-            r.addView(txt(pair.second, 12f, Color.rgb(145, 149, 162)))
+            r.addView(txt(pair.second, 12f, Color.rgb(145, 149, 162)).apply {
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = Gravity.END
+            }, LinearLayout.LayoutParams(0, -2, 1f))
             protocols.addView(r)
         }
         content.addView(protocols)
@@ -561,16 +588,29 @@ class MainActivity : Activity() {
     private fun navItem(icon: String, label: String, target: Screen) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
-        setPadding(dp(8), dp(4), dp(8), dp(2))
+        setPadding(dp(4), dp(3), dp(4), dp(3))
+        minimumWidth = 0
+        minWidth = 0
         setOnClickListener { showScreen(target) }
-        addView(txt(icon, 21f, if (screen == target) Color.rgb(125, 108, 255) else Color.rgb(125, 129, 141), Typeface.BOLD, Gravity.CENTER))
-        addView(txt(label, 11f, if (screen == target) Color.WHITE else Color.rgb(125, 129, 141), Typeface.NORMAL, Gravity.CENTER))
+        addView(txt(icon, 20f, if (screen == target) Color.rgb(125, 108, 255) else Color.rgb(125, 129, 141), Typeface.BOLD, Gravity.CENTER))
+        addView(txt(label, 10f, if (screen == target) Color.WHITE else Color.rgb(125, 129, 141), Typeface.NORMAL, Gravity.CENTER).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
         layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
     }
 
     private fun header(title: String, subtitle: String) {
-        content.addView(txt(title, 32f, Color.WHITE, Typeface.BOLD))
-        content.addView(txt(subtitle, 14f, Color.rgb(145, 149, 162)), margins(top = 5, bottom = 18))
+        content.addView(txt(
+            title,
+            if (resources.displayMetrics.widthPixels < dp(360)) 28f else 32f,
+            Color.WHITE,
+            Typeface.BOLD
+        ))
+        content.addView(txt(subtitle, 14f, Color.rgb(145, 149, 162)).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 5, bottom = 18))
     }
 
     private fun card() = LinearLayout(this).apply {
@@ -592,6 +632,11 @@ class MainActivity : Activity() {
         isAllCaps = false
         setTextColor(Color.WHITE)
         minHeight = dp(48)
+        minimumWidth = 0
+        minWidth = 0
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        setPadding(dp(10), 0, dp(10), 0)
         background = rounded(Color.rgb(35, 36, 46), 14, Color.rgb(48, 49, 61), 1)
         setOnClickListener { action() }
     }
@@ -600,8 +645,14 @@ class MainActivity : Activity() {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
         addView(txt(icon, 17f, Color.rgb(125, 108, 255), Typeface.BOLD, Gravity.CENTER))
-        addView(txt(value, 17f, Color.WHITE, Typeface.BOLD, Gravity.CENTER), margins(top = 3))
-        addView(txt(label, 10f, Color.rgb(130, 134, 146), textGravity = Gravity.CENTER), margins(top = 2))
+        addView(txt(value, 15f, Color.WHITE, Typeface.BOLD, Gravity.CENTER).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 3))
+        addView(txt(label, 10f, Color.rgb(130, 134, 146), textGravity = Gravity.CENTER).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 2))
     }
 
     private fun txt(value: String, size: Float, color: Int, style: Int = Typeface.NORMAL, textGravity: Int = android.view.Gravity.NO_GRAVITY) =
