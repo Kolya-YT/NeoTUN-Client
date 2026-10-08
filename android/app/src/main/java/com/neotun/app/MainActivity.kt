@@ -269,7 +269,10 @@ class MainActivity : Activity() {
                 info.addView(txt(
                     protocolLabel(p),
                     11f, Color.rgb(130, 135, 154)
-                ), margins(top = 3))
+                ).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, margins(top = 3))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(txt(if (p.id == selected?.id) "✓" else "›", 22f,
                     if (p.id == selected?.id) Color.rgb(121, 222, 158) else Color.rgb(112, 116, 136),
@@ -1133,13 +1136,43 @@ class MainActivity : Activity() {
         background = rounded(Color.TRANSPARENT, 18)
     }
 
+    private fun decodeUriValue(value: String): String {
+        return runCatching {
+            java.net.URLDecoder.decode(value, "UTF-8")
+        }.getOrDefault(value)
+    }
+
+    private fun uriParam(uri: String, key: String): String? {
+        val query = uri.substringAfter('?', "").substringBefore('#')
+        return query.split('&')
+            .asSequence()
+            .mapNotNull {
+                val eq = it.indexOf('=')
+                if (eq <= 0) null else it.substring(0, eq) to it.substring(eq + 1)
+            }
+            .firstOrNull { it.first.equals(key, ignoreCase = true) }
+            ?.second
+            ?.let(::decodeUriValue)
+            ?.substringBefore('#')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
     private fun protocolLabel(p: NeoTunProfile): String {
         val scheme = p.uri.substringBefore("://").uppercase().ifBlank { "PROFILE" }
-        val transport = Regex("(?:^|&)type=([^&]+)").find(p.uri.substringAfter("?", ""))?.groupValues?.getOrNull(1)
-        val security = Regex("(?:^|&)security=([^&]+)").find(p.uri.substringAfter("?", ""))?.groupValues?.getOrNull(1)
+        val transport = uriParam(p.uri, "type")?.uppercase()
+        val security = uriParam(p.uri, "security")?.uppercase()
         val core = engineLabel(p.engine)
-        return listOf(scheme, transport?.uppercase(), security?.uppercase(), core)
-            .filter { !it.isNullOrBlank() }.distinct().joinToString("  •  ")
+
+        // Do not leak the URI fragment/name into the transport label.
+        // Some subscription generators percent-encode "#" as %23 inside a value.
+        val cleanTransport = transport?.substringBefore('#')?.substringBefore("%23")
+        val cleanSecurity = security?.substringBefore('#')?.substringBefore("%23")
+
+        return listOf(scheme, cleanTransport, cleanSecurity, core)
+            .filter { !it.isNullOrBlank() }
+            .distinct()
+            .joinToString("  •  ")
     }
 
     private fun countryFlag(name: String): String {
@@ -1241,10 +1274,14 @@ class MainActivity : Activity() {
     private fun maskUri(uri: String): String {
         val authority = uri.substringAfter("://", "").substringBefore('?').substringBefore('#')
         val host = authority.substringAfter('@', authority).substringBeforeLast(':')
-        val query = uri.substringAfter('?', "").substringBefore('#')
-        val transport = Regex("(?:^|&)type=([^&]+)").find(query)?.groupValues?.getOrNull(1)?.uppercase()
-        val security = Regex("(?:^|&)security=([^&]+)").find(query)?.groupValues?.getOrNull(1)?.uppercase()
-        return listOfNotNull(host.ifBlank { null }, transport, security).joinToString("  •  ").ifBlank { "VLESS-подключение" }
+        val cleanHost = decodeUriValue(host).substringBefore('#').trim()
+        val transport = uriParam(uri, "type")?.uppercase()?.substringBefore('#')
+        val security = uriParam(uri, "security")?.uppercase()?.substringBefore('#')
+        return listOfNotNull(
+            cleanHost.takeIf { it.isNotBlank() },
+            transport?.takeIf { it.isNotBlank() },
+            security?.takeIf { it.isNotBlank() }
+        ).distinct().joinToString("  •  ").ifBlank { "Подключение" }
     }
 
     private fun migrateLegacyProfile() {
