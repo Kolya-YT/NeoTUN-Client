@@ -343,7 +343,7 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 
 ```text
 NeoTUN Core 0.2.0
-Android app 0.3.2
+Android app 0.3.3
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
