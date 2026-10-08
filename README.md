@@ -258,7 +258,7 @@ Workflow использует Android SDK, уже установленный н�
 - [x] Rust → sing-box configuration
 - [x] Profile persistence
 - [ ] Сквозное VLESS-тестирование sing-box и Xray/XHTTP
-- [ ] Connect/disconnect state machine
+- [x] Connect/disconnect state machine
 - [x] Connection diagnostics
 - [ ] Traffic statistics
 - [ ] Reconnection
@@ -323,7 +323,7 @@ Workflow использует Android SDK, уже установленный н�
 
 В приложение встроен updater: он проверяет GitHub Releases, находит новый APK, загружает его и запускает стандартный Android installer.
 
-После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.2.6`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
+После успешной сборки `main` GitHub Actions автоматически публикует Release с тегом из `versionName`: например `v0.2.7`. APK становится доступен в разделе Releases, откуда его также использует встроенный updater.
 
 > ⚠️ Release APK, подписанный временным debug-ключом, нельзя гарантированно установить поверх APK, подписанного другим ключом. Для нормальных in-place обновлений нужно настроить production keystore в GitHub Secrets.
 
@@ -339,7 +339,7 @@ Production signing подключается через Secrets `NEOTUN_KEYSTORE_
 
 ```text
 NeoTUN Core 0.2.0
-Android app 0.2.6
+Android app 0.2.7
 Статус: Android + sing-box + Xray/XHTTP в активной разработке
 ```
 
@@ -365,3 +365,8 @@ Android app 0.2.6
 ### Android Xray TUN: маршрутизация трафика
 
 В версии 0.2.5 Android TUN дополнительно исключает UID NeoTUN из собственного VPN, использует стабильный IPv4 DNS `1.1.1.1`, регистрирует underlying network и явно маршрутизирует `tun → proxy`. Xray/libXray socket protection остаётся включённым как дополнительная защита от петли.
+
+
+### Android UI и управление соединением
+
+В версии 0.2.7 кнопка подключения стала переключателем состояния: при активном туннеле она превращается в **«Отключить»** и корректно останавливает Android VPN/Xray или sing-box. Во время активного соединения поле профиля блокируется, чтобы случайно не изменить конфигурацию работающего туннеля.
