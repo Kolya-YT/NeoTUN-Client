@@ -287,6 +287,16 @@ impl Profile {
                     o["tls"]["server_name"]=serde_json::json!(sni);
                 }
 
+                // Some exporters provide the sing-box-compatible public-key pin
+                // as pcs/pinnedPeerCertSha256. This is different from the
+                // Hysteria2 pinSHA256 (which is a full certificate fingerprint).
+                if let Some(pcs)=self.params.get("pcs")
+                    .or_else(||self.params.get("pinnedPeerCertSha256"))
+                    .filter(|v| !v.trim().is_empty()) {
+                    o["tls"]["certificate_public_key_sha256"] =
+                        serde_json::json!([pcs]);
+                }
+
                 if self.params.get("insecure")
                     .map(|v| v=="1" || v.eq_ignore_ascii_case("true"))
                     .unwrap_or(false) {
@@ -704,6 +714,12 @@ mod tests {
         assert!(hopping_config.contains("\"hop_interval\":\"30s\""));
         assert!(hopping_config.contains("\"up_mbps\":50"));
         assert!(hopping_config.contains("\"down_mbps\":100"));
+
+        let pinned = Profile::from_share_uri(
+            "hy2://secret@example.com:443?sni=example.com&insecure=1&pcs=abc123"
+        ).unwrap();
+        let pinned_config = pinned.to_generic_sing_box_json().unwrap();
+        assert!(pinned_config.contains("\"certificate_public_key_sha256\":[\"abc123\"]"));
     }
 
     #[test]
