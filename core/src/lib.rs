@@ -196,11 +196,11 @@ impl Profile {
 
         let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
         let security = self.params.get("security").map(String::as_str).unwrap_or("none");
-        let transport = self.params.get("type").map(String::as_str).unwrap_or("tcp");
+        let transport = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
         let engine = self.engine();
 
         if engine == "xray" {
-            return Ok(serde_json::json!({"engine": "xray", "protocol": "vless", "transport": "xhttp"}).to_string());
+            return Ok(serde_json::json!({"engine": "xray", "protocol": "vless", "transport": transport, "params": self.params}).to_string());
         }
 
         let mut vless = serde_json::json!({
@@ -228,7 +228,7 @@ impl Profile {
             });
         }
 
-        match transport {
+        match transport.as_str() {
             "ws" => {
                 vless["transport"] = serde_json::json!({
                     "type": "ws",
@@ -244,6 +244,20 @@ impl Profile {
                 vless["transport"] = serde_json::json!({
                     "type": "grpc",
                     "service_name": self.params.get("serviceName").or_else(|| self.params.get("service_name")).cloned().unwrap_or_default()
+                });
+            }
+            "http" => {
+                vless["transport"] = serde_json::json!({
+                    "type": "http",
+                    "path": self.params.get("path").cloned().unwrap_or_else(|| "/".into()),
+                    "host": self.params.get("host").map(|h| vec![h.clone()]).unwrap_or_default()
+                });
+            }
+            "httpupgrade" => {
+                vless["transport"] = serde_json::json!({
+                    "type": "httpupgrade",
+                    "path": self.params.get("path").cloned().unwrap_or_else(|| "/".into()),
+                    "host": self.params.get("host").cloned().unwrap_or_default()
                 });
             }
             _ => {}
@@ -375,7 +389,7 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 impl Profile {
     pub fn engine(&self) -> &'static str {
         match self.params.get("type").map(|value| value.to_ascii_lowercase()) {
-            Some(value) if value == "xhttp" => "xray",
+            Some(value) if matches!(value.as_str(), "xhttp" | "splithttp") => "xray",
             _ => "sing-box",
         }
     }
