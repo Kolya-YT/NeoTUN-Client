@@ -36,7 +36,9 @@ class MainActivity : Activity() {
     private var deviceBaseTx = -1L
     private var deviceLastRx = -1L
     private var deviceLastTx = -1L
-      private val poll = object : Runnable {
+    private var shellRoot: LinearLayout? = null
+    private var scroll: ScrollView? = null
+    private val poll = object : Runnable {
         override fun run() {
             if (!isFinishing) {
                 if (screen == Screen.HOME) renderHome()
@@ -60,48 +62,84 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(7, 8, 12))
+            clipChildren = true
+            clipToPadding = false
         }
+        shellRoot = root
+
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(22), dp(18), dp(14))
+            setPadding(dp(16), dp(18), dp(16), dp(20))
+            clipChildren = true
+            clipToPadding = true
+            layoutParams = FrameLayout.LayoutParams(-1, -2)
         }
-        val scroll = ScrollView(this).apply {
+
+        scroll = ScrollView(this).apply {
             isFillViewport = true
             clipToPadding = false
-            gravity = Gravity.CENTER_HORIZONTAL
+            clipChildren = true
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = ScrollView.OVER_SCROLL_IF_CONTENT_SCROLLS
             addView(content, ScrollView.LayoutParams(-1, -2))
         }
-        val contentWidth = (resources.displayMetrics.widthPixels - dp(36)).coerceAtMost(dp(560))
-        content.layoutParams = ScrollView.LayoutParams(contentWidth, -2)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            minimumHeight = dp(64)
-            setPadding(dp(8), dp(6), dp(8), dp(6))
+            minimumHeight = dp(60)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
             setBackgroundColor(Color.rgb(15, 16, 22))
+            clipChildren = true
+            clipToPadding = true
         }
-        root.addView(nav, LinearLayout.LayoutParams(-1, -2))
-        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(60)))
+
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
+
+                val topInset = dp(18) + bars.top
+            val bottomInset = dp(20) + bars.bottom
+
             content.setPadding(
-                dp(18) + bars.left,
-                bars.top + dp(18),
-                dp(18) + bars.right,
-                dp(14)
+                dp(16) + bars.left,
+                topInset,
+                dp(16) + bars.right,
+                bottomInset
             )
-            nav.setPadding(dp(8), dp(6), dp(8), dp(6) + bars.bottom)
-            val availableWidth = (root.width - bars.left - bars.right - dp(36)).coerceAtLeast(dp(280))
-            content.layoutParams = ScrollView.LayoutParams(
-                availableWidth.coerceAtMost(dp(560)),
-                -2
+
+            nav.setPadding(
+                dp(8) + bars.left,
+                dp(4),
+                dp(8) + bars.right,
+                dp(4) + bars.bottom
             )
-            content.requestLayout()
+
+            // Always match the viewport width. Never derive child width from
+            // root.width: ScrollView already owns the available width.
+            scroll?.layoutParams = (scroll?.layoutParams ?: LinearLayout.LayoutParams(-1, 0, 1f))
+                .apply { width = -1 }
+            content.layoutParams = ScrollView.LayoutParams(-1, -2)
+
+            view.requestLayout()
             insets
         }
-        root.post { ViewCompat.requestApplyInsets(root) }
+
+        ViewCompat.setOnApplyWindowInsetsListener(nav) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            nav.setPadding(
+                dp(8) + bars.left,
+                dp(4),
+                dp(8) + bars.right,
+                dp(4) + bars.bottom
+            )
+            insets
+        }
+
         ViewCompat.requestApplyInsets(root)
         setContentView(root)
     }
@@ -313,23 +351,31 @@ class MainActivity : Activity() {
     }
 
     private fun disconnect() {
-        val xray = Intent(this, NeoTunXrayVpnService::class.java)
-            .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT)
-        val singBox = Intent(this, NeoTunVpnService::class.java)
-            .setAction(NeoTunVpnService.ACTION_DISCONNECT)
+        // Send the explicit shutdown command first. The services own the
+        // actual Xray/sing-box + TUN teardown.
+        runCatching {
+            startService(
+                Intent(this, NeoTunXrayVpnService::class.java)
+                    .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT)
+            )
+        }
+        runCatching {
+            startService(
+                Intent(this, NeoTunVpnService::class.java)
+                    .setAction(NeoTunVpnService.ACTION_DISCONNECT)
+            )
+        }
 
-        // Let each VPN service receive the explicit disconnect action and
-        // perform its own Xray/sing-box shutdown before releasing the TUN.
-        runCatching { startService(xray) }
-        runCatching { startService(singBox) }
+        // Also stop both services explicitly. This makes the operation
+        // idempotent when only one engine was active.
+        runCatching { stopService(Intent(this, NeoTunXrayVpnService::class.java)) }
+        runCatching { stopService(Intent(this, NeoTunVpnService::class.java)) }
 
-        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
-            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
-            .remove(NeoTunVpnService.KEY_ERROR)
-            .apply()
         resetTrafficCounters()
-        handler.postDelayed({ if (!isFinishing && screen == Screen.HOME) renderHome() }, 350)
         renderHome()
+        handler.postDelayed({
+            if (!isFinishing && screen == Screen.HOME) renderHome()
+        }, 500L)
     }
 
     private fun addProfileDialog() {
@@ -666,7 +712,12 @@ class MainActivity : Activity() {
         }
 
     private fun margins(top: Int = 0, start: Int = 0, end: Int = 0, bottom: Int = 0) =
-        LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(start), dp(top), dp(end), dp(bottom)) }
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(dp(start), dp(top), dp(end), dp(bottom))
+        }
 
     private fun engineLabel(engine: String) = if (engine == NeoTunVpnService.ENGINE_XRAY) "Xray" else "sing-box"
     private fun selectedProfile(list: List<NeoTunProfile>) = list.firstOrNull { it.id == selectedProfileId() } ?: list.firstOrNull()
@@ -704,11 +755,18 @@ class MainActivity : Activity() {
 
     private fun readVpnTraffic(): TrafficSnapshot {
         val connectivity = getSystemService(ConnectivityManager::class.java)
-        val vpnNetwork = connectivity.allNetworks.firstOrNull { network ->
-            connectivity.getNetworkCapabilities(network)
-                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        }
-        val interfaceName = vpnNetwork?.let(connectivity::getLinkProperties)?.interfaceName
+        val vpnNetwork = connectivity.allNetworks
+            .asSequence()
+            .mapNotNull { network ->
+                val caps = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
+                if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return@mapNotNull null
+                network
+            }
+            .firstOrNull()
+
+        val interfaceName = vpnNetwork
+            ?.let(connectivity::getLinkProperties)
+            ?.interfaceName
 
         if (interfaceName.isNullOrBlank()) {
             resetTrafficCounters()
@@ -716,66 +774,34 @@ class MainActivity : Activity() {
         }
 
         val now = android.os.SystemClock.elapsedRealtime()
-        val interfaceCounters = readInterfaceCounters(interfaceName)
-        val deviceRx = android.net.TrafficStats.getTotalRxBytes()
-        val deviceTx = android.net.TrafficStats.getTotalTxBytes()
+        val counters = readInterfaceCounters(interfaceName)
+            ?: return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
 
-        // Some Android builds expose the VPN interface through LinkProperties
-        // but do not update /proc/net/dev counters for a userspace TUN fd.
-        // Keep interface counters as the primary source and fall back to the
-        // device counters so the session never gets stuck at 0 B.
-        if (interfaceCounters != null) {
-            if (trafficInterface != interfaceName || trafficBaseRx < 0L || trafficBaseTx < 0L) {
-                trafficInterface = interfaceName
-                trafficBaseRx = interfaceCounters.first
-                trafficBaseTx = interfaceCounters.second
-                trafficLastRx = interfaceCounters.first
-                trafficLastTx = interfaceCounters.second
-                trafficLastAt = now
-            } else {
-                val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)
-                val rxRate = ((interfaceCounters.first - trafficLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
-                val txRate = ((interfaceCounters.second - trafficLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
-                trafficLastRx = interfaceCounters.first
-                trafficLastTx = interfaceCounters.second
-                trafficLastAt = now
-                if (interfaceCounters.first > trafficBaseRx || interfaceCounters.second > trafficBaseTx) {
-                    return TrafficSnapshot(
-                        interfaceName,
-                        (interfaceCounters.first - trafficBaseRx).coerceAtLeast(0L),
-                        (interfaceCounters.second - trafficBaseTx).coerceAtLeast(0L),
-                        rxRate,
-                        txRate,
-                        rxRate > 0L || txRate > 0L
-                    )
-                }
-            }
-        }
-
-        if (deviceRx < 0L || deviceTx < 0L) {
-            return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
-        }
-
-        if (deviceBaseRx < 0L || deviceBaseTx < 0L) {
-            deviceBaseRx = deviceRx
-            deviceBaseTx = deviceTx
-            deviceLastRx = deviceRx
-            deviceLastTx = deviceTx
+        if (trafficInterface != interfaceName ||
+            trafficBaseRx < 0L ||
+            trafficBaseTx < 0L
+        ) {
+            trafficInterface = interfaceName
+            trafficBaseRx = counters.first
+            trafficBaseTx = counters.second
+            trafficLastRx = counters.first
+            trafficLastTx = counters.second
             trafficLastAt = now
             return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
         }
 
         val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)
-        val rxRate = ((deviceRx - deviceLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
-        val txRate = ((deviceTx - deviceLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
-        deviceLastRx = deviceRx
-        deviceLastTx = deviceTx
+        val rxRate = ((counters.first - trafficLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
+        val txRate = ((counters.second - trafficLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
+
+        trafficLastRx = counters.first
+        trafficLastTx = counters.second
         trafficLastAt = now
 
         return TrafficSnapshot(
             interfaceName,
-            (deviceRx - deviceBaseRx).coerceAtLeast(0L),
-            (deviceTx - deviceBaseTx).coerceAtLeast(0L),
+            (counters.first - trafficBaseRx).coerceAtLeast(0L),
+            (counters.second - trafficBaseTx).coerceAtLeast(0L),
             rxRate,
             txRate,
             rxRate > 0L || txRate > 0L
@@ -827,14 +853,8 @@ class MainActivity : Activity() {
         }
     }
     private fun isRunning(): Boolean {
-        val connectivity = getSystemService(ConnectivityManager::class.java)
-        val vpnActive = connectivity.allNetworks.any { network ->
-            connectivity.getNetworkCapabilities(network)
-                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        }
-        return vpnActive ||
-            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-                .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+        return getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
     }
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
