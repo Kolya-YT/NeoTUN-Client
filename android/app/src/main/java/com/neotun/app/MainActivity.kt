@@ -504,9 +504,22 @@ class MainActivity : Activity() {
 
         toast("Переподключение…")
         disconnect()
+        waitForDisconnectAndReconnect(profile, 0)
+    }
+
+    private fun waitForDisconnectAndReconnect(profile: NeoTunProfile, attempt: Int) {
+        if (isFinishing) return
+        if (!isRunning()) {
+            connect(profile)
+            return
+        }
+        if (attempt >= 16) {
+            toast("Не удалось освободить TUN. Попробуйте ещё раз.")
+            return
+        }
         handler.postDelayed({
-            if (!isFinishing && !isRunning()) connect(profile)
-        }, 900L)
+            waitForDisconnectAndReconnect(profile, attempt + 1)
+        }, 250L)
     }
 
     private fun checkUpdates() {
