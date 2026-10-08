@@ -556,7 +556,7 @@ class MainActivity : Activity() {
             for (i in 0 until array.length()) {
                 val o = array.optJSONObject(i) ?: continue
                 val uri = o.optString("url").ifBlank { o.optString("uri") }.ifBlank { o.optString("link") }
-                if (uri.startsWith("vless://", true)) saveImportedVless(uri)
+                if (uri.contains("://")) saveImportedShare(uri)
             }
         }.onSuccess { showScreen(Screen.PROFILES); toast("JSON импортирован") }
          .onFailure { toast("Некорректный JSON") }
@@ -565,17 +565,45 @@ class MainActivity : Activity() {
     private fun importText(raw: String) {
         val candidates = linkedSetOf<String>()
         fun collect(value: String) {
-            value.lines().flatMap { it.trim().split(Regex("[,\\s]+")) }.filter { it.contains("://") }.forEach { candidates.add(it.trim()) }
+            value.lines()
+                .flatMap { it.trim().split(Regex("[,\\s]+")) }
+                .filter { it.contains("://") }
+                .forEach { candidates.add(it.trim()) }
         }
         collect(raw)
-        if (candidates.none { it.startsWith("vless://", true) }) {
-            runCatching { android.util.Base64.decode(raw.replace("\\s".toRegex(), ""), android.util.Base64.DEFAULT).toString(java.nio.charset.StandardCharsets.UTF_8) }.getOrNull()?.let(::collect)
+        if (candidates.none { it.contains("://") }) {
+            runCatching {
+                android.util.Base64.decode(raw.replace("\\s".toRegex(), ""), android.util.Base64.DEFAULT)
+                    .toString(java.nio.charset.StandardCharsets.UTF_8)
+            }.getOrNull()?.let(::collect)
         }
-        val vless = candidates.filter { it.startsWith("vless://", true) }
-        if (vless.isEmpty()) { toast("VLESS-ссылки не найдены. Другие протоколы подключим следующим этапом."); return }
-        vless.forEach(::saveImportedVless)
+        val supported = candidates.filter {
+            val s = it.substringBefore("://").lowercase()
+            s in setOf("vless", "vmess", "trojan", "hysteria2", "hy2", "tuic", "ss")
+        }
+        if (supported.isEmpty()) {
+            toast("Поддерживаемые ссылки не найдены")
+            return
+        }
+        var imported = 0
+        supported.forEach {
+            val before = store.all().size
+            saveImportedShare(it)
+            if (store.all().size > before) imported++
+        }
         showScreen(Screen.HOME)
-        toast("Импортировано профилей: ${vless.size}")
+        toast("Импортировано профилей: $imported")
+    }
+
+    private fun saveImportedShare(uri: String) {
+        val engine = NeoTunCore.nativeShareEngine(uri)
+        if (engine == "unknown") return
+        store.save(NeoTunProfile(
+            UUID.randomUUID().toString(),
+            ProfileStore.displayNameFromUri(uri),
+            uri,
+            engine
+        ))
     }
 
     private fun saveImportedVless(uri: String) {
