@@ -185,7 +185,7 @@ class MainActivity : Activity() {
             textSize = 16f
             isAllCaps = false
             setTextColor(Color.WHITE)
-            minHeight = dp(56)
+            minHeight = dp(52)
             background = rounded(if (isRunning()) Color.rgb(163, 57, 68) else Color.rgb(111, 91, 235), 16)
             setOnClickListener {
                 if (isRunning()) disconnect()
@@ -326,10 +326,14 @@ class MainActivity : Activity() {
     private fun startVpnFromPrefs() {
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         val engine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+        // Reflect the user's action immediately. The service clears this flag if startup fails.
+        prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).apply()
         if (engine == NeoTunVpnService.ENGINE_XRAY) {
             val uri = prefs.getString(NeoTunVpnService.KEY_URI, null)
             if (uri.isNullOrBlank()) {
-                prefs.edit().putString(NeoTunVpnService.KEY_ERROR, "Нет VLESS-профиля").apply()
+                prefs.edit().putString(NeoTunVpnService.KEY_ERROR, "Нет VLESS-профиля")
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+                    .apply()
                 renderHome()
                 return
             }
@@ -337,7 +341,9 @@ class MainActivity : Activity() {
         } else {
             val config = prefs.getString(NeoTunVpnService.KEY_CONFIG, null)
             if (config.isNullOrBlank()) {
-                prefs.edit().putString(NeoTunVpnService.KEY_ERROR, "Нет конфигурации sing-box").apply()
+                prefs.edit().putString(NeoTunVpnService.KEY_ERROR, "Нет конфигурации sing-box")
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+                    .apply()
                 renderHome()
                 return
             }
@@ -367,6 +373,8 @@ class MainActivity : Activity() {
         runCatching { stopService(Intent(this, NeoTunXrayVpnService::class.java)) }
         runCatching { stopService(Intent(this, NeoTunVpnService::class.java)) }
 
+        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         resetTrafficCounters()
         renderHome()
         handler.postDelayed({
@@ -644,7 +652,7 @@ class MainActivity : Activity() {
     private fun header(title: String, subtitle: String) {
         content.addView(txt(
             title,
-            if (resources.displayMetrics.widthPixels < dp(360)) 28f else 32f,
+            if (resources.displayMetrics.widthPixels < dp(360)) 26f else 30f,
             Color.WHITE,
             Typeface.BOLD
         ))
@@ -656,7 +664,7 @@ class MainActivity : Activity() {
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(18), dp(18), dp(18), dp(18))
+        setPadding(dp(16), dp(16), dp(16), dp(16))
         background = rounded(Color.rgb(18, 19, 26), 18, Color.rgb(30, 31, 41), 1)
     }
 
@@ -676,7 +684,7 @@ class MainActivity : Activity() {
         minimumWidth = 0
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
-        setPadding(dp(10), 0, dp(10), 0)
+        setPadding(dp(8), 0, dp(8), 0)
         background = rounded(Color.rgb(35, 36, 46), 14, Color.rgb(48, 49, 61), 1)
         setOnClickListener { action() }
     }
