@@ -71,6 +71,8 @@ class ProfileStore(context: Context) {
         prefs.edit().putString(KEY_PROFILES, array.toString()).apply()
     }
 
+    fun saveAll(profiles: List<NeoTunProfile>) = persist(profiles)
+
     companion object {
         private const val PREFS = "neotun_profiles"
         private const val KEY_PROFILES = "profiles"
