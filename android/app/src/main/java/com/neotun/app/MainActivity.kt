@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var profileInput: EditText
+    private lateinit var connectButton: Button
     private lateinit var updater: AppUpdater
     private val stateHandler = Handler(Looper.getMainLooper())
     private val statePoll = object : Runnable {
@@ -56,9 +57,15 @@ class MainActivity : Activity() {
             setPadding(24, 16, 24, 16)
         }
 
-        val connect = Button(this).apply {
+        connectButton = Button(this).apply {
             text = "Подключить"
-            setOnClickListener { saveAndConnect() }
+            setOnClickListener {
+                if (isRunning()) {
+                    disconnect()
+                } else {
+                    saveAndConnect()
+                }
+            }
         }
 
         val update = Button(this).apply {
@@ -74,7 +81,7 @@ class MainActivity : Activity() {
         root.addView(title)
         root.addView(status)
         root.addView(profileInput)
-        root.addView(connect)
+        root.addView(connectButton)
         root.addView(update)
         root.addView(logs)
         setContentView(root)
@@ -85,15 +92,19 @@ class MainActivity : Activity() {
         showSavedServiceState()
 
         updater.checkForUpdates { result ->
-            if (result is UpdateResult.Available) {
+            if (result is UpdateResult.Available && !isRunning()) {
                 status.text = "Доступно обновление " + result.version
             }
         }
     }
 
+    private fun isRunning(): Boolean =
+        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+
     private fun saveAndConnect() {
         val uri = profileInput.text.toString().trim()
-        if (!uri.startsWith("vless://")) {
+        if (!uri.startsWith("vless://", ignoreCase = true)) {
             status.text = "Поддерживается VLESS-ссылка vless://..."
             return
         }
@@ -161,6 +172,22 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun disconnect() {
+        status.text = "Отключение…"
+        runCatching { stopService(Intent(this, NeoTunXrayVpnService::class.java)) }
+        runCatching { stopService(Intent(this, NeoTunVpnService::class.java)) }
+
+        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .edit()
+            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+            .remove(NeoTunVpnService.KEY_ERROR)
+            .apply()
+
+        status.text = "Отключено"
+        connectButton.text = "Подключить"
+        profileInput.isEnabled = true
+    }
+
     override fun onResume() {
         super.onResume()
         if (::status.isInitialized) showSavedServiceState()
@@ -192,6 +219,8 @@ class MainActivity : Activity() {
         val error = prefs.getString(NeoTunVpnService.KEY_ERROR, null)
         if (!error.isNullOrBlank()) {
             status.text = "Ошибка подключения: $error"
+            connectButton.text = "Подключить"
+            profileInput.isEnabled = true
             return
         }
 
@@ -202,6 +231,11 @@ class MainActivity : Activity() {
             } else {
                 "Подключено • sing-box"
             }
+            connectButton.text = "Отключить"
+            profileInput.isEnabled = false
+        } else {
+            connectButton.text = "Подключить"
+            profileInput.isEnabled = true
         }
     }
 
