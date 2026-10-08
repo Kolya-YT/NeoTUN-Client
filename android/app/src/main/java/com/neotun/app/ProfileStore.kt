@@ -29,7 +29,7 @@ class ProfileStore(context: Context) {
                     add(
                         NeoTunProfile(
                             id = item.optString("id", UUID.randomUUID().toString()),
-                            name = item.optString("name").ifBlank { "VLESS" },
+                            name = decodeDisplayName(item.optString("name").ifBlank { "VLESS" }),
                             uri = uri,
                             engine = item.optString("engine", NeoTunVpnService.ENGINE_SING_BOX),
                         ),
@@ -77,18 +77,22 @@ class ProfileStore(context: Context) {
         private const val PREFS = "neotun_profiles"
         private const val KEY_PROFILES = "profiles"
 
+        private fun decodeDisplayName(value: String): String {
+            val decoded = runCatching {
+                URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+            }.getOrDefault(value)
+            return decoded.substringBefore('#').trim().ifBlank { "VLESS" }
+        }
+
         fun displayNameFromUri(uri: String): String {
             val fragment = uri.substringAfter('#', "")
             if (fragment.isNotBlank()) {
-                return runCatching {
-                    URLDecoder.decode(fragment, StandardCharsets.UTF_8.name())
-                }.getOrDefault(fragment)
-                    .ifBlank { "VLESS" }
+                return decodeDisplayName(fragment)
             }
 
             val authority = uri.substringAfter("://", "").substringBefore('?').substringBefore('#')
             val host = authority.substringAfter('@', authority).substringBeforeLast(':')
-            return host.ifBlank { "VLESS" }
+            return decodeDisplayName(host)
         }
     }
 }
