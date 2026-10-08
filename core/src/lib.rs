@@ -183,23 +183,49 @@ impl Profile {
                     "server":self.address,
                     "server_port":self.port,
                     "password":self.password.clone().unwrap_or_default(),
+                    "network":"udp",
                     "tls":{"enabled":true}
                 });
-                if let Some(sni)=self.params.get("sni").or_else(||self.params.get("peer")) {
+                // Hysteria2 is QUIC/UDP. Keep the outbound explicitly on UDP and
+                // provide the standard h3 ALPN when the share link does not carry
+                // one. This avoids ambiguous defaults in libbox on Android.
+                if let Some(sni)=self.params.get("sni")
+                    .or_else(||self.params.get("peer"))
+                    .filter(|v| !v.trim().is_empty()) {
                     o["tls"]["server_name"]=serde_json::json!(sni);
                 }
-                if self.params.get("insecure").map(|v|v=="1" || v=="true").unwrap_or(false) {
+                if self.params.get("insecure")
+                    .map(|v| v=="1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false) {
                     o["tls"]["insecure"]=serde_json::json!(true);
                 }
-                if let Some(obfs)=self.params.get("obfs") {
+                if let Some(alpn)=self.params.get("alpn").filter(|v| !v.trim().is_empty()) {
+                    let values: Vec<String> = alpn.split(',')
+                        .map(str::trim)
+                        .filter(|v| !v.is_empty())
+                        .map(str::to_string)
+                        .collect();
+                    if !values.is_empty() {
+                        o["tls"]["alpn"]=serde_json::json!(values);
+                    }
+                } else {
+                    o["tls"]["alpn"]=serde_json::json!(["h3"]);
+                }
+                if let Some(obfs)=self.params.get("obfs").map(|v|v.to_ascii_lowercase()) {
                     if obfs=="salamander" || obfs=="gecko" {
-                        if let Some(password)=self.params.get("obfs-password").or_else(||self.params.get("obfs_password")) {
+                        if let Some(password)=self.params.get("obfs-password")
+                            .or_else(||self.params.get("obfs_password"))
+                            .filter(|v| !v.is_empty()) {
                             o["obfs"]=serde_json::json!({"type":obfs,"password":password});
                         }
                     }
                 }
-                if let Some(v)=self.params.get("up_mbps").and_then(|v|v.parse::<u64>().ok()) { o["up_mbps"]=serde_json::json!(v); }
-                if let Some(v)=self.params.get("down_mbps").and_then(|v|v.parse::<u64>().ok()) { o["down_mbps"]=serde_json::json!(v); }
+                let up = self.params.get("up_mbps").and_then(|v|v.parse::<u64>().ok());
+                let down = self.params.get("down_mbps").and_then(|v|v.parse::<u64>().ok());
+                if let (Some(up), Some(down)) = (up, down) {
+                    o["up_mbps"]=serde_json::json!(up);
+                    o["down_mbps"]=serde_json::json!(down);
+                }
                 o
             },
             "tuic" => {
