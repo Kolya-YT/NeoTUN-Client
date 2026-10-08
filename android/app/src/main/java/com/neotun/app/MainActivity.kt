@@ -78,7 +78,7 @@ class MainActivity : Activity() {
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
             overScrollMode = ScrollView.OVER_SCROLL_IF_CONTENT_SCROLLS
-            addView(content, ScrollView.LayoutParams(-1, -2))
+            addView(content, FrameLayout.LayoutParams(-1, -2))
         }
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
@@ -119,7 +119,7 @@ class MainActivity : Activity() {
             // root.width: ScrollView already owns the available width.
             scroll?.layoutParams = (scroll?.layoutParams ?: LinearLayout.LayoutParams(-1, 0, 1f))
                 .apply { width = -1 }
-            content.layoutParams = ScrollView.LayoutParams(-1, -2)
+            content.layoutParams = FrameLayout.LayoutParams(-1, -2)
 
             view.requestLayout()
             insets
@@ -632,7 +632,6 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         setPadding(dp(4), dp(3), dp(4), dp(3))
         minimumWidth = 0
-        minWidth = 0
         setOnClickListener { showScreen(target) }
         addView(txt(icon, 20f, if (screen == target) Color.rgb(125, 108, 255) else Color.rgb(125, 129, 141), Typeface.BOLD, Gravity.CENTER))
         addView(txt(label, 10f, if (screen == target) Color.WHITE else Color.rgb(125, 129, 141), Typeface.NORMAL, Gravity.CENTER).apply {
@@ -675,7 +674,6 @@ class MainActivity : Activity() {
         setTextColor(Color.WHITE)
         minHeight = dp(48)
         minimumWidth = 0
-        minWidth = 0
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(10), 0, dp(10), 0)
