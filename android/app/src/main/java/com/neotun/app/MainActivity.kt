@@ -401,16 +401,16 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         addView(txt(icon, 17f, Color.rgb(125, 108, 255), Typeface.BOLD, Gravity.CENTER))
         addView(txt(value, 17f, Color.WHITE, Typeface.BOLD, Gravity.CENTER), margins(top = 3))
-        addView(txt(label, 10f, Color.rgb(130, 134, 146), Gravity = Gravity.CENTER), margins(top = 2))
+        addView(txt(label, 10f, Color.rgb(130, 134, 146), gravity = Gravity.CENTER), margins(top = 2))
     }
 
-    private fun txt(value: String, size: Float, color: Int, style: Int = Typeface.NORMAL, gravity: Int = android.view.Gravity.NO_GRAVITY) =
+    private fun txt(value: String, size: Float, color: Int, style: Int = Typeface.NORMAL, textGravity: Int = android.view.Gravity.NO_GRAVITY) =
         TextView(this).apply {
             text = value
             textSize = size
             setTextColor(color)
             typeface = Typeface.create("sans", style)
-            gravity = gravity
+            gravity = textGravity
         }
 
     private fun margins(top: Int = 0, start: Int = 0, end: Int = 0, bottom: Int = 0) =
