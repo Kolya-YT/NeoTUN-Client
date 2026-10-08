@@ -49,9 +49,15 @@ class AppUpdater(private val context: Context) {
                     post(onResult, UpdateResult.Error("В последнем релизе нет APK"))
                     return@thread
                 }
-                val current = currentVersionName()
-                post(onResult, if (compareVersions(latest, current) > 0)
-                    UpdateResult.Available(latest, apk!!) else UpdateResult.UpToDate(current))
+                val current = currentVersion()
+                val latestCode = release.optInt("version_code", -1)
+                val shouldUpdate = if (latestCode > 0 && current.second > 0) {
+                    latestCode > current.second
+                } else {
+                    compareVersions(latest, current.first) > 0
+                }
+                post(onResult, if (shouldUpdate)
+                    UpdateResult.Available(latest, apk!!) else UpdateResult.UpToDate(current.first))
             } catch (e: Exception) {
                 post(onResult, UpdateResult.Error(e.message ?: "Не удалось проверить обновления"))
             }
@@ -119,6 +125,19 @@ class AppUpdater(private val context: Context) {
             throw IllegalStateException("APK относится к другому приложению")
         }
 
+        val currentCode = currentVersion().second
+        val archiveCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            archive.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            archive.versionCode.toLong()
+        }
+        if (archiveCode <= currentCode) {
+            throw IllegalStateException(
+                "Версия APK ниже или равна установленной ($archiveCode <= $currentCode)"
+            )
+        }
+
         val current = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.packageManager.getPackageInfo(
                 context.packageName,
@@ -168,16 +187,23 @@ class AppUpdater(private val context: Context) {
         })
     }
 
-    private fun currentVersionName(): String {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager
-                .getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
-                .versionName ?: "0.0.0"
+    private fun currentVersion(): Pair<String, Long> {
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(0)
+            )
         } else {
             @Suppress("DEPRECATION")
-            val info = context.packageManager.getPackageInfo(context.packageName, 0)
-            info.versionName ?: "0.0.0"
+            context.packageManager.getPackageInfo(context.packageName, 0)
         }
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+        }
+        return (info.versionName ?: "0.0.0") to code
     }
 
     private fun compareVersions(a: String, b: String): Int {
