@@ -399,7 +399,7 @@ class MainActivity : Activity() {
         if (profile.engine == NeoTunVpnService.ENGINE_XRAY) {
             prefs.edit().remove(NeoTunVpnService.KEY_CONFIG).apply()
         } else {
-            val config = NeoTunCore.nativeVlessConfig(profile.uri)
+            val config = NeoTunCore.nativeShareConfig(profile.uri)
             if (config.isBlank()) {
                 prefs.edit().putString(NeoTunVpnService.KEY_ERROR, "Не удалось собрать конфигурацию").apply()
                 renderHome()
@@ -579,7 +579,7 @@ class MainActivity : Activity() {
     }
 
     private fun saveImportedVless(uri: String) {
-        val engine = NeoTunCore.nativeVlessEngine(uri)
+        val engine = NeoTunCore.nativeShareEngine(uri)
         if (engine == "unknown") return
         store.save(NeoTunProfile(UUID.randomUUID().toString(), ProfileStore.displayNameFromUri(uri), uri, engine))
     }
@@ -853,10 +853,11 @@ class MainActivity : Activity() {
     }
 
     private fun protocolLabel(p: NeoTunProfile): String {
+        val scheme = p.uri.substringBefore("://").uppercase().ifBlank { "PROFILE" }
         val transport = Regex("(?:^|&)type=([^&]+)").find(p.uri.substringAfter("?", ""))?.groupValues?.getOrNull(1)
         val security = Regex("(?:^|&)security=([^&]+)").find(p.uri.substringAfter("?", ""))?.groupValues?.getOrNull(1)
         val core = engineLabel(p.engine)
-        return listOf("VLESS", transport?.uppercase(), security?.uppercase(), core)
+        return listOf(scheme, transport?.uppercase(), security?.uppercase(), core)
             .filter { !it.isNullOrBlank() }.distinct().joinToString("  •  ")
     }
 
