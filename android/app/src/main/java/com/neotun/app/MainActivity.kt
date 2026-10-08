@@ -22,6 +22,7 @@ import androidx.core.view.WindowInsetsCompat
 class MainActivity : Activity() {
     private lateinit var updater: AppUpdater
     private lateinit var store: ProfileStore
+    private lateinit var subscriptions: SubscriptionStore
     private lateinit var content: LinearLayout
     private lateinit var nav: LinearLayout
     private var screen = Screen.HOME
@@ -48,7 +49,9 @@ class MainActivity : Activity() {
         super.onCreate(state)
         updater = AppUpdater(this)
         store = ProfileStore(this)
+        subscriptions = SubscriptionStore(this)
         migrateLegacyProfile()
+        refreshDueSubscriptions()
         buildShell()
         showScreen(Screen.HOME)
         handler.post(poll)
@@ -135,7 +138,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(52), dp(52)))
         top.addView(txt("NeoTUN", if (compact) 22f else 24f, Color.WHITE, Typeface.BOLD, Gravity.CENTER),
             LinearLayout.LayoutParams(0, dp(52), 1f))
-        top.addView(iconButton("+", 34) { addProfileDialog() },
+        top.addView(iconButton("+", 34) { showImportMenu() },
             LinearLayout.LayoutParams(dp(52), dp(52)))
         content.addView(top)
 
@@ -236,7 +239,7 @@ class MainActivity : Activity() {
             empty.addView(txt("Профилей пока нет", 16f, Color.WHITE, Typeface.BOLD, Gravity.CENTER))
             empty.addView(txt("Нажмите + и добавьте VLESS-ссылку.", 13f, Color.rgb(140, 145, 162), Gravity.CENTER),
                 margins(top = 6))
-            empty.addView(button("Добавить профиль") { addProfileDialog() }, margins(top = 14))
+            empty.addView(button("Добавить профиль") { showImportMenu() }, margins(top = 14))
             listCard.addView(empty)
         } else {
             profiles.forEachIndexed { index, p ->
@@ -293,7 +296,7 @@ class MainActivity : Activity() {
     private fun renderProfiles() {
         content.removeAllViews()
         addBackHeader("Профили", "Выберите сервер или добавьте новый")
-        content.addView(button("+  Добавить профиль") { addProfileDialog() }, margins(bottom = 12))
+        content.addView(button("+  Добавить профиль") { showImportMenu() }, margins(bottom = 12))
         val selected = selectedProfileId()
         val profiles = store.all()
         if (profiles.isEmpty()) {
@@ -443,6 +446,119 @@ class MainActivity : Activity() {
         }, 500L)
     }
 
+    private fun showImportMenu() {
+        val items = arrayOf("Добавить подписку", "Вставить из буфера обмена", "QR-код", "Ручной ввод", "Импорт JSON")
+        AlertDialog.Builder(this).setTitle("Импорт").setItems(items) { _, which ->
+            when (which) {
+                0 -> addSubscriptionDialog()
+                1 -> importClipboard()
+                2 -> toast("QR-сканер добавим следующим этапом")
+                3 -> addProfileDialog()
+                4 -> importJsonDialog()
+            }
+        }.show()
+    }
+
+    private fun addSubscriptionDialog() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), 0)
+        }
+        val name = EditText(this).apply { hint = "Название, например NeoTUN.ru" }
+        val url = EditText(this).apply {
+            hint = "https://example.com/subscription"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        box.addView(name, LinearLayout.LayoutParams(-1, dp(54)))
+        box.addView(url, LinearLayout.LayoutParams(-1, dp(64)))
+        val dialog = AlertDialog.Builder(this).setTitle("Добавить подписку")
+            .setMessage("NeoTUN будет загружать список серверов из этой ссылки.")
+            .setView(box).setNegativeButton("Отмена", null)
+            .setPositiveButton("Добавить") { _, _ ->
+                val source = url.text.toString().trim()
+                if (!source.startsWith("http://", true) && !source.startsWith("https://", true)) {
+                    toast("Укажите HTTP(S)-ссылку на подписку")
+                    return@setPositiveButton
+                }
+                val subscription = NeoTunSubscription(UUID.randomUUID().toString(), name.text.toString().trim().ifBlank { "Подписка" }, source)
+                subscriptions.save(subscription)
+                refreshSubscription(subscription)
+            }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun refreshSubscription(subscription: NeoTunSubscription) {
+        toast("Обновляем ${subscription.name}…")
+        Thread {
+            val result = subscriptions.refresh(subscription, store)
+            runOnUiThread {
+                result.onSuccess {
+                    if (selectedProfileId() == null) store.all().firstOrNull()?.let { setSelectedProfile(it.id) }
+                    showScreen(Screen.HOME)
+                    toast("${subscription.name}: импортировано $it профилей")
+                }.onFailure { toast("Подписка: ${it.message ?: "ошибка обновления"}") }
+            }
+        }.start()
+    }
+
+    private fun refreshDueSubscriptions() {
+        val now = System.currentTimeMillis()
+        subscriptions.all().filter { it.lastUpdated == 0L || now - it.lastUpdated >= 12L * 60L * 60L * 1000L }.forEach { sub ->
+            Thread { subscriptions.refresh(sub, store) }.start()
+        }
+    }
+
+    private fun importClipboard() {
+        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+        val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString().orEmpty().trim()
+        if (text.isBlank()) { toast("Буфер обмена пуст"); return }
+        importText(text)
+    }
+
+    private fun importJsonDialog() {
+        val input = EditText(this).apply { hint = "[{url: vless://...}]"; minLines = 5; gravity = Gravity.TOP; inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE }
+        val dialog = AlertDialog.Builder(this).setTitle("Импорт JSON")
+            .setMessage("Массив объектов с полями url, uri или link.")
+            .setView(input).setNegativeButton("Отмена", null)
+            .setPositiveButton("Импортировать") { _, _ -> importJsonText(input.text.toString()) }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun importJsonText(raw: String) {
+        runCatching {
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val o = array.optJSONObject(i) ?: continue
+                val uri = o.optString("url").ifBlank { o.optString("uri") }.ifBlank { o.optString("link") }
+                if (uri.startsWith("vless://", true)) saveImportedVless(uri)
+            }
+        }.onSuccess { showScreen(Screen.PROFILES); toast("JSON импортирован") }
+         .onFailure { toast("Некорректный JSON") }
+    }
+
+    private fun importText(raw: String) {
+        val candidates = linkedSetOf<String>()
+        fun collect(value: String) {
+            value.lines().flatMap { it.trim().split(Regex("[,\\s]+")) }.filter { it.contains("://") }.forEach { candidates.add(it.trim()) }
+        }
+        collect(raw)
+        if (candidates.none { it.startsWith("vless://", true) }) {
+            runCatching { android.util.Base64.decode(raw.replace("\\s".toRegex(), ""), android.util.Base64.DEFAULT).toString(java.nio.charset.StandardCharsets.UTF_8) }.getOrNull()?.let(::collect)
+        }
+        val vless = candidates.filter { it.startsWith("vless://", true) }
+        if (vless.isEmpty()) { toast("VLESS-ссылки не найдены. Другие протоколы подключим следующим этапом."); return }
+        vless.forEach(::saveImportedVless)
+        showScreen(Screen.HOME)
+        toast("Импортировано профилей: ${vless.size}")
+    }
+
+    private fun saveImportedVless(uri: String) {
+        val engine = NeoTunCore.nativeVlessEngine(uri)
+        if (engine == "unknown") return
+        store.save(NeoTunProfile(UUID.randomUUID().toString(), ProfileStore.displayNameFromUri(uri), uri, engine))
+    }
     private fun addProfileDialog() {
         val input = EditText(this).apply {
             hint = "vless://..."
