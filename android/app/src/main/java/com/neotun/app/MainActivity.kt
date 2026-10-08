@@ -32,10 +32,6 @@ class MainActivity : Activity() {
     private var trafficLastRx = -1L
     private var trafficLastTx = -1L
     private var trafficLastAt = 0L
-    private var deviceBaseRx = -1L
-    private var deviceBaseTx = -1L
-    private var deviceLastRx = -1L
-    private var deviceLastTx = -1L
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
     private val poll = object : Runnable {
@@ -206,6 +202,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             weightSum = 3f
+            minimumWidth = 0
         }
         row.addView(metric("↓", formatBytes(traffic.sessionRx), "Получено"), LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(metric("↑", formatBytes(traffic.sessionTx), "Отправлено"), LinearLayout.LayoutParams(0, -2, 1f))
@@ -754,32 +751,24 @@ class MainActivity : Activity() {
 
     private fun readVpnTraffic(): TrafficSnapshot {
         val connectivity = getSystemService(ConnectivityManager::class.java)
-        val vpnNetwork = connectivity.allNetworks
-            .asSequence()
+        val interfaceName = connectivity.allNetworks.asSequence()
             .mapNotNull { network ->
                 val caps = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
                 if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return@mapNotNull null
-                network
+                connectivity.getLinkProperties(network)?.interfaceName
             }
-            .firstOrNull()
-
-        val interfaceName = vpnNetwork
-            ?.let(connectivity::getLinkProperties)
-            ?.interfaceName
+            .firstOrNull { !it.isNullOrBlank() }
 
         if (interfaceName.isNullOrBlank()) {
             resetTrafficCounters()
             return TrafficSnapshot(null, 0L, 0L, 0L, 0L, false)
         }
 
-        val now = android.os.SystemClock.elapsedRealtime()
         val counters = readInterfaceCounters(interfaceName)
             ?: return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
+        val now = android.os.SystemClock.elapsedRealtime()
 
-        if (trafficInterface != interfaceName ||
-            trafficBaseRx < 0L ||
-            trafficBaseTx < 0L
-        ) {
+        if (trafficInterface != interfaceName || trafficBaseRx < 0L || trafficBaseTx < 0L) {
             trafficInterface = interfaceName
             trafficBaseRx = counters.first
             trafficBaseTx = counters.second
@@ -790,9 +779,8 @@ class MainActivity : Activity() {
         }
 
         val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)
-        val rxRate = ((counters.first - trafficLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
-        val txRate = ((counters.second - trafficLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
-
+        val rxDelta = (counters.first - trafficLastRx).coerceAtLeast(0L)
+        val txDelta = (counters.second - trafficLastTx).coerceAtLeast(0L)
         trafficLastRx = counters.first
         trafficLastTx = counters.second
         trafficLastAt = now
@@ -801,17 +789,19 @@ class MainActivity : Activity() {
             interfaceName,
             (counters.first - trafficBaseRx).coerceAtLeast(0L),
             (counters.second - trafficBaseTx).coerceAtLeast(0L),
-            rxRate,
-            txRate,
-            rxRate > 0L || txRate > 0L
+            rxDelta * 1000L / elapsedMs,
+            txDelta * 1000L / elapsedMs,
+            rxDelta > 0L || txDelta > 0L,
         )
     }
 
     private fun readInterfaceCounters(interfaceName: String): Pair<Long, Long>? {
         return runCatching {
             java.io.File("/proc/net/dev").useLines { lines ->
-                val line = lines.firstOrNull { it.trimStart().startsWith(interfaceName + ":") } ?: return@useLines null
-                val data = line.substringAfter(":").trim().split(" ").filter { it.isNotBlank() }
+                val line = lines.firstOrNull {
+                    it.trimStart().startsWith(interfaceName + ":")
+                } ?: return@useLines null
+                val data = line.substringAfter(":").trim().split(Regex("\\s+"))
                 if (data.size < 9) return@useLines null
                 val rx = data[0].toLongOrNull() ?: return@useLines null
                 val tx = data[8].toLongOrNull() ?: return@useLines null
@@ -827,12 +817,7 @@ class MainActivity : Activity() {
         trafficLastRx = -1L
         trafficLastTx = -1L
         trafficLastAt = 0L
-        deviceBaseRx = -1L
-        deviceBaseTx = -1L
-        deviceLastRx = -1L
-        deviceLastTx = -1L
     }
-
     private fun formatBytes(bytes: Long): String {
         val value = bytes.coerceAtLeast(0L).toDouble()
         return when {
