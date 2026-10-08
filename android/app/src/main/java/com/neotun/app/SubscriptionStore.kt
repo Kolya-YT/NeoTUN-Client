@@ -8,6 +8,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import java.util.zip.GZIPInputStream
 
 data class NeoTunSubscription(
     val id: String,
@@ -74,12 +75,21 @@ class SubscriptionStore(context: Context) {
             requestMethod = "GET"
             connectTimeout = 12_000
             readTimeout = 20_000
-            setRequestProperty("User-Agent", "NeoTUN/0.3")
+            setRequestProperty("User-Agent", "NeoTUN/0.4")
+            setRequestProperty("Accept", "text/plain, text/*, application/json, */*")
+            setRequestProperty("Accept-Encoding", "gzip")
             instanceFollowRedirects = true
         }
         return try {
             if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
-            connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
+            val rawStream = connection.inputStream
+            val stream = if (connection.getHeaderField("Content-Encoding")
+                    ?.contains("gzip", ignoreCase = true) == true) {
+                GZIPInputStream(rawStream)
+            } else {
+                rawStream
+            }
+            stream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
         } finally {
             connection.disconnect()
         }
