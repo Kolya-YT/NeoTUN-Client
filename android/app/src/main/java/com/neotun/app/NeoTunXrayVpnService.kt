@@ -167,16 +167,17 @@ class NeoTunXrayVpnService : VpnService() {
                 "inbounds",
                 JSONArray().put(
                     JSONObject()
-                        // Android already owns the TUN interface via VpnService and
-                        // passes its fd through xray.tun.fd. Supplying a stable name
-                        // prevents Xray's config builder from calling net.Interfaces()
-                        // to auto-generate a name, which is forbidden on modern Android.
-                        .put("name", "neotun")
                         .put("port", 0)
                         .put("protocol", "tun")
                         .put(
                             "settings",
                             JSONObject()
+                                // Android already owns the TUN through VpnService and
+                                // passes its fd via xray.tun.fd. The name belongs to
+                                // TUN settings (not the inbound object); setting it
+                                // explicitly prevents Xray from trying to discover
+                                // system interfaces through netlink on Android.
+                                .put("name", "neotun")
                                 .put("mtu", 1500),
                         ),
                 ),
