@@ -16,6 +16,8 @@ import android.text.InputType
 import android.view.Gravity
 import android.widget.*
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : Activity() {
     private lateinit var updater: AppUpdater
@@ -30,6 +32,10 @@ class MainActivity : Activity() {
     private var trafficLastRx = -1L
     private var trafficLastTx = -1L
     private var trafficLastAt = 0L
+    private var deviceBaseRx = -1L
+    private var deviceBaseTx = -1L
+    private var deviceLastRx = -1L
+    private var deviceLastTx = -1L
       private val poll = object : Runnable {
         override fun run() {
             if (!isFinishing) {
@@ -59,10 +65,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(22), dp(18), dp(14))
         }
-        root.addView(ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             isFillViewport = true
+            clipToPadding = false
             addView(content)
-        }, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -70,6 +78,15 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.rgb(15, 16, 22))
         }
         root.addView(nav, LinearLayout.LayoutParams(-1, dp(72)))
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            content.setPadding(dp(18), bars.top + dp(18), dp(18), dp(14))
+            nav.setPadding(dp(10), dp(7), dp(10), dp(8) + bars.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
         setContentView(root)
     }
 
@@ -256,12 +273,22 @@ class MainActivity : Activity() {
     }
 
     private fun disconnect() {
-        runCatching { stopService(Intent(this, NeoTunXrayVpnService::class.java)) }
-        runCatching { stopService(Intent(this, NeoTunVpnService::class.java)) }
+        val xray = Intent(this, NeoTunXrayVpnService::class.java)
+            .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT)
+        val singBox = Intent(this, NeoTunVpnService::class.java)
+            .setAction(NeoTunVpnService.ACTION_DISCONNECT)
+
+        runCatching { startService(xray) }
+        runCatching { startService(singBox) }
+        runCatching { stopService(xray) }
+        runCatching { stopService(singBox) }
+
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
             .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
             .remove(NeoTunVpnService.KEY_ERROR)
             .apply()
+        resetTrafficCounters()
+        handler.postDelayed({ if (!isFinishing && screen == Screen.HOME) renderHome() }, 350)
         renderHome()
     }
 
@@ -501,31 +528,81 @@ class MainActivity : Activity() {
     private fun readVpnTraffic(): TrafficSnapshot {
         val connectivity = getSystemService(ConnectivityManager::class.java)
         val vpnNetwork = connectivity.allNetworks.firstOrNull { network ->
-            connectivity.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            connectivity.getNetworkCapabilities(network)
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
         }
         val interfaceName = vpnNetwork?.let(connectivity::getLinkProperties)?.interfaceName
+
         if (interfaceName.isNullOrBlank()) {
             resetTrafficCounters()
             return TrafficSnapshot(null, 0L, 0L, 0L, 0L, false)
         }
-        val counters = readInterfaceCounters(interfaceName) ?: return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
+
         val now = android.os.SystemClock.elapsedRealtime()
-        if (trafficInterface != interfaceName || trafficBaseRx < 0L || trafficBaseTx < 0L) {
-            trafficInterface = interfaceName
-            trafficBaseRx = counters.first
-            trafficBaseTx = counters.second
-            trafficLastRx = counters.first
-            trafficLastTx = counters.second
+        val interfaceCounters = readInterfaceCounters(interfaceName)
+        val deviceRx = android.net.TrafficStats.getTotalRxBytes()
+        val deviceTx = android.net.TrafficStats.getTotalTxBytes()
+
+        // Some Android builds expose the VPN interface through LinkProperties
+        // but do not update /proc/net/dev counters for a userspace TUN fd.
+        // Keep interface counters as the primary source and fall back to the
+        // device counters so the session never gets stuck at 0 B.
+        if (interfaceCounters != null) {
+            if (trafficInterface != interfaceName || trafficBaseRx < 0L || trafficBaseTx < 0L) {
+                trafficInterface = interfaceName
+                trafficBaseRx = interfaceCounters.first
+                trafficBaseTx = interfaceCounters.second
+                trafficLastRx = interfaceCounters.first
+                trafficLastTx = interfaceCounters.second
+                trafficLastAt = now
+            } else {
+                val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)
+                val rxRate = ((interfaceCounters.first - trafficLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
+                val txRate = ((interfaceCounters.second - trafficLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
+                trafficLastRx = interfaceCounters.first
+                trafficLastTx = interfaceCounters.second
+                trafficLastAt = now
+                if (interfaceCounters.first > trafficBaseRx || interfaceCounters.second > trafficBaseTx) {
+                    return TrafficSnapshot(
+                        interfaceName,
+                        (interfaceCounters.first - trafficBaseRx).coerceAtLeast(0L),
+                        (interfaceCounters.second - trafficBaseTx).coerceAtLeast(0L),
+                        rxRate,
+                        txRate,
+                        rxRate > 0L || txRate > 0L
+                    )
+                }
+            }
+        }
+
+        if (deviceRx < 0L || deviceTx < 0L) {
+            return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
+        }
+
+        if (deviceBaseRx < 0L || deviceBaseTx < 0L) {
+            deviceBaseRx = deviceRx
+            deviceBaseTx = deviceTx
+            deviceLastRx = deviceRx
+            deviceLastTx = deviceTx
             trafficLastAt = now
             return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
         }
+
         val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)
-        val rxRate = ((counters.first - trafficLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
-        val txRate = ((counters.second - trafficLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
-        trafficLastRx = counters.first
-        trafficLastTx = counters.second
+        val rxRate = ((deviceRx - deviceLastRx).coerceAtLeast(0L) * 1000L / elapsedMs)
+        val txRate = ((deviceTx - deviceLastTx).coerceAtLeast(0L) * 1000L / elapsedMs)
+        deviceLastRx = deviceRx
+        deviceLastTx = deviceTx
         trafficLastAt = now
-        return TrafficSnapshot(interfaceName, (counters.first - trafficBaseRx).coerceAtLeast(0L), (counters.second - trafficBaseTx).coerceAtLeast(0L), rxRate, txRate, rxRate > 0L || txRate > 0L)
+
+        return TrafficSnapshot(
+            interfaceName,
+            (deviceRx - deviceBaseRx).coerceAtLeast(0L),
+            (deviceTx - deviceBaseTx).coerceAtLeast(0L),
+            rxRate,
+            txRate,
+            rxRate > 0L || txRate > 0L
+        )
     }
 
     private fun readInterfaceCounters(interfaceName: String): Pair<Long, Long>? {
@@ -548,6 +625,10 @@ class MainActivity : Activity() {
         trafficLastRx = -1L
         trafficLastTx = -1L
         trafficLastAt = 0L
+        deviceBaseRx = -1L
+        deviceBaseTx = -1L
+        deviceLastRx = -1L
+        deviceLastTx = -1L
     }
 
     private fun formatBytes(bytes: Long): String {
