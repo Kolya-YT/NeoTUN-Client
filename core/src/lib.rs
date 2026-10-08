@@ -68,15 +68,12 @@ impl Profile {
         }
 
         let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
-        let security = self.params.get("security").map(|s| s.to_ascii_lowercase()).unwrap_or_default();
-        let transport = self.params.get("type").map(|s| s.to_ascii_lowercase()).unwrap_or_default();
+        let security = self.params.get("security").map(String::as_str).unwrap_or("none");
+        let transport = self.params.get("type").map(String::as_str).unwrap_or("tcp");
+        let engine = self.engine();
 
-        if transport == "xhttp" {
-            return Ok(serde_json::json!({
-                "engine": "xray",
-                "protocol": "vless",
-                "transport": "xhttp"
-            }).to_string());
+        if engine == "xray" {
+            return Ok(serde_json::json!({"engine": "xray", "protocol": "vless", "transport": "xhttp"}).to_string());
         }
 
         let mut vless = serde_json::json!({
@@ -156,6 +153,9 @@ fn normalize_vless_uri(input: &str) -> Result<String, String> {
         return Ok(normalized);
     }
 
+    // Some clients/exporters percent-encode the entire share link. Decode it once
+    // only when the scheme itself is encoded, so encoded query values such as
+    // %26 are not accidentally turned into separators.
     let decoded = percent_decode(uri)?;
     if decoded.get(..8).is_some_and(|scheme| scheme.eq_ignore_ascii_case("vless://")) {
         let mut normalized = decoded;
@@ -251,5 +251,82 @@ impl Profile {
             Some(value) if value == "xhttp" => "xray",
             _ => "sing-box",
         }
+    }
+}
+
+pub fn supported_protocols() -> Vec<CoreInfo> {
+    vec![
+        CoreInfo { name: "VLESS", version: "adapter", protocol: "vless" },
+        CoreInfo { name: "VMess", version: "adapter", protocol: "vmess" },
+        CoreInfo { name: "Trojan", version: "adapter", protocol: "trojan" },
+        CoreInfo { name: "Hysteria2", version: "sing-box", protocol: "hysteria2" },
+        CoreInfo { name: "TUIC", version: "sing-box", protocol: "tuic" },
+        CoreInfo { name: "Shadowsocks", version: "sing-box", protocol: "shadowsocks" },
+        CoreInfo { name: "WireGuard", version: "native/adapter", protocol: "wireguard" },
+        CoreInfo { name: "AmneziaWG", version: "amnezia", protocol: "amneziawg" },
+        CoreInfo { name: "OpenVPN", version: "native/adapter", protocol: "openvpn" },
+        CoreInfo { name: "OpenFlux", version: "adapter", protocol: "openflux" },
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protocols_are_present() {
+        let protocols = supported_protocols();
+        assert!(protocols.iter().any(|p| p.protocol == "vless"));
+        assert!(protocols.iter().any(|p| p.protocol == "tuic"));
+        assert!(protocols.iter().any(|p| p.protocol == "amneziawg"));
+    }
+
+    #[test]
+    fn parses_vless_uri() {
+        let profile = Profile::from_vless_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=ws&path=%2Fneo#My%20Server"
+        ).unwrap();
+
+        assert_eq!(profile.protocol, "vless");
+        assert_eq!(profile.address, "example.com");
+        assert_eq!(profile.port, 443);
+        assert_eq!(profile.uuid.as_deref(), Some("123e4567-e89b-12d3-a456-426614174000"));
+        assert_eq!(profile.name.as_deref(), Some("My Server"));
+        assert_eq!(profile.params.get("security").map(String::as_str), Some("tls"));
+        assert_eq!(profile.params.get("path").map(String::as_str), Some("/neo"));
+        let config = profile.to_sing_box_json().unwrap();
+        assert!(config.contains("\"type\": \"vless\""));
+        assert!(config.contains("\"type\": \"tun\""));
+        assert!(config.contains("example.com"));
+    }
+
+    #[test]
+    fn xhttp_selects_xray() {
+        let profile = Profile::from_vless_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xhttp&path=%2Fneo"
+        ).unwrap();
+
+        assert_eq!(profile.engine(), "xray");
+        let config = profile.to_sing_box_json().unwrap();
+        assert!(config.contains("\"engine\":\"xray\""));
+        assert!(config.contains("\"transport\":\"xhttp\""));
+    }
+
+    #[test]
+    fn parses_percent_encoded_whole_uri() {
+        let encoded = "%76%6c%65%73%73%3a%2f%2f123e4567-e89b-12d3-a456-426614174000%40example.com%3a443%3fsecurity%3dtls%26type%3dxhttp%26path%3d%252Fneo";
+        let profile = Profile::from_vless_uri(encoded).unwrap();
+        assert_eq!(profile.engine(), "xray");
+        assert_eq!(profile.params.get("type").map(String::as_str), Some("xhttp"));
+    }
+
+    #[test]
+    fn parses_ipv6_vless_uri() {
+        let profile = Profile::from_vless_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@[2001:db8::1]:443?type=tcp"
+        ).unwrap();
+
+        assert_eq!(profile.address, "2001:db8::1");
+        assert_eq!(profile.port, 443);
     }
 }
