@@ -162,7 +162,7 @@ impl Profile {
         let port=value.get("port").and_then(|v|v.as_str()).and_then(|v|v.parse().ok()).or_else(||value.get("port").and_then(|v|v.as_u64()).map(|v|v as u16)).ok_or("VMess: нет port")?;
         let uuid=value.get("id").and_then(|v|v.as_str()).map(str::to_string);
         let mut params=HashMap::new();
-        for (key,target) in [("net","type"),("host","host"),("path","path"),("tls","security"),("sni","sni"),("scy","encryption")] {
+        for (key,target) in [("net","network"),("host","host"),("path","path"),("tls","security"),("sni","sni"),("scy","encryption"),("type","network"),("serviceName","service_name")] {
             if let Some(v)=value.get(key).and_then(|v|v.as_str()) { params.insert(target.into(),v.into()); }
         }
         Ok(Self { protocol:"vmess".into(), address:address.into(), port, name:value.get("ps").and_then(|v|v.as_str()).map(str::to_string), uuid, password:None, params })
@@ -177,12 +177,102 @@ impl Profile {
                 o
             },
             "hysteria2" => {
-                let mut o=serde_json::json!({"type":"hysteria2","tag":"proxy","server":self.address,"server_port":self.port,"password":self.password.clone().unwrap_or_default()});
-                add_tls(&mut o,&self.params); o
+                let mut o=serde_json::json!({
+                    "type":"hysteria2",
+                    "tag":"proxy",
+                    "server":self.address,
+                    "server_port":self.port,
+                    "password":self.password.clone().unwrap_or_default(),
+                    "tls":{"enabled":true}
+                });
+                if let Some(sni)=self.params.get("sni").or_else(||self.params.get("peer")) {
+                    o["tls"]["server_name"]=serde_json::json!(sni);
+                }
+                if self.params.get("insecure").map(|v|v=="1" || v=="true").unwrap_or(false) {
+                    o["tls"]["insecure"]=serde_json::json!(true);
+                }
+                if let Some(obfs)=self.params.get("obfs") {
+                    if obfs=="salamander" || obfs=="gecko" {
+                        if let Some(password)=self.params.get("obfs-password").or_else(||self.params.get("obfs_password")) {
+                            o["obfs"]=serde_json::json!({"type":obfs,"password":password});
+                        }
+                    }
+                }
+                if let Some(v)=self.params.get("up_mbps").and_then(|v|v.parse::<u64>().ok()) { o["up_mbps"]=serde_json::json!(v); }
+                if let Some(v)=self.params.get("down_mbps").and_then(|v|v.parse::<u64>().ok()) { o["down_mbps"]=serde_json::json!(v); }
+                o
             },
-            "tuic" => serde_json::json!({"type":"tuic","tag":"proxy","server":self.address,"server_port":self.port,"uuid":self.uuid.clone().unwrap_or_default(),"password":self.password.clone().unwrap_or_default(),"tls":{"enabled":true,"server_name":self.params.get("sni").or_else(||self.params.get("sni")).cloned()}}),
+            "tuic" => {
+                let mut o = serde_json::json!({
+                    "type":"tuic",
+                    "tag":"proxy",
+                    "server":self.address,
+                    "server_port":self.port,
+                    "uuid":self.uuid.clone().unwrap_or_default(),
+                    "password":self.password.clone().unwrap_or_default(),
+                    "congestion_control":self.params.get("congestion_control").cloned().unwrap_or_else(||"cubic".into()),
+                    "udp_relay_mode":self.params.get("udp_relay_mode").cloned().unwrap_or_else(||"native".into()),
+                    "tls":{"enabled":true}
+                });
+                if let Some(sni)=self.params.get("sni").cloned() { o["tls"]["server_name"]=serde_json::json!(sni); }
+                if self.params.get("allow_insecure").map(|v| v=="1" || v=="true").unwrap_or(false) {
+                    o["tls"]["insecure"]=serde_json::json!(true);
+                }
+                if let Some(alpn)=self.params.get("alpn") {
+                    o["tls"]["alpn"]=serde_json::json!(alpn.split(',').map(str::trim).filter(|v|!v.is_empty()).collect::<Vec<_>>());
+                }
+                o
+            },
             "shadowsocks" => serde_json::json!({"type":"shadowsocks","tag":"proxy","server":self.address,"server_port":self.port,"method":self.params.get("method").cloned().unwrap_or_default(),"password":self.params.get("password").cloned().unwrap_or_default()}),
-            "vmess" => serde_json::json!({"type":"vmess","tag":"proxy","server":self.address,"server_port":self.port,"uuid":self.uuid.clone().unwrap_or_default(),"security":self.params.get("encryption").cloned().unwrap_or_else(||"auto".into())}),
+            "vmess" => {
+                let mut o=serde_json::json!({
+                    "type":"vmess",
+                    "tag":"proxy",
+                    "server":self.address,
+                    "server_port":self.port,
+                    "uuid":self.uuid.clone().unwrap_or_default(),
+                    "security":self.params.get("encryption").cloned().unwrap_or_else(||"auto".into())
+                });
+                if self.params.get("security").map(|v|v=="tls").unwrap_or(false) {
+                    o["tls"]=serde_json::json!({
+                        "enabled":true,
+                        "server_name":self.params.get("sni").or_else(||self.params.get("host")).cloned()
+                    });
+                }
+                if let Some(network)=self.params.get("network") {
+                    match network.to_ascii_lowercase().as_str() {
+                        "ws" => {
+                            o["transport"]=serde_json::json!({
+                                "type":"ws",
+                                "path":self.params.get("path").cloned().unwrap_or_else(||"/".into()),
+                                "headers":self.params.get("host").map(|h|serde_json::json!({"Host":h})).unwrap_or_else(||serde_json::json!({}))
+                            });
+                        },
+                        "grpc" => {
+                            o["transport"]=serde_json::json!({
+                                "type":"grpc",
+                                "service_name":self.params.get("service_name").cloned().unwrap_or_default()
+                            });
+                        },
+                        "http" => {
+                            o["transport"]=serde_json::json!({
+                                "type":"http",
+                                "path":self.params.get("path").cloned().unwrap_or_else(||"/".into()),
+                                "host":self.params.get("host").map(|h|vec![h.clone()]).unwrap_or_default()
+                            });
+                        },
+                        "httpupgrade" => {
+                            o["transport"]=serde_json::json!({
+                                "type":"httpupgrade",
+                                "path":self.params.get("path").cloned().unwrap_or_else(||"/".into()),
+                                "host":self.params.get("host").cloned().unwrap_or_default()
+                            });
+                        },
+                        _ => {}
+                    }
+                }
+                o
+            },
             _ => return Err("Протокол не поддерживается".into())
         };
         let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"route":{"auto_detect_interface":true,"final":"proxy"}});
@@ -388,9 +478,10 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 
 impl Profile {
     pub fn engine(&self) -> &'static str {
-        match self.params.get("type").map(|value| value.to_ascii_lowercase()) {
-            Some(value) if matches!(value.as_str(), "xhttp" | "splithttp") => "xray",
-            _ => "sing-box",
+        if self.protocol == "vless" {
+            "xray"
+        } else {
+            "sing-box"
         }
     }
 }
@@ -403,10 +494,8 @@ pub fn supported_protocols() -> Vec<CoreInfo> {
         CoreInfo { name: "Hysteria2", version: "sing-box", protocol: "hysteria2" },
         CoreInfo { name: "TUIC", version: "sing-box", protocol: "tuic" },
         CoreInfo { name: "Shadowsocks", version: "sing-box", protocol: "shadowsocks" },
-        CoreInfo { name: "WireGuard", version: "native/adapter", protocol: "wireguard" },
-        CoreInfo { name: "AmneziaWG", version: "amnezia", protocol: "amneziawg" },
-        CoreInfo { name: "OpenVPN", version: "native/adapter", protocol: "openvpn" },
-        CoreInfo { name: "OpenFlux", version: "adapter", protocol: "openflux" },
+        CoreInfo { name: "WireGuard", version: "next", protocol: "wireguard" },
+        CoreInfo { name: "AmneziaWG", version: "next", protocol: "amneziawg" },
     ]
 }
 
