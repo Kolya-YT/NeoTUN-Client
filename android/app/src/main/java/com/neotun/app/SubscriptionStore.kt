@@ -77,9 +77,11 @@ class SubscriptionStore(context: Context) {
             setRequestProperty("User-Agent", "NeoTUN/0.3")
             instanceFollowRedirects = true
         }
-        return connection.use {
-            if (it.responseCode !in 200..299) error("HTTP ${it.responseCode}")
-            it.inputStream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
+        return try {
+            if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
+            connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
+        } finally {
+            connection.disconnect()
         }
     }
 
