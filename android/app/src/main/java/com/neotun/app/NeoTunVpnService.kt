@@ -40,7 +40,11 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 stopWithError("Нет профиля. Добавьте VLESS-ссылку.")
             } else {
                 runCatching {
-                    commandServer.startOrReloadService(config, OverrideOptions())
+                    val normalizedConfig = config.trim()
+                    if (!normalizedConfig.startsWith("{")) {
+                        error("Некорректная конфигурация sing-box")
+                    }
+                    commandServer.startOrReloadService(normalizedConfig, OverrideOptions())
                     getSharedPreferences(PREFS, MODE_PRIVATE)
                         .edit()
                         .putString(KEY_CONFIG, config)
@@ -105,11 +109,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     private fun startForegroundNotification() {
         val channelId = "neotun-service"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val enabled = getSharedPreferences("neotun_ui", MODE_PRIVATE)
+                .getBoolean("notifications_enabled", true)
             getSystemService(NotificationManager::class.java).createNotificationChannel(
                 NotificationChannel(
                     channelId,
                     "NeoTUN",
-                    NotificationManager.IMPORTANCE_LOW,
+                    if (enabled) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_MIN,
                 ),
             )
         }
@@ -119,6 +125,9 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             .setContentTitle("NeoTUN")
             .setContentText("Соединение запускается…")
             .setOngoing(true)
+            .setSilent(true)
+            .setPriority(if (getSharedPreferences("neotun_ui", MODE_PRIVATE).getBoolean("notifications_enabled", true))
+                NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(
                 PendingIntent.getActivity(
