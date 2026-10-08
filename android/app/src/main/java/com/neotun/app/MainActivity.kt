@@ -153,6 +153,19 @@ class MainActivity : Activity() {
         stats.addView(row, margins(top = 14))
         stats.addView(txt(if (traffic.interfaceName != null) "TUN: " + traffic.interfaceName else "Ожидаем активный TUN-интерфейс…", 12f, Color.rgb(125, 129, 141)), margins(top = 10))
         content.addView(stats, margins(bottom = 12))
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        actions.addView(
+            button("Проверить ping") { pingSelected(selected) },
+            LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(0, 0, dp(5), 0) }
+        )
+        actions.addView(
+            button("Переподключить") { reconnectSelected(selected) },
+            LinearLayout.LayoutParams(0, dp(50), 1f).apply { setMargins(dp(5), 0, 0, 0) }
+        )
+        content.addView(actions, margins(bottom = 10))
         content.addView(button("Открыть диагностику") { diagnostics() })
     }
 
@@ -394,6 +407,106 @@ class MainActivity : Activity() {
             .create()
         dialog.setOnShowListener { styleDialog(dialog) }
         dialog.show()
+    }
+
+    private fun pingSelected(profile: NeoTunProfile?) {
+        if (profile == null) {
+            toast("Сначала добавьте профиль")
+            showScreen(Screen.PROFILES)
+            return
+        }
+        if (isRunning()) {
+            toast("Для ping сначала отключите соединение")
+            return
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Проверка сервера")
+            .setMessage("Проверяем доступность профиля…")
+            .setNegativeButton("Отмена", null)
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+
+        Thread {
+            val pingResult = runCatching {
+                val convertedRaw = NeoTunXrayBridge.nativeInvoke(
+                    org.json.JSONObject()
+                        .put("apiVersion", 3)
+                        .put("method", "convertShareLinksToXrayJson")
+                        .put("payload", org.json.JSONObject().put("text", profile.uri))
+                        .toString()
+                )
+                val converted = org.json.JSONObject(convertedRaw)
+                if (!converted.optBoolean("success", false)) {
+                    error(converted.optString("error", "Не удалось разобрать профиль"))
+                }
+                val data = converted.optJSONObject("data")
+                    ?: error("Xray parser не вернул конфигурацию")
+                val outbounds = data.optJSONArray("outbounds")
+                    ?: error("Xray parser не вернул outbound")
+                val pingRaw = NeoTunXrayBridge.nativeInvoke(
+                    org.json.JSONObject()
+                        .put("apiVersion", 3)
+                        .put("method", "pingBatch")
+                        .put(
+                            "payload",
+                            org.json.JSONObject()
+                                .put(
+                                    "configs",
+                                    org.json.JSONArray().put(
+                                        org.json.JSONObject().put(
+                                            "xrayJson",
+                                            org.json.JSONObject().put("outbounds", outbounds).toString()
+                                        )
+                                    )
+                                )
+                                .put("timeout", 5)
+                                .put("url", "https://cp.cloudflare.com/")
+                        )
+                        .toString()
+                )
+                val ping = org.json.JSONObject(pingRaw)
+                if (!ping.optBoolean("success", false)) {
+                    error(ping.optString("error", "Ping не выполнен"))
+                }
+                val item = ping.optJSONObject("data")
+                    ?.optJSONArray("results")
+                    ?.optJSONObject(0)
+                    ?: error("Пустой результат ping")
+                if (!item.optBoolean("success", false)) {
+                    error(item.optString("error", "Сервер недоступен"))
+                }
+                item.optLong("delay", -1L)
+            }.getOrElse { -1L }
+
+            runOnUiThread {
+                if (dialog.isShowing) dialog.dismiss()
+                if (pingResult >= 0L) {
+                    toast("Ping: ${pingResult} мс")
+                } else {
+                    toast("Ping не пройден — проверьте сервер или профиль")
+                }
+            }
+        }.start()
+    }
+
+    private fun reconnectSelected(profile: NeoTunProfile?) {
+        if (profile == null) {
+            toast("Сначала добавьте профиль")
+            showScreen(Screen.PROFILES)
+            return
+        }
+        if (!isRunning()) {
+            connect(profile)
+            return
+        }
+
+        toast("Переподключение…")
+        disconnect()
+        handler.postDelayed({
+            if (!isFinishing && !isRunning()) connect(profile)
+        }, 900L)
     }
 
     private fun checkUpdates() {
