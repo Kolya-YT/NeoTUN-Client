@@ -2,6 +2,7 @@ package com.neotun.app
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -89,10 +90,59 @@ class AppUpdater(private val context: Context) {
                     }
                 }
                 c.disconnect()
-                post { installApk(file) }
+                post {
+                    try {
+                        validateApkForUpdate(file)
+                        installApk(file)
+                    } catch (e: Exception) {
+                        file.delete()
+                        onError(e.message ?: "APK нельзя установить поверх текущего приложения")
+                    }
+                }
             } catch (e: Exception) {
                 post { onError(e.message ?: "Ошибка загрузки обновления") }
             }
+        }
+    }
+
+    private fun validateApkForUpdate(file: File) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val archive = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
+            ?: throw IllegalStateException("Не удалось прочитать APK обновления")
+
+        if (archive.packageName != context.packageName) {
+            throw IllegalStateException("APK относится к другому приложению")
+        }
+
+        val current = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, flags)
+        }
+
+        val sameSigner = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val currentSigners = current.signingInfo.apkContentsSigners
+            val archiveSigners = archive.signingInfo?.apkContentsSigners
+            currentSigners.contentEquals(archiveSigners ?: emptyArray())
+        } else {
+            @Suppress("DEPRECATION")
+            current.signatures.contentEquals(archive.signatures)
+        }
+
+        if (!sameSigner) {
+            throw IllegalStateException(
+                "Нельзя обновить установленную версию: APK подписан другим ключом. " +
+                    "Настройте постоянный production-keystore для GitHub Actions или удалите старую версию вручную.",
+            )
         }
     }
 
