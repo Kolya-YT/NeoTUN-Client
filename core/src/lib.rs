@@ -239,7 +239,7 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
     env: JNIEnv,
     _class: JClass,
 ) -> jstring {
-    let value = "NeoTUN Core 0.2.1 • Rust";
+    let value = "NeoTUN Core 0.2.2 • Rust";
     env.new_string(value)
         .map(JString::into_raw)
         .unwrap_or(std::ptr::null_mut())
