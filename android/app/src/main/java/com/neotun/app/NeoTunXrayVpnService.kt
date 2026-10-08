@@ -75,8 +75,17 @@ class NeoTunXrayVpnService : VpnService() {
         // Android may expose a link-local Wi-Fi DNS (fe80::/10). Do not put
         // that scoped address into the VPN. Use a stable public IPv4 resolver
         // for captured app DNS; Xray DNS is protected separately below.
-        val vpnDns = "1.1.1.1"
-        val dnsEndpoint = "1.1.1.1:53"
+        val uiPrefs = getSharedPreferences("neotun_ui", MODE_PRIVATE)
+        val dnsMode = uiPrefs.getString("dns_mode", "Автоматический") ?: "Автоматический"
+        val vpnDns = when {
+            dnsMode.contains("1.1.1.1") -> "1.1.1.1"
+            dnsMode.contains("8.8.8.8") -> "8.8.8.8"
+            dnsMode.contains("9.9.9.9") -> "9.9.9.9"
+            else -> systemDns.takeIf { !it.contains(":") } ?: "1.1.1.1"
+        }
+        val dnsEndpoint = vpnDns + ":53"
+        val mtu = uiPrefs.getInt("mtu", 1500).coerceIn(1280, 1500)
+        val ipv6 = uiPrefs.getBoolean("ipv6_enabled", false)
         NeoTunDiagnostics.log(
             this,
             "Этап 2/8: системный DNS=$systemDns, VPN DNS=$vpnDns, Xray DNS endpoint=$dnsEndpoint"
@@ -84,14 +93,20 @@ class NeoTunXrayVpnService : VpnService() {
 
         NeoTunDiagnostics.log(this, "Этап 3/8: создание Android VpnService TUN")
         val vpnBuilder = Builder()
-            .setMtu(1500)
+            .setMtu(mtu)
             .setMetered(false)
             .setBlocking(true)
             // Keep NeoTUN/Xray process sockets outside its own VPN. The Xray
             // socket controller also calls VpnService.protect() as a second guard.
             .addDisallowedApplication(packageName)
             .addAddress("172.19.0.1", 30)
-            // Start with IPv4-only routing. Xray receives the Android TUN fd;
+            .apply {
+                if (ipv6) {
+                    addAddress("fdfe:dcba:9876::1", 126)
+                    addRoute("::", 0)
+                }
+            }
+            // Start with IPv4-only routing when IPv6 is disabled. Xray receives the Android TUN fd;
             // enabling a parallel IPv6 default route here can blackhole IPv6-first
             // Android connections until IPv6 handling is implemented end-to-end.
             .addRoute("0.0.0.0", 0)
@@ -102,7 +117,7 @@ class NeoTunXrayVpnService : VpnService() {
             ?: error("Не удалось создать Android TUN")
 
         tunFd = vpnInterface.detachFd()
-        NeoTunDiagnostics.log(this, "TUN создан, fd=$tunFd, MTU=1500, route=IPv4")
+        NeoTunDiagnostics.log(this, "TUN создан, fd=$tunFd, MTU=$mtu, route=IPv4" + if (ipv6) "+IPv6" else "")
 
         // The VPN must already be established before VpnService.protect() can
         // protect Xray outbound sockets and the Go DNS resolver.
@@ -201,7 +216,7 @@ class NeoTunXrayVpnService : VpnService() {
                                 // passes its fd via xray.tun.fd. The name belongs to
                                 // TUN settings (not the inbound object).
                                 .put("name", "neotun")
-                                .put("mtu", 1500),
+                                .put("mtu", mtu),
                         ),
                 ),
             )
@@ -367,11 +382,13 @@ class NeoTunXrayVpnService : VpnService() {
     private fun startForegroundNotification() {
         val channelId = "neotun-xray"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val enabled = getSharedPreferences("neotun_ui", MODE_PRIVATE)
+                .getBoolean("notifications_enabled", true)
             getSystemService(NotificationManager::class.java).createNotificationChannel(
                 NotificationChannel(
                     channelId,
                     "NeoTUN Xray",
-                    NotificationManager.IMPORTANCE_LOW,
+                    if (enabled) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_MIN,
                 ),
             )
         }
@@ -381,6 +398,9 @@ class NeoTunXrayVpnService : VpnService() {
             .setContentTitle("NeoTUN")
             .setContentText("Xray + XHTTP запускается…")
             .setOngoing(true)
+            .setSilent(true)
+            .setPriority(if (getSharedPreferences("neotun_ui", MODE_PRIVATE).getBoolean("notifications_enabled", true))
+                NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(
                 PendingIntent.getActivity(
