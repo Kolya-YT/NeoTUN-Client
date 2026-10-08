@@ -71,14 +71,12 @@ class MainActivity : Activity() {
             clipToPadding = false
         }
         shellRoot = root
-
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(24))
+            setPadding(dp(16), dp(12), dp(16), dp(20))
             clipChildren = true
             clipToPadding = true
         }
-
         scroll = ScrollView(this).apply {
             isFillViewport = true
             isVerticalScrollBarEnabled = false
@@ -88,31 +86,23 @@ class MainActivity : Activity() {
             addView(content, FrameLayout.LayoutParams(-1, -2))
         }
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        // HAPP-inspired navigation: the home screen is the hub, with settings
-        // and adding profiles available from the top bar. Keep the old nav
-        // object hidden so older code paths remain harmless.
-        nav = LinearLayout(this).apply { visibility = android.view.View.GONE }
-        root.addView(nav, LinearLayout.LayoutParams(1, 1))
-
+        nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(6), dp(8), dp(8))
+            setBackgroundColor(Color.rgb(12, 15, 25))
+        }
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(68)))
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            content.setPadding(
-                dp(16) + bars.left,
-                dp(12) + bars.top,
-                dp(16) + bars.right,
-                dp(24) + bars.bottom
-            )
-            scroll?.layoutParams = (scroll?.layoutParams ?: LinearLayout.LayoutParams(-1, 0, 1f)).apply {
-                width = -1
-            }
-            content.layoutParams = FrameLayout.LayoutParams(-1, -2)
+            content.setPadding(dp(16) + bars.left, dp(10) + bars.top,
+                dp(16) + bars.right, dp(18) + bars.bottom)
+            nav.setPadding(dp(8) + bars.left, dp(6), dp(8) + bars.right, dp(8) + bars.bottom)
             view.requestLayout()
             insets
         }
-
         ViewCompat.requestApplyInsets(root)
         setContentView(root)
     }
@@ -132,305 +122,313 @@ class MainActivity : Activity() {
         val profiles = store.all()
         val selected = selectedProfile(profiles)
         val running = isRunning()
-        val compact = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("compact_profiles", false) ||
-            resources.displayMetrics.widthPixels < dp(360)
+        val error = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .getString(NeoTunVpnService.KEY_ERROR, null)?.takeIf { it.isNotBlank() }
 
-        // Top bar — intentionally minimal like HAPP, but with NeoTUN's purple accent.
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(2), 0, dp(4))
+            setPadding(0, dp(2), 0, dp(10))
         }
-        top.addView(iconButton("⚙", 30) { showScreen(Screen.SETTINGS) },
-            LinearLayout.LayoutParams(dp(52), dp(52)))
-        top.addView(txt("NeoTUN", if (compact) 22f else 24f, Color.WHITE, Typeface.BOLD, Gravity.CENTER),
-            LinearLayout.LayoutParams(0, dp(52), 1f))
-        top.addView(iconButton("+", 34) { showImportMenu() },
-            LinearLayout.LayoutParams(dp(52), dp(52)))
+        top.addView(txt("NeoTUN", 26f, Color.WHITE, Typeface.BOLD),
+            LinearLayout.LayoutParams(0, dp(48), 1f))
+        top.addView(iconButton("＋", 28) { showImportMenu() },
+            LinearLayout.LayoutParams(dp(48), dp(48)))
         content.addView(top)
 
-        // Large connection control.
-        val connectZone = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(4), 0, dp(8))
-        }
-        val powerOuter = FrameLayout(this).apply {
-            background = rounded(
-                if (running) Color.rgb(42, 66, 62) else Color.rgb(23, 27, 57),
-                100,
-                if (running) Color.rgb(74, 211, 145) else Color.rgb(76, 69, 176),
-                1
-            )
-            elevation = dp(2).toFloat()
-        }
-        val ring = FrameLayout(this).apply {
-            background = rounded(
-                if (running) Color.rgb(42, 104, 83) else Color.rgb(35, 39, 91),
-                100,
-                if (running) Color.rgb(81, 221, 155) else Color.rgb(93, 82, 226),
-                8
-            )
-        }
-        val power = TextView(this).apply {
-            text = "⏻"
-            textSize = if (compact) 48f else 54f
-            gravity = Gravity.CENTER
-            setTextColor(if (running) Color.rgb(103, 235, 174) else Color.rgb(151, 141, 255))
-            typeface = Typeface.DEFAULT
-            setOnClickListener {
-                if (running) disconnect()
-                else if (selected == null) showScreen(Screen.PROFILES)
-                else connect(selected)
+        if (error != null) {
+            val errorCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = rounded(Color.rgb(42, 22, 30), 16, Color.rgb(120, 53, 72), 1)
             }
+            errorCard.addView(txt("Не удалось подключиться", 14f, Color.rgb(255, 177, 190), Typeface.BOLD))
+            errorCard.addView(txt(error, 12f, Color.rgb(226, 174, 186)).apply {
+                maxLines = 3
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, margins(top = 5))
+            content.addView(errorCard, margins(bottom = 10))
         }
-        ring.addView(power, FrameLayout.LayoutParams(-1, -1))
-        powerOuter.addView(ring, FrameLayout.LayoutParams(dp(if (compact) 188 else 210), dp(if (compact) 188 else 210), Gravity.CENTER))
-        connectZone.addView(powerOuter, LinearLayout.LayoutParams(dp(if (compact) 226 else 248), dp(if (compact) 226 else 248)))
-        connectZone.addView(txt(
-            if (running) "Подключено" else "Не подключено",
-            17f, if (running) Color.rgb(91, 224, 154) else Color.rgb(185, 188, 201),
-            Typeface.BOLD, Gravity.CENTER
-        ), margins(top = 8))
-        connectZone.addView(txt(
-            selected?.name ?: "Добавьте профиль",
-            13f, Color.rgb(128, 133, 151), Typeface.NORMAL, Gravity.CENTER
-        ).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END },
-            margins(top = 4, bottom = 10))
-        content.addView(connectZone)
 
-        // Compact traffic strip.
+        val connection = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(16), dp(12), dp(16))
+            background = rounded(
+                if (running) Color.rgb(18, 43, 36) else Color.rgb(18, 21, 38),
+                22,
+                if (running) Color.rgb(57, 151, 111) else Color.rgb(40, 44, 70), 1)
+        }
+        val stateCircle = FrameLayout(this).apply {
+            background = rounded(
+                if (running) Color.rgb(34, 103, 76) else Color.rgb(31, 34, 72),
+                100,
+                if (running) Color.rgb(83, 222, 156) else Color.rgb(94, 83, 224), 2)
+        }
+        stateCircle.addView(txt(if (running) "✓" else "⏻", 30f,
+            if (running) Color.rgb(116, 239, 177) else Color.rgb(159, 149, 255),
+            Typeface.BOLD, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
+        connection.addView(stateCircle, LinearLayout.LayoutParams(dp(82), dp(82)))
+
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, dp(8), 0)
+        }
+        info.addView(txt(if (running) "Подключено" else "Не подключено", 15f,
+            if (running) Color.rgb(103, 232, 166) else Color.rgb(177, 181, 197), Typeface.BOLD))
+        info.addView(txt(selected?.name ?: "Сервер не выбран", 17f, Color.WHITE, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 5))
+        info.addView(txt(selected?.let(::protocolLabel) ?: "Добавьте сервер из буфера или по ссылке",
+            11f, Color.rgb(130, 135, 154)).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 4))
+        connection.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+        connection.addView(button(
+            if (running) "Отключить" else if (selected == null) "Серверы" else "Подключить"
+        ) {
+            if (running) disconnect()
+            else if (selected == null) showScreen(Screen.PROFILES)
+            else connect(selected)
+        }, LinearLayout.LayoutParams(dp(108), dp(50)))
+        content.addView(connection, margins(bottom = 10))
+
         val traffic = readVpnTraffic()
         val trafficCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = rounded(Color.rgb(17, 21, 38), 18, Color.rgb(31, 36, 60), 1)
-            setPadding(dp(14), dp(10), dp(14), dp(10))
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(12), dp(10), dp(12))
+            background = rounded(Color.rgb(15, 18, 30), 18, Color.rgb(33, 37, 58), 1)
         }
-        trafficCard.addView(txt("↓ " + formatBytes(traffic.sessionRx), 13f, Color.rgb(205, 208, 220), Typeface.BOLD),
-            LinearLayout.LayoutParams(0, -2, 1f))
-        trafficCard.addView(txt("↑ " + formatBytes(traffic.sessionTx), 13f, Color.rgb(205, 208, 220), Typeface.BOLD, Gravity.CENTER),
-            LinearLayout.LayoutParams(0, -2, 1f))
-        trafficCard.addView(txt(
-            if (traffic.hasTraffic) formatRate(traffic.rxRate) else "—",
-            13f, Color.rgb(143, 132, 255), Typeface.BOLD, Gravity.END
-        ), LinearLayout.LayoutParams(0, -2, 1f))
-        content.addView(trafficCard, margins(bottom = 12))
+        trafficCard.addView(metric("↓", formatBytes(traffic.sessionRx), "получено"),
+            LinearLayout.LayoutParams(0, dp(58), 1f))
+        trafficCard.addView(metric("↑", formatBytes(traffic.sessionTx), "отправлено"),
+            LinearLayout.LayoutParams(0, dp(58), 1f))
+        trafficCard.addView(metric("↯", if (traffic.hasTraffic) formatRate(maxOf(traffic.rxRate, traffic.txRate)) else "—", "скорость"),
+            LinearLayout.LayoutParams(0, dp(58), 1f))
+        content.addView(trafficCard, margins(bottom = 10))
 
-        // HAPP-like profile/subscription card. Each local profile is a row.
-        val listCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = rounded(Color.rgb(17, 20, 38), 22, Color.rgb(31, 35, 57), 1)
-            clipChildren = true
-        }
-
-        val listHeader = LinearLayout(this).apply {
+        val serverCard = card().apply { setPadding(dp(14), dp(12), dp(14), dp(8)) }
+        val serverHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(12))
+            setOnClickListener { showScreen(Screen.PROFILES) }
         }
-        listHeader.addView(txt("NeoTUN", 18f, Color.WHITE, Typeface.BOLD),
+        serverHeader.addView(txt("Серверы", 16f, Color.WHITE, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        listHeader.addView(txt(
-            if (profiles.isEmpty()) "0 профилей" else profiles.size.toString() + " профилей",
-            12f, Color.rgb(137, 141, 159), Typeface.NORMAL, Gravity.END
-        ))
-        listCard.addView(listHeader)
+        serverHeader.addView(txt(profiles.size.toString(), 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
+        serverCard.addView(serverHeader, margins(bottom = 6))
 
         if (profiles.isEmpty()) {
-            val empty = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(dp(20), dp(20), dp(20), dp(22))
-            }
-            empty.addView(txt("Профилей пока нет", 16f, Color.WHITE, Typeface.BOLD, Gravity.CENTER))
-            empty.addView(txt("Нажмите + и добавьте VLESS-ссылку.", 13f, Color.rgb(140, 145, 162), Gravity.CENTER),
-                margins(top = 6))
-            empty.addView(button("Добавить профиль") { showImportMenu() }, margins(top = 14))
-            listCard.addView(empty)
-        } else {
-            profiles.forEachIndexed { index, p ->
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(14), dp(11), dp(12), dp(11))
-                    setBackgroundColor(if (p.id == selected?.id) Color.rgb(27, 31, 57) else Color.TRANSPARENT)
-                    setOnClickListener {
-                        setSelectedProfile(p.id)
-                        renderHome()
-                    }
-                }
-                row.addView(txt(countryFlag(p.name), 24f, Color.WHITE, Typeface.NORMAL, Gravity.CENTER),
-                    LinearLayout.LayoutParams(dp(38), dp(48)))
-                val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                info.addView(txt(p.name, 15f, Color.WHITE, Typeface.BOLD).apply {
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                })
-                info.addView(txt(
-                    protocolLabel(p),
-                    11f, Color.rgb(130, 135, 154)
-                ).apply {
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }, margins(top = 3))
-                row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-                row.addView(txt(if (p.id == selected?.id) "✓" else "›", 22f,
-                    if (p.id == selected?.id) Color.rgb(121, 222, 158) else Color.rgb(112, 116, 136),
-                    Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(28), dp(48)))
-                listCard.addView(row)
-                if (index < profiles.lastIndex) {
-                    listCard.addView(View(this).apply {
-                        setBackgroundColor(Color.rgb(30, 34, 54))
-                    }, LinearLayout.LayoutParams(-1, dp(1)))
-                }
-            }
-            val footer = TextView(this).apply {
-                text = "Управление профилями"
-                textSize = 12f
-                setTextColor(Color.rgb(142, 130, 255))
-                gravity = Gravity.CENTER
-                setPadding(0, dp(12), 0, dp(14))
-                setOnClickListener { showScreen(Screen.PROFILES) }
-            }
-            listCard.addView(footer)
-        }
-        content.addView(listCard, margins(bottom = 12))
-
-        if (!traffic.interfaceName.isNullOrBlank()) {
-            content.addView(txt("TUN: " + traffic.interfaceName, 10f, Color.rgb(88, 93, 110), Gravity.CENTER),
+            serverCard.addView(txt("Добавьте профиль — он появится здесь.", 13f, Color.rgb(133, 138, 156)),
                 margins(bottom = 6))
+            serverCard.addView(button("＋ Добавить сервер") { showImportMenu() })
+        } else {
+            profiles.take(4).forEachIndexed { index, p ->
+                val row = serverRow(p, p.id == selected?.id, compact = true)
+                row.setOnClickListener {
+                    setSelectedProfile(p.id)
+                    renderHome()
+                }
+                serverCard.addView(row)
+                if (index < minOf(3, profiles.lastIndex)) {
+                    serverCard.addView(View(this).apply { setBackgroundColor(Color.rgb(31, 35, 54)) },
+                        LinearLayout.LayoutParams(-1, dp(1)))
+                }
+            }
+            if (profiles.size > 4) {
+                val more = txt("Показать все серверы  •  +" + (profiles.size - 4), 12f,
+                    Color.rgb(145, 132, 255), Typeface.BOLD, Gravity.CENTER)
+                more.setPadding(0, dp(11), 0, dp(8))
+                more.setOnClickListener { showScreen(Screen.PROFILES) }
+                serverCard.addView(more)
+            }
         }
+        content.addView(serverCard, margins(bottom = 10))
+
+        val quick = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        quick.addView(button("Проверить сервер") { pingSelected(selected) },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(0, 0, dp(5), 0) })
+        quick.addView(button("Переподключить") { reconnectSelected(selected) },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(5), 0, 0, 0) })
+        content.addView(quick, margins(bottom = 6))
     }
 
     private fun renderProfiles() {
         content.removeAllViews()
-        addBackHeader("Профили", "Выберите сервер или добавьте новый")
-        content.addView(button("+  Добавить профиль") { showImportMenu() }, margins(bottom = 12))
-
+        addBackHeader("Серверы", store.all().size.toString() + " профилей • " + subscriptions.all().size + " подписок")
+        content.addView(button("＋  Импортировать сервер / подписку") { showImportMenu() }, margins(bottom = 10))
+        val profiles = store.all()
+        val selected = selectedProfileId()
         val subs = subscriptions.all()
+
         if (subs.isNotEmpty()) {
             val subCard = card()
-            subCard.addView(txt("ПОДПИСКИ", 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
-            subs.forEach { sub ->
+            subCard.addView(txt("ПОДПИСКИ", 11f, Color.rgb(139, 126, 255), Typeface.BOLD), margins(bottom = 4))
+            subs.forEachIndexed { index, sub ->
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(0, dp(8), 0, dp(8))
                 }
                 val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                info.addView(txt(sub.name, 14f, Color.WHITE, Typeface.BOLD))
+                info.addView(txt(sub.name, 14f, Color.WHITE, Typeface.BOLD).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
                 info.addView(txt(
-                    if (sub.lastUpdated > 0) "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
-                    else "Ещё не обновлялась",
+                    if (sub.lastUpdated > 0)
+                        "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
+                    else "Ожидает первого обновления",
                     11f, Color.rgb(125, 130, 148)
                 ), margins(top = 3))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-                row.addView(button("↻") { refreshSubscription(sub) }, LinearLayout.LayoutParams(dp(52), dp(42)))
+                row.addView(iconButton("↻", 22) { refreshSubscription(sub) }, LinearLayout.LayoutParams(dp(44), dp(44)))
                 subCard.addView(row)
+                if (index < subs.lastIndex) {
+                    subCard.addView(View(this).apply { setBackgroundColor(Color.rgb(31, 35, 54)) },
+                        LinearLayout.LayoutParams(-1, dp(1)))
+                }
             }
-            content.addView(subCard, margins(bottom = 12))
+            content.addView(subCard, margins(bottom = 10))
         }
-        val selected = selectedProfileId()
-        val profiles = store.all()
+
         if (profiles.isEmpty()) {
             val empty = card()
-            empty.addView(txt("Профилей пока нет", 18f, Color.WHITE, Typeface.BOLD))
-            empty.addView(txt("Добавьте VLESS-ссылку — она сохранится на устройстве.", 13f, Color.rgb(145, 150, 168)), margins(top = 7))
+            empty.gravity = Gravity.CENTER_HORIZONTAL
+            empty.addView(txt("Серверов пока нет", 18f, Color.WHITE, Typeface.BOLD, Gravity.CENTER))
+            empty.addView(txt(
+                "Вставьте ссылку в буфер обмена — NeoTUN сам определит: подписка это или отдельный сервер.",
+                13f, Color.rgb(139, 144, 161), Gravity.CENTER
+            ).apply { maxLines = 3 }, margins(top = 7, bottom = 12))
+            empty.addView(button("＋ Импортировать") { showImportMenu() })
             content.addView(empty)
             return
         }
-        profiles.forEach { p ->
-            val item = card()
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
+
+        val listCard = card().apply { setPadding(dp(10), dp(8), dp(10), dp(8)) }
+        listCard.addView(txt("СЕРВЕРЫ", 11f, Color.rgb(139, 126, 255), Typeface.BOLD),
+            margins(start = 4, bottom = 3))
+        profiles.forEachIndexed { index, p ->
+            val row = serverRow(p, p.id == selected, compact = false)
+            row.setOnClickListener {
+                setSelectedProfile(p.id)
+                renderProfiles()
             }
-            row.addView(txt(countryFlag(p.name), 26f, Color.WHITE, Gravity.CENTER), LinearLayout.LayoutParams(dp(42), dp(48)))
-            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            box.addView(txt(p.name, 17f, Color.WHITE, Typeface.BOLD).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-            box.addView(txt(protocolLabel(p), 12f, Color.rgb(145, 149, 166)), margins(top = 4))
-            row.addView(box, LinearLayout.LayoutParams(0, -2, 1f))
-            if (p.id == selected) row.addView(txt("✓", 20f, Color.rgb(92, 213, 142), Typeface.BOLD))
-            item.addView(row)
-            val compactProfiles = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("compact_profiles", false)
-            item.addView(txt(maskUri(p.uri), if (compactProfiles) 10f else 11f, Color.rgb(105, 110, 128)), margins(top = if (compactProfiles) 6 else 10))
-            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val actionHeight = if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("compact_profiles", false)) 40 else 44
-            actions.addView(button(if (p.id == selected) "Выбран" else "Выбрать") { selectProfile(p) },
-                LinearLayout.LayoutParams(0, dp(actionHeight), 1f).apply { setMargins(0, dp(8), dp(5), 0) })
-            actions.addView(button("⋮") { profileActions(p) },
-                LinearLayout.LayoutParams(dp(54), dp(44)).apply { setMargins(dp(5), dp(10), 0, 0) })
-            item.addView(actions)
-            content.addView(item, margins(bottom = 9))
+            listCard.addView(row)
+            if (index < profiles.lastIndex) {
+                listCard.addView(View(this).apply { setBackgroundColor(Color.rgb(31, 35, 54)) },
+                    LinearLayout.LayoutParams(-1, dp(1)))
+            }
+        }
+        content.addView(listCard, margins(bottom = 10))
+
+        val selectedProfile = profiles.firstOrNull { it.id == selected }
+        if (selectedProfile != null) {
+            content.addView(button(
+                if (isRunning() && selectedProfile.id == selectedProfileId()) "Отключить" else "Подключить выбранный"
+            ) {
+                if (isRunning()) disconnect() else connect(selectedProfile)
+            }, margins(bottom = 6))
+            content.addView(button("⋮  Действия выбранного сервера") {
+                profileActions(selectedProfile)
+            }, margins(bottom = 18))
         }
     }
+
+    private fun serverRow(profile: NeoTunProfile, selected: Boolean, compact: Boolean): LinearLayout {
+        val rowHeight = if (compact) 58 else 68
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(if (compact) 6 else 8), dp(8), dp(if (compact) 6 else 8))
+            background = if (selected) rounded(Color.rgb(28, 31, 55), 14) else ColorDrawable(Color.TRANSPARENT)
+        }
+        row.addView(txt(countryFlag(profile.name), if (compact) 23f else 25f, Color.WHITE,
+            Typeface.NORMAL, Gravity.CENTER), LinearLayout.LayoutParams(dp(42), dp(rowHeight)))
+        val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        info.addView(txt(profile.name, if (compact) 14f else 15f, Color.WHITE, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        info.addView(txt(protocolLabel(profile), 10.5f, Color.rgb(130, 135, 154)).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 3))
+        info.addView(txt(maskUri(profile.uri), 10f, Color.rgb(96, 101, 119)).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 2))
+        row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(txt(if (selected) "✓" else "›", 22f,
+            if (selected) Color.rgb(105, 226, 160) else Color.rgb(100, 105, 124),
+            Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(30), dp(rowHeight)))
+        return row
+    }
+
+
 
     private fun renderSettings() {
         content.removeAllViews()
-        addBackHeader("Настройки", "NeoTUN • Android")
+        addBackHeader("Настройки", "Только параметры, которые реально влияют на NeoTUN")
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
 
-        val about = card()
-        about.addView(txt("NeoTUN", 21f, Color.WHITE, Typeface.BOLD))
-        about.addView(txt("Core " + NeoTunCore.nativeVersion() + " • Rust", 13f, Color.rgb(145, 150, 168)), margins(top = 5))
-        about.addView(txt("MTU, DNS и IPv6 применяются при следующем подключении. Остальные параметры работают сразу.", 13f, Color.rgb(145, 150, 168)), margins(top = 9))
-        content.addView(about, margins(bottom = 10))
-
         val connection = settingsSection("СОЕДИНЕНИЕ")
-        connection.addView(settingsRow("⚡ Режим подключения", "Автоматический", "NeoTUN выбирает Xray или sing-box по профилю") { toast("Автоматический выбор движка включён") })
-        connection.addView(settingsRow("🌐 DNS", prefs.getString("dns_mode", "Автоматический") ?: "Автоматический", "DNS внутри VPN") { showDnsSettings() })
-        connection.addView(settingsRow("📡 IPv6", if (prefs.getBoolean("ipv6_enabled", false)) "Включён" else "Выключен", "IPv6-маршрутизация через TUN") { toggleSetting("ipv6_enabled", "IPv6") { renderSettings() } })
-        connection.addView(settingsRow("🔌 MTU", prefs.getInt("mtu", 1500).toString(), "Размер пакета VPN-интерфейса") { showMtuSettings() })
+        connection.addView(settingsRow("🌐 DNS",
+            prefs.getString("dns_mode", "Автоматический") ?: "Автоматический",
+            "Системный DNS или выбранный сервер") { showDnsSettings() })
+        connection.addView(settingsRow("🔌 MTU",
+            prefs.getInt("mtu", 1500).toString(),
+            "Применяется при следующем подключении") { showMtuSettings() })
+        connection.addView(settingsRow("📡 IPv6",
+            if (prefs.getBoolean("ipv6_enabled", false)) "Включён" else "Выключен",
+            "Добавляет IPv6-адрес и маршрут в TUN") {
+            toggleSetting("ipv6_enabled", "IPv6") { renderSettings() }
+        })
         content.addView(connection, margins(bottom = 10))
 
         val subscriptionsSection = settingsSection("ПОДПИСКИ")
-        subscriptionsSection.addView(settingsRow("🔄 Автообновление", if (prefs.getBoolean("subscriptions_auto_update", true)) "Включено" else "Выключено", "Обновлять подписки при запуске приложения") { toggleSetting("subscriptions_auto_update", "Автообновление") { renderSettings() } })
-        subscriptionsSection.addView(settingsRow("📋 Импорт из буфера", "Автоматический", "HTTP(S) → подписка, share-link → профиль") { toast("Импорт из буфера настроен автоматически") })
-        subscriptionsSection.addView(settingsRow("🗂️ Управление профилями", "${store.all().size} профилей", "Удаление, переименование и выбор профиля") { showScreen(Screen.PROFILES) })
+        subscriptionsSection.addView(settingsRow("🔄 Автообновление",
+            if (prefs.getBoolean("subscriptions_auto_update", true)) "Включено" else "Выключено",
+            "Проверять подписки при запуске, не чаще раза в 12 часов") {
+            toggleSetting("subscriptions_auto_update", "Автообновление") { renderSettings() }
+        })
+        subscriptionsSection.addView(settingsRow("🗂️ Серверы и подписки",
+            store.all().size.toString() + " / " + subscriptions.all().size,
+            "Выбор, удаление и обновление") { showScreen(Screen.PROFILES) })
         content.addView(subscriptionsSection, margins(bottom = 10))
 
-        val appearance = settingsSection("ВНЕШНИЙ ВИД")
-        appearance.addView(settingsRow("🎨 Тема", "NeoTUN Dark", "Тёмная тема приложения") { toast("NeoTUN Dark — основной стиль приложения") })
-        appearance.addView(settingsRow("📱 Компактный список", if (prefs.getBoolean("compact_profiles", false)) "Включён" else "Выключен", "Уменьшить высоту карточек профилей") { toggleSetting("compact_profiles", "Компактный список") { renderSettings(); showScreen(Screen.PROFILES) } })
-        content.addView(appearance, margins(bottom = 10))
+        val tools = settingsSection("СЕРВИС")
+        tools.addView(settingsRow("🧪 Диагностика", "Открыть",
+            "Последние ошибки TUN, DNS и движка") { diagnostics() })
+        tools.addView(settingsRow("⬆️ Обновление", "Проверить",
+            "Проверка новой версии приложения") { checkUpdates() })
+        tools.addView(settingsRow("♻️ Сброс настроек", "",
+            "Профили и подписки останутся на месте") { confirmResetSettings() })
+        content.addView(tools, margins(bottom = 10))
 
-        val behavior = settingsSection("ПОВЕДЕНИЕ")
-        behavior.addView(settingsRow("🔔 Уведомления", if (prefs.getBoolean("notifications_enabled", true)) "Включены" else "Выключены", "Системное уведомление активного соединения") { toggleSetting("notifications_enabled", "Уведомления") { renderSettings() } })
-        behavior.addView(settingsRow("🧪 Диагностика", "Журнал", "Ошибки запуска, TUN, DNS и сетевого движка") { diagnostics() })
-        behavior.addView(settingsRow("♻️ Сбросить настройки", "", "Профили и подписки не удаляются") { confirmResetSettings() })
-        content.addView(behavior, margins(bottom = 10))
-
-        val protocols = settingsSection("ПРОТОКОЛЫ")
-        listOf(
-            "VLESS" to "Xray • TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP",
-            "VMess" to "sing-box • проверяется",
-            "Trojan" to "sing-box • проверяется",
-            "Hysteria2" to "sing-box • проверяется",
-            "TUIC" to "sing-box • проверяется",
-            "Shadowsocks" to "sing-box • проверяется",
-            "WireGuard / AmneziaWG" to "Следующий этап"
-        ).forEach { pair ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(9), 0, dp(9))
-            }
-            row.addView(txt(pair.first, 14f, Color.WHITE), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(txt(pair.second, 11f, Color.rgb(137, 142, 160), Gravity.END).apply {
-                maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(0, -2, 1.25f))
-            protocols.addView(row)
-        }
-        content.addView(protocols, margins(bottom = 12))
-        content.addView(button("Проверить обновления") { checkUpdates() }, margins(bottom = 8))
-        content.addView(button("Лог подключения") { diagnostics() }, margins(bottom = 18))
+        val about = card()
+        about.addView(txt("NeoTUN", 19f, Color.WHITE, Typeface.BOLD))
+        about.addView(txt("Версия 0.4.5 • Core " + NeoTunCore.nativeVersion(), 12f, Color.rgb(135, 140, 157)),
+            margins(top = 5))
+        about.addView(txt(
+            "Неработающие переключатели убраны. Настройки применяются только там, где их поддерживает текущий движок.",
+            11f, Color.rgb(105, 110, 128)
+        ), margins(top = 8))
+        content.addView(about, margins(bottom = 18))
     }
 
+
+
     private fun settingsSection(title: String): LinearLayout {
-        val section = card()
-        section.addView(txt(title, 12f, Color.rgb(139, 126, 255), Typeface.BOLD), margins(bottom = 4))
+        val section = card().apply { setPadding(dp(14), dp(10), dp(14), dp(8)) }
+        section.addView(txt(title, 11f, Color.rgb(139, 126, 255), Typeface.BOLD),
+            margins(start = 2, bottom = 2))
         return section
     }
 
@@ -438,22 +436,28 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(11), 0, dp(11))
+            setPadding(dp(2), dp(11), 0, dp(11))
             isClickable = true
             setOnClickListener { action() }
         }
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(txt(title, 14f, Color.WHITE, Typeface.BOLD))
-        if (summary.isNotBlank()) texts.addView(txt(summary, 11f, Color.rgb(125, 130, 148)).apply {
+        texts.addView(txt(title, 14f, Color.WHITE, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        texts.addView(txt(summary, 11f, Color.rgb(124, 129, 147)).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
-        if (value.isNotBlank()) row.addView(txt(value, 12f, Color.rgb(151, 139, 255), textGravity = Gravity.END).apply {
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, LinearLayout.LayoutParams(dp(125), -2))
-        row.addView(txt("›", 25f, Color.rgb(100, 102, 120), textGravity = Gravity.CENTER), LinearLayout.LayoutParams(dp(28), dp(42)))
+        if (value.isNotBlank()) {
+            row.addView(txt(value, 11.5f, Color.rgb(151, 139, 255), Typeface.BOLD, Gravity.END).apply {
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(dp(112), -2))
+        }
+        row.addView(txt("›", 23f, Color.rgb(94, 99, 117), Gravity.CENTER),
+            LinearLayout.LayoutParams(dp(28), dp(42)))
         return row
     }
 
@@ -465,16 +469,24 @@ class MainActivity : Activity() {
         after()
     }
 
+
+
     private fun showDnsSettings() {
         val values = arrayOf("Автоматический", "Cloudflare • 1.1.1.1", "Google • 8.8.8.8", "Quad9 • 9.9.9.9")
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
         val checked = values.indexOf(prefs.getString("dns_mode", values[0])).coerceAtLeast(0)
-        AlertDialog.Builder(this).setTitle("DNS").setSingleChoiceItems(values, checked) { dialog, which ->
-            prefs.edit().putString("dns_mode", values[which]).apply()
-            dialog.dismiss()
-            renderSettings()
-        }.setNegativeButton("Отмена", null).show()
+        AlertDialog.Builder(this).setTitle("DNS")
+            .setSingleChoiceItems(values, checked) { dialog, which ->
+                prefs.edit().putString("dns_mode", values[which]).apply()
+                dialog.dismiss()
+                toast("DNS сохранён. Переподключитесь для применения.")
+                renderSettings()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
+
+
 
     private fun showMtuSettings() {
         val input = EditText(this).apply {
@@ -484,16 +496,22 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this)
             .setTitle("MTU")
-            .setMessage("Рекомендуется 1500. Для проблемных сетей можно попробовать 1280–1500.")
+            .setMessage("Допустимо 1280–1500. Значение применяется при следующем подключении.")
             .setView(input)
             .setNegativeButton("Отмена", null)
             .setPositiveButton("Сохранить") { _, _ ->
-                val mtu = input.text.toString().toIntOrNull()?.coerceIn(1280, 1500) ?: 1500
-                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().putInt("mtu", mtu).apply()
-                toast("MTU: $mtu")
+                val value = input.text.toString().toIntOrNull()
+                if (value == null || value !in 1280..1500) {
+                    toast("MTU должен быть от 1280 до 1500")
+                    return@setPositiveButton
+                }
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().putInt("mtu", value).apply()
+                toast("MTU сохранён: $value")
                 renderSettings()
             }.show()
     }
+
+
 
     private fun confirmResetSettings() {
         AlertDialog.Builder(this)
@@ -555,7 +573,6 @@ class MainActivity : Activity() {
         for (i in 0 until inbounds.length()) {
             val inbound = inbounds.optJSONObject(i) ?: continue
             if (!"tun".equals(inbound.optString("type"), true)) continue
-
             inbound.put("mtu", mtu)
             val addresses = JSONArray().put("172.19.0.1/30")
             val routes = JSONArray().put("0.0.0.0/0")
@@ -565,10 +582,7 @@ class MainActivity : Activity() {
             }
             inbound.put("address", addresses)
             inbound.put("route_address", routes)
-            inbound.remove("inet4_address")
-            inbound.remove("inet6_address")
-            inbound.remove("inet4_route_address")
-            inbound.remove("inet6_route_address")
+            inbound.put("auto_route", true)
             inbound.put("dns_mode", "hijack")
             inbound.put("dns_address", JSONArray().put("172.19.0.2"))
         }
@@ -579,45 +593,21 @@ class MainActivity : Activity() {
             dnsMode.contains("9.9.9.9") -> "9.9.9.9"
             else -> null
         }
-
-        if (dnsIp == null) {
-            root.remove("dns")
+        val dnsServer = if (dnsIp == null) {
+            JSONObject().put("type", "local").put("tag", "system")
         } else {
-            root.put("dns", JSONObject()
-                .put("servers", JSONArray().put(
-                    JSONObject()
-                        .put("type", "udp")
-                        .put("tag", "selected-dns")
-                        .put("server", dnsIp)
-                        .put("server_port", 53)
-                ))
-                .put("final", "selected-dns")
-                .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only")
-            )
+            JSONObject().put("type", "udp").put("tag", "selected-dns")
+                .put("server", dnsIp).put("server_port", 53)
         }
+        root.put("dns", JSONObject()
+            .put("servers", JSONArray().put(dnsServer))
+            .put("final", if (dnsIp == null) "system" else "selected-dns")
+            .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only"))
 
         val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
         route.put("auto_detect_interface", true)
         route.put("final", "proxy")
-        if (dnsIp != null) {
-            route.put("rules", JSONArray().put(
-                JSONObject().put("protocol", JSONArray().put("dns")).put("outbound", "dns-out")
-            ))
-            val outbounds = root.optJSONArray("outbounds") ?: JSONArray().also { root.put("outbounds", it) }
-            var hasDnsOutbound = false
-            for (i in 0 until outbounds.length()) {
-                if (outbounds.optJSONObject(i)?.optString("tag") == "dns-out") {
-                    hasDnsOutbound = true
-                    break
-                }
-            }
-            if (!hasDnsOutbound) {
-                outbounds.put(JSONObject().put("type", "dns").put("tag", "dns-out"))
-            }
-        } else {
-            route.remove("rules")
-        }
-
+        route.remove("rules")
         return root.toString()
     }
 
@@ -1191,8 +1181,32 @@ class MainActivity : Activity() {
     }
 
     private fun renderNavigation() {
-        // Navigation is intentionally replaced by the HAPP-style top controls.
-        nav.visibility = android.view.View.GONE
+        nav.removeAllViews()
+        val items = listOf("⌂" to "Главная", "▣" to "Серверы", "⚙" to "Настройки")
+        items.forEachIndexed { index, pair ->
+            val target = when (index) {
+                0 -> Screen.HOME
+                1 -> Screen.PROFILES
+                else -> Screen.SETTINGS
+            }
+            val selected = screen == target
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(4), dp(2), dp(4), dp(2))
+                background = rounded(if (selected) Color.rgb(29, 27, 54) else Color.TRANSPARENT, 14)
+                setOnClickListener { showScreen(target) }
+            }
+            item.addView(txt(pair.first, 20f,
+                if (selected) Color.rgb(158, 145, 255) else Color.rgb(119, 124, 141),
+                Typeface.BOLD, Gravity.CENTER))
+            item.addView(txt(pair.second, 10f,
+                if (selected) Color.WHITE else Color.rgb(119, 124, 141),
+                Typeface.BOLD, Gravity.CENTER), margins(top = 2))
+            nav.addView(item, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+                setMargins(dp(3), 0, dp(3), 0)
+            })
+        }
     }
 
     private fun header(title: String, subtitle: String) {
