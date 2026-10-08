@@ -41,7 +41,13 @@ NeoTUN использует адаптерную архитектуру: при�
 | Протокол | Импорт | Движок | Статус |
 |---|---:|---|---|
 | VLESS | ✅ | sing-box / Xray | 🟡 активно тестируется |
-| VLESS + XHTTP | ✅ | Xray | 🟡 активно тестируется |
+| VLESS TCP | ✅ | sing-box | 🟡 активно тестируется |
+| VLESS WebSocket | ✅ | sing-box | 🟡 активно тестируется |
+| VLESS gRPC | ✅ | sing-box | 🟡 активно тестируется |
+| VLESS HTTP | ✅ | sing-box | 🟡 активно тестируется |
+| VLESS HTTPUpgrade | ✅ | sing-box | 🟡 активно тестируется |
+| VLESS XHTTP | ✅ | Xray | 🟡 активно тестируется |
+| VLESS SplitHTTP | ✅ | Xray | 🟡 активно тестируется |
 | VMess | ✅ | sing-box | 🟡 адаптер |
 | Trojan | ✅ | sing-box | 🟡 адаптер |
 | Hysteria2 | ✅ | sing-box | 🟡 адаптер |
@@ -460,7 +466,7 @@ Android installer
 - [x] VLESS parser
 - [x] sing-box
 - [x] Xray
-- [x] VLESS XHTTP
+- [x] VLESS TCP\n- [x] VLESS WebSocket\n- [x] VLESS gRPC\n- [x] VLESS HTTP\n- [x] VLESS HTTPUpgrade\n- [x] VLESS XHTTP\n- [x] VLESS SplitHTTP
 - [x] Profile storage
 - [x] Connect / disconnect
 - [x] Reconnect
