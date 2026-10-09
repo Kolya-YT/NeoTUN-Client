@@ -613,8 +613,8 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.5
-versionCode: 25
+NeoTUN Android: 0.4.6
+versionCode: 26
 
 Core: Rust 0.2.4
 Platform: Android
@@ -671,3 +671,12 @@ Disconnect
 NeoTUN создаётся как единый быстрый клиент, где пользователь видит простую оболочку, а внутри приложение автоматически выбирает подходящий сетевой движок.
 
 **Один клиент → несколько протоколов → несколько ядер → единый интерфейс.**
+
+
+## Fixes in 0.4.6
+
+- Server screen actions are pinned above bottom navigation, so connect/disconnect and server actions remain visible while scrolling.
+- Bottom navigation reserves space for Android's system navigation bar.
+- Hysteria2 port hopping is normalized to sing-box syntax (`start:end`), and `server_port` is omitted when `server_ports` is configured.
+- sing-box startup failures are logged and surfaced through the app's connection error state instead of escaping the startup block.
+- A successful APK build does not replace end-to-end Hysteria2 testing on a real device; QUIC/UDP still requires a live server test.
