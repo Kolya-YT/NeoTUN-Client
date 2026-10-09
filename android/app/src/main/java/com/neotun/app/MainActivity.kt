@@ -71,6 +71,7 @@ class MainActivity : Activity() {
         }
         buildShell()
         showScreen(Screen.HOME)
+        handleRoutingIntent(intent)
         handler.post(poll)
     }
 
@@ -1368,6 +1369,75 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleRoutingIntent(intent)
+    }
+
+    private fun handleRoutingIntent(intent: Intent?) {
+        val link = intent?.dataString?.trim().orEmpty()
+        if (link.isBlank()) return
+        if (link.contains("://routing/off", true)) {
+            routingStore.setEnabled(false)
+            toast("Маршрутизация выключена")
+            showScreen(Screen.SETTINGS)
+            return
+        }
+        val activate = link.contains("/onadd/", true)
+        val json = NeoTunRoutingProfile.decode(link)
+        if (json != null) {
+            val saved = routingStore.save(json, activate = activate)
+            routingStore.setEnabled(true)
+            toast("Профиль маршрутизации: ${saved.name}")
+            showScreen(Screen.SETTINGS)
+            return
+        }
+        val isRoutingUrl = link.contains("://routing/", true) || link.contains("://autorouting/", true)
+        if (!isRoutingUrl) return
+        val url = when {
+            link.contains("://autorouting/", true) ->
+                link.substringAfter("://autorouting/", "").substringAfter('/', "")
+            link.contains("://routing/", true) ->
+                link.substringAfter("://routing/", "").substringAfter('/', "")
+            else -> ""
+        }.let { normalizeRoutingUrl(it) }
+        if (!url.startsWith("https://", true) && !url.startsWith("http://", true)) {
+            toast("Ссылка маршрутизации некорректна")
+            return
+        }
+        toast("Загружаем профиль маршрутизации…")
+        Thread {
+            val result = runCatching {
+                val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 12_000
+                    readTimeout = 20_000
+                    setRequestProperty("User-Agent", "NeoTUN/0.5")
+                }
+                try {
+                    if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
+                    connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                } finally {
+                    connection.disconnect()
+                }
+            }.mapCatching { body ->
+                NeoTunRoutingProfile.decode(body) ?: error("Сервер вернул не JSON/Base64 профиль")
+            }
+            runOnUiThread {
+                result.onSuccess { profile ->
+                    val saved = routingStore.save(profile, sourceUrl = url, activate = activate)
+                    routingStore.setEnabled(true)
+                    toast("Профиль «${saved.name}» импортирован")
+                    showScreen(Screen.SETTINGS)
+                }.onFailure { toast("Не удалось загрузить маршрутизацию: ${it.message}") }
+            }
+        }.start()
+    }
+
+    private fun normalizeRoutingUrl(value: String): String =
+        value.replace("https://github.com/", "https://raw.githubusercontent.com/")
+            .replace("/blob/", "/")
 
     override fun onResume() {
         super.onResume()
