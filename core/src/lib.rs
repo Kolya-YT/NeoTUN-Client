@@ -680,6 +680,7 @@ mod tests {
         let config = profile.to_sing_box_json().unwrap();
         assert!(config.contains("\"type\": \"vless\""));
         assert!(config.contains("\"type\": \"tun\""));
+        assert!(config.contains("\"action\": \"hijack-dns\""));
         assert!(config.contains("example.com"));
     }
 
@@ -713,6 +714,7 @@ mod tests {
         let config = profile.to_generic_sing_box_json().unwrap();
         assert!(config.contains("\"type\":\"hysteria2\""));
         assert!(config.contains("\"network\":\"udp\""));
+        assert!(config.contains("\"action\":\"hijack-dns\""));
         assert!(config.contains("\"server_name\":\"example.com\""));
         assert!(config.contains("\"type\":\"salamander\""));
         assert!(config.contains("\"alpn\":[\"h3\"]"));
