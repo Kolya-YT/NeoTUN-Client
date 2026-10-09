@@ -139,155 +139,130 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(4), dp(2), dp(14))
+            setPadding(0, dp(2), 0, dp(10))
         }
-        val brand = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        brand.addView(txt("NeoTUN", 27f, Color.WHITE, Typeface.BOLD))
-        brand.addView(txt("PRIVATE CONNECTION", 9f, Color.rgb(129, 135, 158), Typeface.BOLD), margins(top = 3))
+        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        brand.addView(txt("NeoTUN", 23f, Color.WHITE, Typeface.BOLD))
+        brand.addView(txt("Подключение к серверам", 11f, Color.rgb(133, 139, 158)), margins(top = 2))
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        val statusPill = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(dp(10), dp(8), dp(10), dp(8))
-            background = rounded(if (running) Color.rgb(18, 54, 43) else Color.rgb(26, 29, 46), 50)
-        }
-        statusPill.addView(txt("●", 9f, if (running) Color.rgb(83, 224, 155) else Color.rgb(127, 132, 153)))
-        statusPill.addView(txt(if (running) " В сети" else " Не подключено", 11f,
-            if (running) Color.rgb(112, 231, 169) else Color.rgb(174, 178, 194), Typeface.BOLD), margins(start = 5))
-        top.addView(statusPill, LinearLayout.LayoutParams(-2, dp(34)))
-        top.addView(iconButton("＋", 25) { showImportMenu() }.apply {
-            background = rounded(Color.rgb(29, 31, 51), 14, Color.rgb(53, 57, 84), 1)
-        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { setMargins(dp(8), 0, 0, 0) })
+        top.addView(txt(if (running) "●  В сети" else "○  Не подключено", 11f,
+            if (running) Color.rgb(94, 220, 158) else Color.rgb(145, 150, 168), Typeface.BOLD))
+        top.addView(iconButton("＋", 23) { showImportMenu() }.apply {
+            background = rounded(Color.rgb(27, 30, 46), 13, Color.rgb(43, 47, 68), 1)
+        }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { setMargins(dp(10), 0, 0, 0) })
         content.addView(top)
 
         if (error != null) {
             val errorCard = card().apply {
-                setPadding(dp(14), dp(11), dp(14), dp(11))
-                background = rounded(Color.rgb(47, 24, 34), 16, Color.rgb(129, 54, 76), 1)
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                background = rounded(Color.rgb(45, 25, 35), 13, Color.rgb(112, 54, 72), 1)
             }
-            errorCard.addView(txt("Не удалось запустить соединение", 13f, Color.rgb(255, 176, 190), Typeface.BOLD))
-            errorCard.addView(txt(error, 11f, Color.rgb(223, 174, 187)).apply {
-                maxLines = 3
+            errorCard.addView(txt("Не удалось подключиться", 12f, Color.rgb(255, 176, 190), Typeface.BOLD))
+            errorCard.addView(txt(error, 10.5f, Color.rgb(223, 174, 187)).apply {
+                maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
-            }, margins(top = 5))
-            content.addView(errorCard, margins(bottom = 12))
+            }, margins(top = 4))
+            content.addView(errorCard, margins(bottom = 8))
         }
 
-        val hero = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(16))
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                intArrayOf(if (running) Color.rgb(17, 58, 48) else Color.rgb(31, 29, 66),
-                    Color.rgb(17, 20, 35))).apply { cornerRadius = dp(26).toFloat() }
+        val connection = card().apply {
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = rounded(if (running) Color.rgb(17, 42, 36) else Color.rgb(21, 23, 39),
+                18, if (running) Color.rgb(39, 91, 72) else Color.rgb(42, 44, 68), 1)
         }
-        val heroTop = LinearLayout(this).apply {
+        val stateRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        heroTop.addView(txt(if (running) "ЗАЩИЩЁННОЕ СОЕДИНЕНИЕ" else "ГОТОВ К ПОДКЛЮЧЕНИЮ",
-            10f, if (running) Color.rgb(112, 231, 169) else Color.rgb(173, 164, 255), Typeface.BOLD),
+        stateRow.addView(txt(if (running) "СОЕДИНЕНИЕ АКТИВНО" else "ВЫБРАННЫЙ СЕРВЕР",
+            9.5f, if (running) Color.rgb(104, 221, 163) else Color.rgb(158, 148, 238), Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        heroTop.addView(txt(if (running) "● АКТИВНО" else "○ ОЖИДАНИЕ", 9f,
-            if (running) Color.rgb(112, 231, 169) else Color.rgb(145, 149, 169), Typeface.BOLD))
-        hero.addView(heroTop)
-
-        hero.addView(txt(selected?.name ?: "Выберите сервер", 24f, Color.WHITE, Typeface.BOLD).apply {
+        stateRow.addView(txt(if (running) "●" else "○", 10f,
+            if (running) Color.rgb(104, 221, 163) else Color.rgb(130, 135, 154), Typeface.BOLD))
+        connection.addView(stateRow)
+        connection.addView(txt(selected?.name ?: "Выберите сервер", 17f, Color.WHITE, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 17))
-        hero.addView(txt(selected?.let(::protocolLabel) ?: "Добавьте ссылку или импортируйте подписку",
-            12f, Color.rgb(157, 162, 184)).apply {
-            maxLines = 2
+        }, margins(top = 8))
+        connection.addView(txt(selected?.let { protocolLabel(it) } ?: "Добавьте ссылку или подписку",
+            10.5f, Color.rgb(151, 157, 176)).apply {
+            maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 6, bottom = 17))
-
-        val connectButton = button(if (running) "Отключиться" else if (selected == null) "Выбрать сервер" else "Подключиться") {
+        }, margins(top = 3, bottom = 10))
+        val connectButton = button(if (running) "Отключиться" else "Подключиться") {
             if (running) disconnect()
-            else if (selected == null) showScreen(Screen.PROFILES)
-            else connect(selected)
+            else if (selected == null) showImportMenu() else connect(selected)
         }
-        connectButton.textSize = 15f
-        connectButton.minHeight = dp(54)
-        connectButton.background = rounded(if (running) Color.rgb(36, 73, 62) else Color.rgb(125, 109, 255), 17)
-        connectButton.setTextColor(Color.WHITE)
-        hero.addView(connectButton, LinearLayout.LayoutParams(-1, dp(54)))
-        val choose = txt("⌁   Изменить сервер", 12f, Color.rgb(178, 174, 211), Typeface.BOLD, Gravity.CENTER)
-        choose.setPadding(0, dp(13), 0, dp(1))
-        choose.setOnClickListener { showScreen(Screen.PROFILES) }
-        hero.addView(choose)
-        content.addView(hero, margins(bottom = 14))
+        connectButton.textSize = 13f
+        connectButton.minHeight = dp(43)
+        connectButton.background = rounded(if (running) Color.rgb(30, 75, 59) else Color.rgb(104, 88, 226), 13)
+        connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(43)))
+        content.addView(connection, margins(bottom = 10))
 
         val traffic = readVpnTraffic()
-        val trafficCard = LinearLayout(this).apply {
+        val stats = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(8), dp(13), dp(8), dp(13))
-            background = rounded(Color.rgb(16, 19, 31), 20, Color.rgb(37, 41, 62), 1)
+            setPadding(dp(4), dp(9), dp(4), dp(9))
+            background = rounded(Color.rgb(16, 19, 31), 15, Color.rgb(35, 39, 58), 1)
         }
-        trafficCard.addView(metric("↓", formatBytes(traffic.sessionRx), "ПОЛУЧЕНО"),
-            LinearLayout.LayoutParams(0, dp(64), 1f))
-        trafficCard.addView(View(this).apply { setBackgroundColor(Color.rgb(39, 43, 62)) },
-            LinearLayout.LayoutParams(dp(1), dp(42)))
-        trafficCard.addView(metric("↑", formatBytes(traffic.sessionTx), "ОТПРАВЛЕНО"),
-            LinearLayout.LayoutParams(0, dp(64), 1f))
-        trafficCard.addView(View(this).apply { setBackgroundColor(Color.rgb(39, 43, 62)) },
-            LinearLayout.LayoutParams(dp(1), dp(42)))
-        trafficCard.addView(metric("↯", if (traffic.hasTraffic) formatRate(maxOf(traffic.rxRate, traffic.txRate)) else "—", "СКОРОСТЬ"),
-            LinearLayout.LayoutParams(0, dp(64), 1f))
-        content.addView(trafficCard, margins(bottom = 20))
+        stats.addView(metric("↓", formatBytes(traffic.sessionRx), "ПОЛУЧЕНО"),
+            LinearLayout.LayoutParams(0, dp(53), 1f))
+        stats.addView(View(this).apply { setBackgroundColor(Color.rgb(38, 42, 60)) },
+            LinearLayout.LayoutParams(dp(1), dp(35)))
+        stats.addView(metric("↑", formatBytes(traffic.sessionTx), "ОТПРАВЛЕНО"),
+            LinearLayout.LayoutParams(0, dp(53), 1f))
+        stats.addView(View(this).apply { setBackgroundColor(Color.rgb(38, 42, 60)) },
+            LinearLayout.LayoutParams(dp(1), dp(35)))
+        val rateText = when {
+            !running -> "—"
+            traffic.interfaceName == null -> "Нет данных"
+            else -> formatRate(maxOf(traffic.rxRate, traffic.txRate))
+        }
+        stats.addView(metric("↯", rateText, "СКОРОСТЬ"),
+            LinearLayout.LayoutParams(0, dp(53), 1f))
+        content.addView(stats, margins(bottom = 14))
 
-        val sectionHeader = LinearLayout(this).apply {
+        val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        sectionHeader.addView(txt("Мои серверы", 18f, Color.WHITE, Typeface.BOLD),
+        titleRow.addView(txt("Все подключения", 16f, Color.WHITE, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        sectionHeader.addView(txt(if (profiles.isEmpty()) "Добавить +" else profiles.size.toString() + " всего  ›",
-            12f, Color.rgb(160, 148, 255), Typeface.BOLD).apply {
-            setOnClickListener { if (profiles.isEmpty()) showImportMenu() else showScreen(Screen.PROFILES) }
+        titleRow.addView(txt("${profiles.size}  ›", 11f, Color.rgb(164, 151, 255), Typeface.BOLD).apply {
+            setOnClickListener { showScreen(Screen.PROFILES) }
         })
-        content.addView(sectionHeader, margins(bottom = 9))
+        content.addView(titleRow, margins(bottom = 7))
 
-        val serverCard = card().apply { setPadding(dp(8), dp(6), dp(8), dp(6)) }
         if (profiles.isEmpty()) {
-            serverCard.addView(txt("Здесь будут ваши подключения", 14f, Color.WHITE, Typeface.BOLD))
-            serverCard.addView(txt("Импортируйте ссылку или подписку — NeoTUN настроит профиль автоматически.",
-                12f, Color.rgb(135, 141, 161)).apply { maxLines = 3 }, margins(top = 6, bottom = 12))
-            serverCard.addView(button("＋  Импортировать сервер") { showImportMenu() })
+            val empty = card().apply { setPadding(dp(15), dp(17), dp(15), dp(17)) }
+            empty.addView(txt("Серверов пока нет", 14f, Color.WHITE, Typeface.BOLD))
+            empty.addView(txt("Добавьте ссылку или подписку, чтобы начать.", 11f,
+                Color.rgb(135, 141, 161)), margins(top = 5, bottom = 10))
+            empty.addView(button("＋  Добавить сервер") { showImportMenu() })
+            content.addView(empty)
         } else {
-            profiles.take(3).forEachIndexed { index, p ->
+            val listCard = card().apply { setPadding(dp(6), dp(4), dp(6), dp(4)) }
+            profiles.take(5).forEachIndexed { index, p ->
                 val row = serverRow(p, p.id == selected?.id, compact = true)
                 row.setOnClickListener {
                     setSelectedProfile(p.id)
                     renderHome()
                 }
-                serverCard.addView(row)
-                if (index < minOf(2, profiles.lastIndex)) {
-                    serverCard.addView(View(this).apply { setBackgroundColor(Color.rgb(35, 39, 58)) },
+                listCard.addView(row)
+                if (index < minOf(4, profiles.lastIndex)) {
+                    listCard.addView(View(this).apply { setBackgroundColor(Color.rgb(35, 39, 57)) },
                         LinearLayout.LayoutParams(-1, dp(1)))
                 }
             }
-            if (profiles.size > 3) {
-                val more = txt("Все серверы  →", 12f, Color.rgb(160, 148, 255), Typeface.BOLD, Gravity.CENTER)
-                more.setPadding(0, dp(12), 0, dp(8))
+            if (profiles.size > 5) {
+                val more = txt("Показать все серверы  →", 11f, Color.rgb(164, 151, 255), Typeface.BOLD, Gravity.CENTER)
+                more.setPadding(0, dp(10), 0, dp(8))
                 more.setOnClickListener { showScreen(Screen.PROFILES) }
-                serverCard.addView(more)
+                listCard.addView(more)
             }
+            content.addView(listCard)
         }
-        content.addView(serverCard, margins(bottom = 14))
-
-        val tools = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        tools.addView(button("◉  Проверить") { pingSelected(selected) },
-            LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(0, 0, dp(5), 0) })
-        tools.addView(button("↻  Переподключить") { reconnectSelected(selected) },
-            LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(5), 0, 0, 0) })
-        content.addView(tools, margins(bottom = 8))
     }
 
     private fun renderProfiles() {
@@ -379,37 +354,40 @@ class MainActivity : Activity() {
     }
 
     private fun serverRow(profile: NeoTunProfile, selected: Boolean, compact: Boolean): LinearLayout {
-        val rowHeight = if (compact) 66 else 74
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(7), dp(8), dp(7))
-            background = if (selected) rounded(Color.rgb(29, 31, 52), 15, Color.rgb(78, 69, 136), 1)
-                else ColorDrawable(Color.TRANSPARENT)
+            setPadding(dp(6), dp(5), dp(5), dp(5))
+            background = if (selected) rounded(Color.rgb(29, 30, 49), 13,
+                Color.rgb(73, 66, 119), 1) else ColorDrawable(Color.TRANSPARENT)
         }
+        val iconSize = if (compact) 38 else 42
         val flag = FrameLayout(this).apply {
-            background = rounded(if (selected) Color.rgb(48, 43, 83) else Color.rgb(27, 30, 47), 13)
+            background = rounded(if (selected) Color.rgb(43, 39, 71) else Color.rgb(26, 29, 45), 11)
         }
-        flag.addView(txt(countryFlag(profile.name), if (compact) 23f else 25f, Color.WHITE,
-            Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
-        row.addView(flag, LinearLayout.LayoutParams(dp(46), dp(46)).apply { setMargins(0, 0, dp(10), 0) })
-        val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        info.addView(txt(profile.name, if (compact) 14f else 15f, Color.WHITE, Typeface.BOLD).apply {
+        flag.addView(txt(countryFlag(profile.name), if (compact) 21f else 23f,
+            Color.WHITE, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
+        row.addView(flag, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)).apply {
+            setMargins(0, 0, dp(9), 0)
+        })
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        info.addView(txt(profile.name, if (compact) 13f else 14f, Color.WHITE, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        info.addView(txt(protocolLabel(profile), 10.5f, Color.rgb(151, 156, 176)).apply {
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 4))
-        info.addView(txt(maskUri(profile.uri), 10f, Color.rgb(104, 110, 132)).apply {
+        val detail = if (compact) maskUri(profile.uri) else protocolLabel(profile) + "  ·  " + maskUri(profile.uri)
+        info.addView(txt(detail, 10f, Color.rgb(139, 145, 164)).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(txt(if (selected) "✓" else "›", if (selected) 19f else 24f,
-            if (selected) Color.rgb(109, 226, 164) else Color.rgb(102, 108, 129),
-            Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(30), dp(rowHeight)))
+        row.addView(txt(if (selected) "✓" else "›", if (selected) 18f else 22f,
+            if (selected) Color.rgb(103, 222, 160) else Color.rgb(100, 106, 127),
+            Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(25), dp(42)))
+        row.minimumHeight = dp(if (compact) 50 else 56)
         return row
     }
 
@@ -1366,6 +1344,7 @@ class MainActivity : Activity() {
                 connectivity.getLinkProperties(network)?.interfaceName
             }
             .firstOrNull { !it.isNullOrBlank() }
+            ?: findVpnInterfaceFromSysfs()
 
         if (interfaceName.isNullOrBlank()) {
             resetTrafficCounters()
@@ -1403,7 +1382,23 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun findVpnInterfaceFromSysfs(): String? {
+        return runCatching {
+            java.io.File("/sys/class/net").listFiles()
+                ?.map { it.name }
+                ?.firstOrNull { it.matches(Regex("(tun|utun|wg)\\d+")) }
+        }.getOrNull()
+    }
+
     private fun readInterfaceCounters(interfaceName: String): Pair<Long, Long>? {
+        val sysfs = runCatching {
+            val root = java.io.File("/sys/class/net/$interfaceName/statistics")
+            val rx = java.io.File(root, "rx_bytes").readText().trim().toLong()
+            val tx = java.io.File(root, "tx_bytes").readText().trim().toLong()
+            rx to tx
+        }.getOrNull()
+        if (sysfs != null) return sysfs
+
         return runCatching {
             java.io.File("/proc/net/dev").useLines { lines ->
                 val line = lines.firstOrNull {
