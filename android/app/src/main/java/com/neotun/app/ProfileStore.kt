@@ -45,7 +45,10 @@ class ProfileStore(context: Context) {
     fun save(profile: NeoTunProfile) {
         val profiles = deduplicate(all()).toMutableList()
         val key = canonicalKey(profile.uri)
-        val index = profiles.indexOfFirst { it.id == profile.id || canonicalKey(it.uri) == key }
+        val index = profiles.indexOfFirst {
+            it.id == profile.id ||
+                (canonicalKey(it.uri) == key && it.sourceSubscriptionId == profile.sourceSubscriptionId)
+        }
         if (index >= 0) {
             val previous = profiles[index]
             profiles[index] = profile.copy(
@@ -64,33 +67,33 @@ class ProfileStore(context: Context) {
         incoming.forEach { profile -> uniqueIncoming.putIfAbsent(canonicalKey(profile.uri), profile) }
         if (uniqueIncoming.isEmpty()) return 0
 
-        val existing = deduplicate(all())
+        val existing = all()
         val incomingKeys = uniqueIncoming.keys
-        val result = existing.filter {
-            it.sourceSubscriptionId != subscriptionId || canonicalKey(it.uri) in incomingKeys
+        // Replace only profiles owned by this subscription; preserve manual and other subscriptions.
+        val result = existing.filterNot {
+            it.sourceSubscriptionId == subscriptionId && canonicalKey(it.uri) !in incomingKeys
         }.toMutableList()
 
         uniqueIncoming.forEach { (key, fresh) ->
-            val old = existing.firstOrNull { canonicalKey(it.uri) == key }
+            val oldIndex = result.indexOfFirst {
+                it.sourceSubscriptionId == subscriptionId && canonicalKey(it.uri) == key
+            }
             val replacement = fresh.copy(
-                id = old?.id ?: fresh.id,
+                id = if (oldIndex >= 0) result[oldIndex].id else fresh.id,
                 sourceSubscriptionId = subscriptionId,
             )
-            val at = result.indexOfFirst { canonicalKey(it.uri) == key }
-            if (at >= 0) result[at] = replacement else result.add(replacement)
+            if (oldIndex >= 0) result[oldIndex] = replacement else result.add(replacement)
         }
         persist(deduplicate(result))
         return uniqueIncoming.size
     }
 
     private fun deduplicate(profiles: List<NeoTunProfile>): List<NeoTunProfile> {
+        // URI alone is not an identity: ownership is part of the profile key.
         val unique = LinkedHashMap<String, NeoTunProfile>()
         profiles.forEach { profile ->
-            val key = canonicalKey(profile.uri)
-            val previous = unique[key]
-            if (previous == null || (previous.sourceSubscriptionId == null && profile.sourceSubscriptionId != null)) {
-                unique[key] = profile
-            }
+            val key = profile.sourceSubscriptionId.orEmpty() + "|" + canonicalKey(profile.uri)
+            if (!unique.containsKey(key)) unique[key] = profile
         }
         return unique.values.toList()
     }

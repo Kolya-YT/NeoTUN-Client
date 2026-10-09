@@ -29,8 +29,11 @@ class SubscriptionStore(context: Context) {
                     val o = array.optJSONObject(i) ?: continue
                     val url = o.optString("url").trim()
                     if (url.isBlank()) continue
+                    // Stable migration for older entries that have no persisted ID.
+                    val id = o.optString("id").takeIf { it.isNotBlank() }
+                        ?: UUID.nameUUIDFromBytes(url.trim().trimEnd('/').toByteArray(StandardCharsets.UTF_8)).toString()
                     add(NeoTunSubscription(
-                        o.optString("id", UUID.randomUUID().toString()),
+                        id,
                         o.optString("name").ifBlank { "Подписка" },
                         url,
                         o.optLong("lastUpdated", 0L),
@@ -63,7 +66,9 @@ class SubscriptionStore(context: Context) {
 
     @Synchronized
     fun refresh(subscription: NeoTunSubscription, profiles: ProfileStore): Result<Int> = runCatching {
-        val links = decodeLinks(fetch(subscription.url))
+        // Resolve and persist the stable subscription ID before assigning profile ownership.
+        val stableSubscription = save(subscription)
+        val links = decodeLinks(fetch(stableSubscription.url))
         if (links.isEmpty()) error("Подписка не содержит поддерживаемых ссылок")
 
         val parsed = links.mapNotNull { uri ->
@@ -73,13 +78,13 @@ class SubscriptionStore(context: Context) {
                 ProfileStore.displayNameFromUri(uri),
                 uri,
                 engine,
-                subscription.id,
+                stableSubscription.id,
             )
         }
         if (parsed.isEmpty()) error("В подписке нет поддерживаемых профилей")
-        val imported = profiles.replaceFromSubscription(subscription.id, parsed)
+        val imported = profiles.replaceFromSubscription(stableSubscription.id, parsed)
         if (imported == 0) error("В подписке нет поддерживаемых профилей")
-        save(subscription.copy(lastUpdated = System.currentTimeMillis()))
+        save(stableSubscription.copy(lastUpdated = System.currentTimeMillis()))
         imported
     }
 
@@ -113,11 +118,15 @@ class SubscriptionStore(context: Context) {
         val candidates = linkedSetOf<String>()
 
         fun addLines(value: String) {
-            value.lines()
-                .flatMap { it.trim().split(Regex("[,\\s]+")) }
-                .map { it.trim() }
-                .filter { it.contains("://") }
-                .forEach { candidates.add(it) }
+            // Commas are valid in Hysteria2 port-hopping ranges, so they are not
+            // general-purpose link separators. Stop only at whitespace/new URI.
+            val linkPattern = Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://.*?(?=(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://|\\s|$)")
+            value.lines().forEach { line ->
+                linkPattern.findAll(line).forEach { match ->
+                    val link = match.value.trim().trimEnd(',', ';', '"', '\'')
+                    if (link.isNotBlank()) candidates.add(link)
+                }
+            }
         }
 
         addLines(text)
