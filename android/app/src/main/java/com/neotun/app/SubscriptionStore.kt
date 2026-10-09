@@ -49,22 +49,23 @@ class SubscriptionStore(context: Context) {
 
     fun delete(id: String) = persist(all().filterNot { it.id == id })
 
+    @Synchronized
     fun refresh(subscription: NeoTunSubscription, profiles: ProfileStore): Result<Int> = runCatching {
         val links = decodeLinks(fetch(subscription.url))
         if (links.isEmpty()) error("Подписка не содержит поддерживаемых ссылок")
 
-        var imported = 0
-        links.forEach { uri ->
+        val parsed = links.mapNotNull { uri ->
             val engine = NeoTunCore.nativeShareEngine(uri)
-            if (engine == "unknown") return@forEach
-            profiles.save(NeoTunProfile(
+            if (engine == "unknown") null else NeoTunProfile(
                 UUID.randomUUID().toString(),
                 ProfileStore.displayNameFromUri(uri),
                 uri,
-                engine
-            ))
-            imported++
+                engine,
+                subscription.id,
+            )
         }
+        if (parsed.isEmpty()) error("В подписке нет поддерживаемых профилей")
+        val imported = profiles.replaceFromSubscription(subscription.id, parsed)
         if (imported == 0) error("В подписке нет поддерживаемых профилей")
         save(subscription.copy(lastUpdated = System.currentTimeMillis()))
         imported
