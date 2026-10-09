@@ -22,7 +22,7 @@ class ProfileStore(context: Context) {
         val raw = prefs.getString(KEY_PROFILES, null) ?: return emptyList()
         return runCatching {
             val array = JSONArray(raw)
-            buildList {
+            val parsed = buildList {
                 for (i in 0 until array.length()) {
                     val item = array.optJSONObject(i) ?: continue
                     val uri = item.optString("uri")
@@ -38,6 +38,13 @@ class ProfileStore(context: Context) {
                     )
                 }
             }
+            // Clean up duplicates left by older builds when the same subscription
+            // profile was saved once as a manual/legacy profile and later as a
+            // subscription-owned profile. Prefer the owned record so refresh can
+            // update/remove it correctly.
+            val unique = deduplicate(parsed)
+            if (unique.size != parsed.size) persist(unique)
+            unique
         }.getOrDefault(emptyList())
     }
 
@@ -70,8 +77,13 @@ class ProfileStore(context: Context) {
         val existing = all()
         val incomingKeys = uniqueIncoming.keys
         // Replace only profiles owned by this subscription; preserve manual and other subscriptions.
-        val result = existing.filterNot {
-            it.sourceSubscriptionId == subscriptionId && canonicalKey(it.uri) !in incomingKeys
+        val result = existing.filterNot { profile ->
+            val key = canonicalKey(profile.uri)
+            // Remove stale entries owned by this subscription, plus legacy/manual
+            // copies of an incoming URI. Otherwise an old unowned copy survives
+            // every refresh next to the correctly owned replacement.
+            profile.sourceSubscriptionId == subscriptionId && key !in incomingKeys ||
+                profile.sourceSubscriptionId.isNullOrBlank() && key in incomingKeys
         }.toMutableList()
 
         uniqueIncoming.forEach { (key, fresh) ->
@@ -89,11 +101,20 @@ class ProfileStore(context: Context) {
     }
 
     private fun deduplicate(profiles: List<NeoTunProfile>): List<NeoTunProfile> {
-        // URI alone is not an identity: ownership is part of the profile key.
+        // A canonical connection URI is the profile identity. If a legacy/manual
+        // copy and a subscription-owned copy collide, retain the subscription-owned
+        // one so subsequent updates can reconcile it. Preserve distinct credentials
+        // and transports because they remain part of the URI.
         val unique = LinkedHashMap<String, NeoTunProfile>()
         profiles.forEach { profile ->
-            val key = profile.sourceSubscriptionId.orEmpty() + "|" + canonicalKey(profile.uri)
-            if (!unique.containsKey(key)) unique[key] = profile
+            val key = canonicalKey(profile.uri)
+            val previous = unique[key]
+            if (previous == null ||
+                (previous.sourceSubscriptionId.isNullOrBlank() &&
+                    !profile.sourceSubscriptionId.isNullOrBlank())
+            ) {
+                unique[key] = profile
+            }
         }
         return unique.values.toList()
     }
