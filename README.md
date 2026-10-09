@@ -19,7 +19,7 @@ Android-клиент для подключения к серверам VLESS, VM
 
 | Протокол | Движок | Состояние |
 |---|---|---|
-| VLESS TCP / WS / gRPC / HTTP / HTTPUpgrade | Xray или sing-box в зависимости от транспорта и конфигурации | Требуется проверка на реальном сервере |
+| VLESS TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP | Xray | Требуется проверка на реальном сервере |
 | VLESS XHTTP / SplitHTTP | Xray | Требуется проверка на реальном сервере |
 | VMess | sing-box | Адаптер реализован; end-to-end проверка не завершена |
 | Trojan | sing-box | Адаптер реализован; end-to-end проверка не завершена |
