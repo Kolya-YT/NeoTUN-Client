@@ -46,6 +46,8 @@ class MainActivity : Activity() {
     private var homeConnectionButton: Button? = null
     private var homeConnectionLabel: TextView? = null
     private var homeStatusDot: TextView? = null
+    private var homeNetworkState: TextView? = null
+    private var homeConnectionCard: LinearLayout? = null
     private var homeErrorText: TextView? = null
     private val poll = object : Runnable {
         override fun run() {
@@ -145,6 +147,8 @@ class MainActivity : Activity() {
         homeConnectionButton = null
         homeConnectionLabel = null
         homeStatusDot = null
+        homeNetworkState = null
+        homeConnectionCard = null
         homeErrorText = null
         content.removeAllViews()
         val profiles = store.all()
@@ -193,6 +197,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
+        homeConnectionCard = connection
         val statusDot = txt("●", 11f,
             if (running) Color.rgb(95, 230, 166) else Color.rgb(154, 143, 255), Typeface.BOLD)
         homeStatusDot = statusDot
@@ -201,11 +206,13 @@ class MainActivity : Activity() {
             10f, if (running) Color.rgb(115, 232, 177) else Color.rgb(183, 173, 255), Typeface.BOLD)
         homeConnectionLabel = statusLabel
         statusRow.addView(statusLabel, LinearLayout.LayoutParams(0, -2, 1f))
-        statusRow.addView(txt("●  ${if (running) "ONLINE" else "OFFLINE"}", 9f,
-            if (running) Color.rgb(115, 232, 177) else Color.rgb(145, 151, 175), Typeface.BOLD))
+        val networkState = txt(if (running) "●  ONLINE" else "○  OFFLINE", 9f,
+            if (running) Color.rgb(115, 232, 177) else Color.rgb(145, 151, 175), Typeface.BOLD)
+        homeNetworkState = networkState
+        statusRow.addView(networkState)
         connection.addView(statusRow)
 
-        connection.addView(txt(selected?.name ?: "Ваше соединение", 23f, Color.WHITE, Typeface.BOLD).apply {
+        connection.addView(txt("Ваше соединение", 23f, Color.WHITE, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 17))
@@ -394,6 +401,16 @@ class MainActivity : Activity() {
         homeConnectionLabel?.text = if (running) "ПОДКЛЮЧЕНО" else "ГОТОВО К ПОДКЛЮЧЕНИЮ"
         homeConnectionLabel?.setTextColor(if (running) Color.rgb(115, 232, 177) else Color.rgb(183, 173, 255))
         homeStatusDot?.setTextColor(if (running) Color.rgb(95, 230, 166) else Color.rgb(154, 143, 255))
+        homeNetworkState?.text = if (running) "●  ONLINE" else "○  OFFLINE"
+        homeNetworkState?.setTextColor(if (running) Color.rgb(115, 232, 177) else Color.rgb(145, 151, 175))
+        homeConnectionCard?.background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            if (running) intArrayOf(Color.rgb(18, 55, 46), Color.rgb(17, 29, 37))
+            else intArrayOf(Color.rgb(38, 34, 75), Color.rgb(20, 24, 43))
+        ).apply {
+            cornerRadius = dp(25).toFloat()
+            setStroke(dp(1), if (running) Color.rgb(52, 116, 91) else Color.rgb(72, 67, 119))
+        }
         updateHomeError(getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
             .getString(NeoTunVpnService.KEY_ERROR, null))
     }
