@@ -26,7 +26,7 @@ import java.util.UUID
 class MainActivity : Activity() {
     private lateinit var updater: AppUpdater
     private lateinit var store: ProfileStore
-    private lateinit var subscriptions: SubscriptionStore
+    private lateinit var subscriptions: SubscriptionStore\n    private lateinit var routingStore: RoutingProfileStore
     private lateinit var content: LinearLayout
     private lateinit var nav: LinearLayout
     private lateinit var bottomActions: LinearLayout
@@ -547,7 +547,7 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
 
         val connection = settingsSection("СОЕДИНЕНИЕ")
-        connection.addView(settingsRow("🌐 DNS",
+        connection.addView(settingsRow("🧭 Маршрутизация",\n            routingStore.active()?.name ?: if (routingStore.enabled()) "Не выбрана" else "Выключена",\n            "Правила Proxy / Direct / Block, совместимые с INCY",\n        ) { showRoutingSettings() })\n        connection.addView(settingsRow("🌐 DNS",
             prefs.getString("dns_mode", "Автоматический") ?: "Автоматический",
             "Системный DNS или выбранный сервер") { showDnsSettings() })
         connection.addView(settingsRow("🔌 MTU",
@@ -854,6 +854,62 @@ class MainActivity : Activity() {
         handler.postDelayed({
             if (!isFinishing && screen == Screen.HOME) renderHome()
         }, 500L)
+    }
+
+    private fun showRoutingSettings() {
+        val profiles = routingStore.all()
+        val labels = profiles.map { it.name }.toMutableList()
+        labels += listOf("Импортировать профиль", if (routingStore.enabled()) "Выключить маршрутизацию" else "Включить маршрутизацию")
+        AlertDialog.Builder(this)
+            .setTitle("Маршрутизация")
+            .setItems(labels.toTypedArray()) { _, index ->
+                when {
+                    index < profiles.size -> {
+                        routingStore.select(profiles[index].id)
+                        routingStore.setEnabled(true)
+                        toast("Активен профиль: ${profiles[index].name}")
+                        renderSettings()
+                    }
+                    index == profiles.size -> {
+                        val input = EditText(this).apply {
+                            hint = "JSON или incy://routing/onadd/BASE64"
+                            minLines = 4
+                            gravity = Gravity.TOP
+                            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                        }
+                        val dialog = AlertDialog.Builder(this)
+                            .setTitle("Импорт маршрутизации")
+                            .setMessage("Вставьте JSON-профиль или ссылку INCY/Happ. Профили с одинаковым Name обновляются.")
+                            .setView(input)
+                            .setNegativeButton("Отмена", null)
+                            .setPositiveButton("Импортировать") { _, _ ->
+                                val raw = input.text.toString().trim()
+                                if (raw.contains("://routing/off", true) || raw.equals("off", true)) {
+                                    routingStore.setEnabled(false)
+                                    toast("Маршрутизация выключена")
+                                    renderSettings()
+                                } else {
+                                    val json = NeoTunRoutingProfile.decode(raw)
+                                    if (json == null) {
+                                        toast("Не удалось прочитать профиль. Проверьте JSON или Base64-ссылку.")
+                                    } else {
+                                        val saved = routingStore.save(json, activate = true)
+                                        routingStore.setEnabled(true)
+                                        toast("Профиль «${saved.name}» активирован")
+                                        renderSettings()
+                                    }
+                                }
+                            }.create()
+                        dialog.setOnShowListener { styleDialog(dialog) }
+                        dialog.show()
+                    }
+                    else -> {
+                        routingStore.setEnabled(!routingStore.enabled())
+                        toast(if (routingStore.enabled()) "Маршрутизация включена" else "Маршрутизация выключена")
+                        renderSettings()
+                    }
+                }
+            }.show()
     }
 
     private fun showImportMenu() {
