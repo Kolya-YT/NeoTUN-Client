@@ -640,7 +640,10 @@ class MainActivity : Activity() {
         val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
         route.put("auto_detect_interface", true)
         route.put("final", "proxy")
-        route.remove("rules")
+        // sing-box 1.14+: when tun.dns_address is explicit, DNS interception
+        // must be configured as a route action. Without this rule, Android DNS
+        // packets can be routed to the proxy as ordinary traffic.
+        route.put("rules", JSONArray().put(JSONObject().put("action", "hijack-dns")))
         return root.toString()
     }
 
