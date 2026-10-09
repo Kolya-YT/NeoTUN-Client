@@ -203,13 +203,20 @@ object NeoTunRoutingAdapter {
             val rule = JSONObject().put("type", "field").put("outboundTag", outbound)
             val geo = values.filter { it.startsWith("geoip:", true) }
             val plain = values.filterNot { it.startsWith("geoip:", true) }
-            val normalizedDomains = plain.map {
-                when {
-                    it.startsWith("geosite:", true) || it.startsWith("domain:", true) ||
-                        it.startsWith("full:", true) || it.startsWith("regexp:", true) -> it
-                    else -> "domain:" + it
+            // Xray's geosite:<category> rules require a compatible geosite.dat
+            // file and an explicit geodata path. NeoTUN does not currently bundle
+            // that database, so passing these rules makes Xray try /system/bin/geosite.dat
+            // and abort startup. Ignore only geosite rules until managed geodata is added;
+            // keep ordinary domain/full/regexp rules from the same profile.
+            val normalizedDomains = plain
+                .filterNot { it.startsWith("geosite:", true) }
+                .map {
+                    when {
+                        it.startsWith("domain:", true) ||
+                            it.startsWith("full:", true) || it.startsWith("regexp:", true) -> it
+                        else -> "domain:" + it
+                    }
                 }
-            }
             if (domain && normalizedDomains.isNotEmpty()) rule.put("domain", JSONArray(normalizedDomains))
             if (!domain && (plain + geo).isNotEmpty()) rule.put("ip", JSONArray(plain + geo))
             if (rule.length() > 2) rules.put(rule)
