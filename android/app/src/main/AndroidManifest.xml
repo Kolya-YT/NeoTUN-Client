@@ -11,6 +11,8 @@
         android:name=".NeoTunApplication"
         android:allowBackup="true"
         android:label="NeoTUN"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.NeoTUN">
         <activity
             android:name=".MainActivity"
