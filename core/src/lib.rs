@@ -256,25 +256,35 @@ impl Profile {
                 o
             },
             "hysteria2" => {
+                let ports = self.params.get("server_ports")
+                    .filter(|v| !v.trim().is_empty())
+                    .map(|ports| ports.split(',')
+                        .map(str::trim)
+                        .filter(|v| !v.is_empty())
+                        .map(|v| {
+                            // sing-box represents a port range as "start:end",
+                            // not the hyphen notation used by some share links.
+                            if let Some((start, end)) = v.split_once('-') {
+                                format!("{}:{}", start.trim(), end.trim())
+                            } else {
+                                v.to_string()
+                            }
+                        })
+                        .collect::<Vec<_>>());
+
                 let mut o=serde_json::json!({
                     "type":"hysteria2",
                     "tag":"proxy",
                     "server":self.address,
-                    "server_port":self.port,
                     "password":self.password.clone().unwrap_or_default(),
                     "network":"udp",
                     "tls":{"enabled":true}
                 });
-
-                if let Some(ports) = self.params.get("server_ports")
-                    .filter(|v| !v.trim().is_empty()) {
-                    o["server_ports"] = serde_json::json!(
-                        ports.split(',')
-                            .map(str::trim)
-                            .filter(|v| !v.is_empty())
-                            .map(str::to_string)
-                            .collect::<Vec<_>>()
-                    );
+                if let Some(ports) = ports {
+                    // sing-box rejects server_port when server_ports is set.
+                    o["server_ports"] = serde_json::json!(ports);
+                } else {
+                    o["server_port"] = serde_json::json!(self.port);
                 }
 
                 if let Some(interval)=self.params.get("hop_interval").filter(|v| !v.is_empty()) {
@@ -710,7 +720,8 @@ mod tests {
             "hy2://secret@example.com:443,5000-6000/?sni=example.com&mportHopInt=30&up=50&down=100"
         ).unwrap();
         let hopping_config = hopping.to_generic_sing_box_json().unwrap();
-        assert!(hopping_config.contains("\"server_ports\":[\"443\",\"5000-6000\"]"));
+        assert!(hopping_config.contains("\"server_ports\":[\"443\",\"5000:6000\"]"));
+        assert!(!hopping_config.contains("\"server_port\":443"));
         assert!(hopping_config.contains("\"hop_interval\":\"30s\""));
         assert!(hopping_config.contains("\"up_mbps\":50"));
         assert!(hopping_config.contains("\"down_mbps\":100"));
