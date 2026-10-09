@@ -1427,7 +1427,7 @@ class MainActivity : Activity() {
             }
             runOnUiThread {
                 result.onSuccess { profile ->
-                    val saved = routingStore.save(profile, sourceUrl = url, activate = activate)
+                    val saved = routingStore.save(profile, sourceUrl = if (link.contains("://autorouting/", true)) url else null, activate = activate)
                     routingStore.setEnabled(true)
                     toast("Профиль «${saved.name}» импортирован")
                     showScreen(Screen.SETTINGS)
