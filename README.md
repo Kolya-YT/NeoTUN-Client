@@ -19,8 +19,9 @@ Android-клиент для подключения к серверам VLESS, VM
 
 | Протокол | Движок | Состояние |
 |---|---|---|
-| VLESS TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP | Xray | Требуется проверка на реальном сервере |
-| VLESS XHTTP / SplitHTTP | Xray | Требуется проверка на реальном сервере |
+| VLESS TCP | Xray | Проверен пользователем |
+| VLESS XHTTP | Xray | Проверен пользователем |
+| VLESS WS / gRPC / HTTP / HTTPUpgrade / SplitHTTP | Xray | Требуется отдельная проверка |
 | VMess | sing-box | Адаптер реализован; end-to-end проверка не завершена |
 | Trojan | sing-box | Адаптер реализован; end-to-end проверка не завершена |
 | Hysteria2 | sing-box | Требуется проверка QUIC/UDP, включая port hopping |
@@ -92,22 +93,18 @@ cargo ndk \
   build --release
 ```
 
-Сборка APK:
+Сборка release APK для поддерживаемых архитектур:
 
 ```bash
 cd ../android
-gradle assembleDebug --no-daemon
+gradle assembleRelease --no-daemon --parallel --build-cache
 ```
 
-Debug APK создаётся по пути:
-
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
+Gradle создаёт отдельные APK для `arm64-v8a`, `armeabi-v7a` и `x86_64`. Каждый APK содержит только нативные библиотеки своей архитектуры, поэтому он заметно меньше универсального APK.
 
 ## GitHub Actions и подпись
 
-Workflow `.github/workflows/android.yml` собирает Rust Core, нативный Xray-модуль и APK для Android ABI. Публикация release APK требует постоянного production keystore.
+Workflow `.github/workflows/android.yml` собирает Rust Core и нативный Xray-модуль, использует кэш Rust/Go/Gradle и публикует отдельные APK для Android ABI. Встроенная проверка обновлений выбирает APK под архитектуру устройства. Публикация требует постоянного production keystore.
 
 Настройте следующие GitHub Actions Secrets:
 
@@ -137,8 +134,8 @@ NEOTUN_KEY_PASSWORD
 
 ## Текущая версия
 
-- Android: **0.5.0**
-- `versionCode`: **30**
+- Android: **0.5.1**
+- `versionCode`: **31**
 - Rust Core: **0.2.4**
 - Движки: sing-box 1.14.1 и Xray
 - Статус: активная разработка
