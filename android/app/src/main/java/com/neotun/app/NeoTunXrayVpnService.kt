@@ -197,6 +197,33 @@ class NeoTunXrayVpnService : VpnService() {
             }
         }
 
+        val routingProfile = RoutingProfileStore(this).active()
+        val hasDirect = (0 until outbounds.length()).any {
+            outbounds.optJSONObject(it)?.optString("tag") == "direct"
+        }
+        val hasBlock = (0 until outbounds.length()).any {
+            outbounds.optJSONObject(it)?.optString("tag") == "block"
+        }
+        if (routingProfile != null && !hasDirect) {
+            outbounds.put(JSONObject().put("tag", "direct").put("protocol", "freedom"))
+        }
+        if (routingProfile != null && !hasBlock) {
+            outbounds.put(JSONObject().put("tag", "block").put("protocol", "blackhole"))
+        }
+        val routingRules = JSONArray()
+        if (routingProfile != null) {
+            val profileRules = NeoTunRoutingAdapter.xrayRules(routingProfile)
+            for (index in 0 until profileRules.length()) {
+                routingRules.put(profileRules.getJSONObject(index).put("inboundTag", JSONArray().put("tun")))
+            }
+        }
+        // Catch-all comes last so explicit Direct/Proxy/Block rules get a chance to match.
+        routingRules.put(
+            JSONObject()
+                .put("type", "field")
+                .put("inboundTag", JSONArray().put("tun"))
+                .put("outboundTag", if (routingProfile?.globalProxy == false) "direct" else "proxy"),
+        )
         val config = JSONObject()
             .put("log", JSONObject().put("loglevel", "warning"))
             .put(
@@ -221,18 +248,7 @@ class NeoTunXrayVpnService : VpnService() {
                 ),
             )
             .put("outbounds", outbounds)
-            .put(
-                "routing",
-                JSONObject().put(
-                    "rules",
-                    JSONArray().put(
-                        JSONObject()
-                            .put("type", "field")
-                            .put("inboundTag", JSONArray().put("tun"))
-                            .put("outboundTag", "proxy"),
-                    ),
-                ),
-            )
+            .put("routing", JSONObject().put("rules", routingRules))
 
         NeoTunDiagnostics.log(this, "Этап 6/8: проверка Xray-конфигурации testXray")
         val testConfig = JSONObject().put("outbounds", outbounds)
@@ -259,7 +275,8 @@ class NeoTunXrayVpnService : VpnService() {
             )
         }
 
-        NeoTunDiagnostics.log(this, "Xray routing: tun -> proxy, outbound=VLESS/XHTTP/REALITY")
+        NeoTunDiagnostics.log(this, "Xray routing: profile=" + (routingProfile?.name ?: "default") +
+            ", globalProxy=" + (routingProfile?.globalProxy ?: true) + ", rules=" + routingRules.length())
         NeoTunDiagnostics.log(this, "Этап 7/8: запуск Xray instance, TUN fd=$tunFd")
         val runResponse = NeoTunXrayBridge.nativeInvoke(
             JSONObject()
