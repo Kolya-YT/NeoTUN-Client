@@ -1352,14 +1352,21 @@ class MainActivity : Activity() {
 
     private fun readVpnTraffic(): TrafficSnapshot {
         val connectivity = getSystemService(ConnectivityManager::class.java)
-        val interfaceName = connectivity.allNetworks.asSequence()
+        val vpnInterfaces = connectivity.allNetworks.asSequence()
             .mapNotNull { network ->
                 val caps = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
                 if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return@mapNotNull null
                 connectivity.getLinkProperties(network)?.interfaceName
             }
-            .firstOrNull { !it.isNullOrBlank() }
-            ?: if (isRunning()) findVpnInterfaceFromSysfs() else null
+            .filterNot { it.isNullOrBlank() }
+            .filterNotNull()
+            .toList()
+
+        // Some Android builds expose the VPN Network but do not allow reading its
+        // counters under that interface name. Try the actual TUN interface as fallback.
+        val candidates = (vpnInterfaces + if (isRunning()) listOfNotNull(findVpnInterfaceFromSysfs()) else emptyList())
+            .distinct()
+        val interfaceName = candidates.firstOrNull { readInterfaceCounters(it) != null }
 
         if (interfaceName.isNullOrBlank()) {
             resetTrafficCounters()
