@@ -161,7 +161,7 @@ class RoutingProfileStore(context: Context) {
 object NeoTunRoutingAdapter {
     fun singBoxRules(profile: NeoTunRoutingProfile): JSONArray {
         val rules = JSONArray()
-        fun add(values: List<String>, isDomain: Boolean, action: String) {
+        fun add(values: List<String>, isDomain: Boolean, action: String, outbound: String? = null) {
             if (values.isEmpty()) return
             val domains = JSONArray()
             val suffixes = JSONArray()
@@ -175,7 +175,7 @@ object NeoTunRoutingAdapter {
                     else -> ips.put(value)
                 }
             }
-            val rule = JSONObject().put("action", action)
+            val rule = JSONObject().put("action", action)\n            if (outbound != null) rule.put("outbound", outbound)
             if (domains.length() > 0) rule.put("domain", domains)
             if (suffixes.length() > 0) rule.put("domain_suffix", suffixes)
             if (ips.length() > 0) rule.put("ip_cidr", ips)
@@ -183,11 +183,11 @@ object NeoTunRoutingAdapter {
         }
         add(profile.values("BlockSites"), true, "reject")
         add(profile.values("BlockIp"), false, "reject")
-        add(profile.values("DirectSites"), true, "route")
-        add(profile.values("DirectIp"), false, "route")
+        add(profile.values("DirectSites"), true, "route", "direct")
+        add(profile.values("DirectIp"), false, "route", "direct")
         // Proxy rules are explicit for compatibility; unmatched traffic follows final.
-        add(profile.values("ProxySites"), true, "route")
-        add(profile.values("ProxyIp"), false, "route")
+        add(profile.values("ProxySites"), true, "route", "proxy")
+        add(profile.values("ProxyIp"), false, "route", "proxy")
         return rules
     }
 
