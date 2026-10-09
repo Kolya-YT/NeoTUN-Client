@@ -230,7 +230,7 @@ sing-box
 
 Цель — подключение за один-два тапа, компактный список серверов и отсутствие элементов, уходящих за границы экрана.
 
-В 0.4.8 интерфейс стал компактнее по мотивам HAPP. Обновление подписки синхронизирует профили по нормализованной ссылке, а счётчики трафика читаются сначала из sysfs-интерфейса VPN, затем из `/proc/net/dev`.
+В 0.4.9 интерфейс стал компактнее по мотивам HAPP. Обновление подписки синхронизирует профили по нормализованной ссылке, а счётчики трафика читаются сначала из sysfs-интерфейса VPN, затем из `/proc/net/dev`.
 
 # ⚙️ Настройки Android
 
@@ -591,7 +591,7 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.8
+NeoTUN Android: 0.4.9
 versionCode: 28
 
 Core: Rust 0.2.4
@@ -651,7 +651,7 @@ NeoTUN создаётся как единый быстрый клиент, гд�
 **Один клиент → несколько протоколов → несколько ядер → единый интерфейс.**
 
 
-## Fixes in 0.4.8
+## Fixes in 0.4.9
 
 - Rebuilt the home screen and server list with a compact HAPP-inspired layout.
 - Subscription refresh reconciles profiles by normalized link identity instead of adding duplicates.
@@ -661,3 +661,8 @@ NeoTUN создаётся как единый быстрый клиент, гд�
 - Hysteria2 port hopping is normalized to sing-box syntax (`start:end`), and `server_port` is omitted when `server_ports` is configured.
 - sing-box startup failures are logged and surfaced through the app's connection error state instead of escaping the startup block.
 - A successful APK build does not replace end-to-end Hysteria2 testing on a real device; QUIC/UDP still requires a live server test.
+
+
+### 0.4.9
+- Preserve a subscription's stable ID when the same URL is added again, so refresh reconciles existing profiles instead of treating it as a new subscription.
+- Log profile protocol/configuration failures to in-app diagnostics without exposing the full share link or credentials.

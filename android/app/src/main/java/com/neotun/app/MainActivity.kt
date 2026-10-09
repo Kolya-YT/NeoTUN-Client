@@ -554,10 +554,25 @@ class MainActivity : Activity() {
         if (profile.engine == NeoTunVpnService.ENGINE_XRAY) {
             prefs.edit().remove(NeoTunVpnService.KEY_CONFIG).apply()
         } else {
-            val rawConfig = NeoTunCore.nativeShareConfig(profile.uri)
-            if (rawConfig.isBlank()) {
+            val rawConfig = runCatching {
+                NeoTunDiagnostics.log(this, "Building sing-box config for protocol=" +
+                    profile.uri.substringBefore("://").lowercase() + ", engine=" + profile.engine)
+                NeoTunCore.nativeShareConfig(profile.uri)
+            }.getOrElse { error ->
+                NeoTunDiagnostics.error(this, "Не удалось собрать конфигурацию профиля", error)
                 prefs.edit()
-                    .putString(NeoTunVpnService.KEY_ERROR, "Не удалось собрать конфигурацию")
+                    .putString(NeoTunVpnService.KEY_ERROR,
+                        "Ошибка конфигурации: " + (error.message ?: error.javaClass.simpleName))
+                    .apply()
+                renderHome()
+                return
+            }
+            if (rawConfig.isBlank()) {
+                NeoTunDiagnostics.error(this, "Core returned an empty config for protocol=" +
+                    profile.uri.substringBefore("://").lowercase())
+                prefs.edit()
+                    .putString(NeoTunVpnService.KEY_ERROR,
+                        "Ядро не смогло разобрать профиль. Откройте «Диагностика» для подробностей.")
                     .apply()
                 renderHome()
                 return
@@ -721,8 +736,9 @@ class MainActivity : Activity() {
                     toast("Укажите HTTP(S)-ссылку на подписку")
                     return@setPositiveButton
                 }
-                val subscription = NeoTunSubscription(UUID.randomUUID().toString(), name.text.toString().trim().ifBlank { "Подписка" }, source)
-                subscriptions.save(subscription)
+                val subscription = subscriptions.save(
+                    NeoTunSubscription(UUID.randomUUID().toString(), name.text.toString().trim().ifBlank { "Подписка" }, source)
+                )
                 refreshSubscription(subscription)
             }.create()
         dialog.setOnShowListener { styleDialog(dialog) }
@@ -777,14 +793,13 @@ class MainActivity : Activity() {
             java.net.URI(url).host?.takeIf { it.isNotBlank() } ?: "Подписка"
         }.getOrDefault("Подписка")
 
-        val existing = subscriptions.all().firstOrNull { it.url == url }
-        val subscription = existing ?: NeoTunSubscription(
+        val existing = subscriptions.all().firstOrNull { it.url.trim().trimEnd('/') == url.trim().trimEnd('/') }
+        val subscription = subscriptions.save(existing ?: NeoTunSubscription(
             UUID.randomUUID().toString(),
             name,
             url
-        )
+        ))
 
-        subscriptions.save(subscription)
         toast("Импорт подписки: $name…")
         Thread {
             val result = subscriptions.refresh(subscription, store)

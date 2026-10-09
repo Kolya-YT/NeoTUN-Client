@@ -40,11 +40,23 @@ class SubscriptionStore(context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    fun save(subscription: NeoTunSubscription) {
+    @Synchronized
+    fun save(subscription: NeoTunSubscription): NeoTunSubscription {
         val list = all().toMutableList()
-        val index = list.indexOfFirst { it.id == subscription.id || it.url == subscription.url }
-        if (index >= 0) list[index] = subscription else list.add(subscription)
+        val normalizedUrl = subscription.url.trim()
+        val index = list.indexOfFirst {
+            it.id == subscription.id || it.url.trim().trimEnd('/') == normalizedUrl.trimEnd('/')
+        }
+        // Re-adding the same subscription URL must not replace its stable ID.
+        // ProfileStore uses this ID to reconcile and remove stale profiles.
+        val saved = if (index >= 0) {
+            subscription.copy(id = list[index].id, url = normalizedUrl)
+        } else {
+            subscription.copy(url = normalizedUrl)
+        }
+        if (index >= 0) list[index] = saved else list.add(saved)
         persist(list)
+        return saved
     }
 
     fun delete(id: String) = persist(all().filterNot { it.id == id })
