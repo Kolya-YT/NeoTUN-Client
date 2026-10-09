@@ -204,16 +204,16 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 6, bottom = 17))
 
-        val connect = button(if (running) "Отключиться" else if (selected == null) "Выбрать сервер" else "Подключиться") {
+        val connectButton = button(if (running) "Отключиться" else if (selected == null) "Выбрать сервер" else "Подключиться") {
             if (running) disconnect()
             else if (selected == null) showScreen(Screen.PROFILES)
             else connect(selected)
         }
-        connect.textSize = 15f
-        connect.minHeight = dp(54)
-        connect.background = rounded(if (running) Color.rgb(36, 73, 62) else Color.rgb(125, 109, 255), 17)
-        connect.setTextColor(Color.WHITE)
-        hero.addView(connect, LinearLayout.LayoutParams(-1, dp(54)))
+        connectButton.textSize = 15f
+        connectButton.minHeight = dp(54)
+        connectButton.background = rounded(if (running) Color.rgb(36, 73, 62) else Color.rgb(125, 109, 255), 17)
+        connectButton.setTextColor(Color.WHITE)
+        hero.addView(connectButton, LinearLayout.LayoutParams(-1, dp(54)))
         val choose = txt("⌁   Изменить сервер", 12f, Color.rgb(178, 174, 211), Typeface.BOLD, Gravity.CENTER)
         choose.setPadding(0, dp(13), 0, dp(1))
         choose.setOnClickListener { showScreen(Screen.PROFILES) }
@@ -372,7 +372,7 @@ class MainActivity : Activity() {
         row.addView(button("⋯  Действия") { profileActions(profile) },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
         bottomActions.addView(row)
-        bottomActions.addView(txt(profile.name, 10f, Color.rgb(137, 143, 163), Gravity.CENTER).apply {
+        bottomActions.addView(txt(profile.name, 10f, Color.rgb(137, 143, 163), Typeface.NORMAL, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 4))
@@ -1240,7 +1240,7 @@ class MainActivity : Activity() {
             item.addView(txt(pair.second, 10f,
                 if (selected) Color.WHITE else Color.rgb(117, 123, 145),
                 if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 3))
-            nav.addView(item, LinearLayout.LayoutParams(0, dp(52), 1f).apply {
+            nav.addView(item, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 setMargins(dp(4), 0, dp(4), 0)
             })
         }
