@@ -107,7 +107,7 @@ class MainActivity : Activity() {
             )
             content.setPadding(dp(16) + bars.left, dp(10) + bars.top,
                 dp(16) + bars.right, dp(18) + bars.bottom)
-            nav.setPadding(dp(8) + bars.left, dp(4), dp(8) + bars.right, dp(4))
+            nav.setPadding(dp(8) + bars.left, dp(4), dp(8) + bars.right, bars.bottom + dp(4))
             nav.layoutParams = nav.layoutParams.apply { height = dp(58) + bars.bottom }
             bottomActions.setPadding(dp(14) + bars.left, dp(6), dp(14) + bars.right, dp(6))
             view.requestLayout()
@@ -1344,7 +1344,7 @@ class MainActivity : Activity() {
                 connectivity.getLinkProperties(network)?.interfaceName
             }
             .firstOrNull { !it.isNullOrBlank() }
-            ?: findVpnInterfaceFromSysfs()
+            ?: if (isRunning()) findVpnInterfaceFromSysfs() else null
 
         if (interfaceName.isNullOrBlank()) {
             resetTrafficCounters()
