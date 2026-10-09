@@ -139,7 +139,7 @@ class SubscriptionStore(context: Context) {
         }
 
         val auto = candidate.contains("://autorouting/", true)
-        val sourceUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
+        val remoteUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
             candidate.contains("://routing/add/http", true)) {
             val payload = when {
                 candidate.contains("://autorouting/", true) ->
@@ -151,9 +151,10 @@ class SubscriptionStore(context: Context) {
             payload.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
                 ?.let(::normalizeGitHubRawUrl)
         } else null
+        val sourceUrl = remoteUrl.takeIf { auto }
 
-        val profileJson = if (sourceUrl != null) {
-            runCatching { NeoTunRoutingProfile.decode(fetch(sourceUrl).body) }.getOrNull()
+        val profileJson = if (remoteUrl != null) {
+            runCatching { NeoTunRoutingProfile.decode(fetch(remoteUrl).body) }.getOrNull()
         } else {
             NeoTunRoutingProfile.decode(candidate)
         } ?: return
