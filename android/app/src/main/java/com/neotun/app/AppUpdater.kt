@@ -35,13 +35,31 @@ class AppUpdater(private val context: Context) {
                 val release = JSONObject(json)
                 val latest = release.optString("tag_name").removePrefix("v").trim()
                 val assets = release.optJSONArray("assets")
+                val supportedAbis = Build.SUPPORTED_ABIS.toList()
                 var apk: String? = null
                 if (assets != null) {
-                    for (i in 0 until assets.length()) {
-                        val a = assets.getJSONObject(i)
-                        if (a.optString("name").endsWith(".apk", true)) {
-                            apk = a.optString("browser_download_url")
-                            break
+                    // Prefer the APK compiled for this device, so updates stay small.
+                    for (abi in supportedAbis) {
+                        val expectedName = "NeoTUN-$abi.apk"
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            if (asset.optString("name") == expectedName) {
+                                apk = asset.optString("browser_download_url")
+                                break
+                            }
+                        }
+                        if (apk != null) break
+                    }
+                    // Backward compatibility with releases created before ABI-specific APKs.
+                    if (apk == null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name")
+                            if (name.equals("app-release.apk", true) ||
+                                name.equals("NeoTUN-universal.apk", true)) {
+                                apk = asset.optString("browser_download_url")
+                                break
+                            }
                         }
                     }
                 }
