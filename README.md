@@ -1,130 +1,36 @@
-# NeoTUN Client 🚀
+# NeoTUN Client
 
-**NeoTUN** — современный мультипротокольный клиент с единым ядром на **Rust**, Android TUN и нативными сетевыми движками.
+Android-клиент для подключения к серверам VLESS, VMess, Trojan, Hysteria2, TUIC и Shadowsocks. Проект использует Rust для разбора ссылок и подготовки конфигураций, sing-box для поддерживаемых им протоколов и Xray для VLESS-транспортов, которым нужен Xray.
 
-Проект создаётся с нуля как быстрый и лёгкий клиент для Android с дальнейшей поддержкой Windows, iOS, macOS и Linux.
+> Проект находится в активной разработке. Наличие импорта протокола не означает, что он прошёл проверку реального трафика. Стабильность подтверждается отдельными тестами на устройстве.
 
-> ⚠️ Проект находится в активной разработке. Android — основная платформа на текущем этапе. Поддержка протокола считается стабильной только после сквозного тестирования реального трафика.
+## Возможности Android
 
----
+- Подключение через Android `VpnService` и TUN.
+- Импорт отдельных ссылок, Base64-списков и HTTP(S)-подписок.
+- Хранение нескольких профилей и обновление подписок.
+- Автоматический выбор сетевого движка для профиля.
+- Статистика входящего и исходящего трафика.
+- Настройки DNS, IPv6 и MTU.
+- Диагностический журнал и проверка обновлений приложения.
+- Тёмный интерфейс с адаптацией под экран устройства.
 
-## ✨ Что умеет NeoTUN
+## Протоколы
 
-### 📱 Android
+| Протокол | Движок | Состояние |
+|---|---|---|
+| VLESS TCP / WS / gRPC / HTTP / HTTPUpgrade | Xray или sing-box в зависимости от транспорта и конфигурации | Требуется проверка на реальном сервере |
+| VLESS XHTTP / SplitHTTP | Xray | Требуется проверка на реальном сервере |
+| VMess | sing-box | Адаптер реализован; end-to-end проверка не завершена |
+| Trojan | sing-box | Адаптер реализован; end-to-end проверка не завершена |
+| Hysteria2 | sing-box | Требуется проверка QUIC/UDP, включая port hopping |
+| TUIC | sing-box | Требуется проверка QUIC/UDP |
+| Shadowsocks | sing-box | Требуется end-to-end проверка |
+| WireGuard / AmneziaWG | — | Не реализованы |
 
-- 🔐 Android `VpnService` + TUN
-- 🦀 Rust Core
-- ⚡ sing-box / libbox
-- 🚀 Xray / libXray
-- 🔄 автоматический выбор движка по профилю
-- 📋 несколько профилей
-- 📡 подписки
-- 🔄 обновление подписок
-- 📥 импорт ссылок и Base64
-- 📦 JSON-импорт
-- 📊 статистика входящего/исходящего трафика
-- 📶 текущая скорость
-- 🏓 проверка ping
-- 🔁 переподключение
-- 🧪 диагностика запуска
-- 🔄 встроенная проверка обновлений приложения
-- 📱 адаптивный интерфейс без переполнения экрана
-- ⚙️ рабочие настройки DNS / IPv6 / MTU / автообновления
-- 🎨 полностью обновлённый NeoTUN Dark UI: экран подключения, трафик, серверы и закреплённые действия
+## Импорт и подписки
 
----
-
-# 🔌 Протоколы
-
-NeoTUN использует адаптерную архитектуру: приложение не пытается реализовать каждый сетевой протокол самостоятельно.
-
-### Уже реализован слой разбора
-
-| Протокол | Импорт | Движок | Статус |
-|---|---:|---|---|
-| VLESS | ✅ | sing-box / Xray | 🟡 активно тестируется |
-| VLESS TCP | ✅ | Xray | 🟢 проверяется реальным трафиком |
-| VLESS WebSocket | ✅ | sing-box | 🟡 активно тестируется |
-| VLESS gRPC | ✅ | sing-box | 🟡 активно тестируется |
-| VLESS HTTP | ✅ | sing-box | 🟡 активно тестируется |
-| VLESS HTTPUpgrade | ✅ | sing-box | 🟡 активно тестируется |
-| VLESS XHTTP | ✅ | Xray | 🟡 активно тестируется |
-| VLESS SplitHTTP | ✅ | Xray | 🟡 активно тестируется |
-| VMess | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
-| Trojan | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
-| Hysteria2 | ✅ | sing-box | 🟡 исправлен конфиг, проходит end-to-end тестирование |
-| TUIC | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
-| Shadowsocks | ✅ | sing-box | 🟡 конфигурационный путь, end-to-end тестирование |
-| WireGuard | 🚧 | native | следующий этап |
-| AmneziaWG | 🚧 | native | следующий этап |
-
-> 🟡 «Адаптер» означает, что формат и конфигурационный путь уже закладываются в архитектуру. Перед объявлением протокола стабильным требуется реальный end-to-end тест.
-
----
-
-# 📡 Подписки
-
-NeoTUN постепенно переходит от модели «одна ссылка → один профиль» к полноценной системе подписок.
-
-Поддерживаемый сценарий:
-
-```text
-Subscription URL
-       ↓
-Download
-       ↓
-Decode / parse
-       ↓
-Detect protocol
-       ↓
-Rust Core
-       ↓
-Profiles
-       ↓
-Selected engine
-       ↓
-Android TUN
-```
-
-Подписка может содержать несколько серверов.
-
-### Сейчас
-
-- ✅ сохранение подписки
-- ✅ импорт подписки из буфера обмена по HTTP(S)-ссылке
-- ✅ Base64 subscription
-- ✅ обычный текстовый список ссылок
-- ✅ импорт нескольких серверов
-- ✅ VLESS
-- ✅ VMess
-- ✅ Trojan
-- ✅ Hysteria2
-- ✅ TUIC
-- ✅ Shadowsocks
-- ✅ ручное обновление
-- ✅ автоматическое обновление
-- 🟡 управление подписками в UI
-- 🟡 QR import
-- 🟡 автообновление с учётом настройки пользователя
-
-Автообновление сейчас выполняется примерно раз в **12 часов**.
-
----
-
-# 📥 Импорт
-
-Кнопка **+** на главном экране открывает единое меню:
-
-```text
-Импорт
-
-├─ Вставить из буфера обмена
-├─ QR-код
-├─ Ручной ввод
-└─ Импорт JSON
-```
-
-### Поддерживаемые ссылки
+Поддерживаемые схемы ссылок:
 
 ```text
 vless://
@@ -136,240 +42,48 @@ tuic://
 ss://
 ```
 
-QR-сканер пока находится в разработке.
+Подписки могут содержать несколько серверов. При обновлении профили должны сопоставляться с исходной подпиской, чтобы не создавать дубликаты. Параметры порт-хоппинга Hysteria2 должны сохраняться при разборе ссылки.
 
----
-
-# 🧠 Архитектура
-
-Главный принцип NeoTUN:
-
-**UI ≠ сетевой движок ≠ платформенный TUN.**
+## Сетевой путь
 
 ```text
-┌───────────────────────────────────────┐
-│               NeoTUN UI               │
-│              Android / ...             │
-└───────────────────┬───────────────────┘
-                    │
-                    ▼
-┌───────────────────────────────────────┐
-│          NeoTUN Core — Rust            │
-│                                       │
-│ Parser • Profiles • Protocols • State │
-│ Config • Engine selection • JNI       │
-└───────────────┬───────────────┬───────┘
-                │               │
-        ┌───────▼──────┐  ┌────▼──────────┐
-        │    Engines   │  │ Platform TUN  │
-        │              │  │               │
-        │ sing-box     │  │ Android VPN   │
-        │ Xray         │  │ Windows       │
-        │ WireGuard    │  │ iOS           │
-        │ OpenVPN      │  │ Linux         │
-        └──────────────┘  └───────────────┘
+Ссылка / подписка
+       ↓
+Rust Core: разбор и конфигурация
+       ↓
+Xray или sing-box
+       ↓
+Android VpnService / TUN
+       ↓
+DNS и пользовательский трафик
 ```
 
-### Почему Rust?
+Для sing-box 1.14.x явный `dns_address` на TUN требует правила маршрутизации `hijack-dns`. Это правило должно присутствовать в создаваемой конфигурации вместе с DNS-сервером, иначе DNS-запросы могут не попадать в DNS-модуль sing-box.
 
-Rust используется как общий слой приложения:
+## Сборка Android
 
-- высокая производительность;
-- низкое потребление ресурсов;
-- единая логика для разных платформ;
-- безопасная работа с памятью;
-- удобный JNI/FFI слой;
-- возможность переиспользовать Core на Windows/iOS/Linux.
-
-При этом сложные сетевые движки не переписываются без необходимости.
-
----
-
-# ⚙️ Выбор движка
-
-NeoTUN автоматически выбирает подходящий движок.
-
-Пример:
-
-```text
-VLESS TCP
-   ↓
-Xray
-
-VLESS Reality
-   ↓
-Xray
-
-VLESS XHTTP
-   ↓
-Xray
-
-Hysteria2
-   ↓
-sing-box
-
-TUIC
-   ↓
-sing-box
-```
-
-Это позволяет не привязывать весь клиент к одному сетевому ядру.
-
----
-
-# 📱 Android UI
-
-Версия интерфейса **0.4.7** — полное обновление Android-экрана в тёмной теме NeoTUN с фиолетовым акцентом и зелёной индикацией активного соединения.
-
-- Главный экран объединяет состояние соединения, выбранный профиль и большую кнопку подключения.
-- Смена сервера доступна сразу, без поиска нужного пункта в меню.
-- Полученный и отправленный трафик, а также скорость собраны в одной компактной панели.
-- На главном экране видны три последних профиля; весь список находится на отдельной вкладке.
-- Кнопки подключения и действий на экране серверов закреплены над нижней навигацией.
-- Карточки, подписи и кнопки используют ограничение длинных строк и адаптивные размеры.
-
-Цель — подключение за один-два тапа, компактный список серверов и отсутствие элементов, уходящих за границы экрана.
-
-В 0.4.9 интерфейс стал компактнее по мотивам HAPP. Обновление подписки синхронизирует профили по нормализованной ссылке, а счётчики трафика читаются сначала из sysfs-интерфейса VPN, затем из `/proc/net/dev`.
-
-# ⚙️ Настройки Android
-
-Настройки NeoTUN разделены на параметры интерфейса и параметры, которые реально передаются сетевому движку при следующем подключении.
-
-| Настройка | Поведение |
-|---|---|
-| 🌐 DNS | Автоматический / Cloudflare / Google / Quad9; применяется к sing-box и Xray |
-| 📡 IPv6 | Включает IPv6-адрес и маршрут TUN |
-| 🔌 MTU | 1280–1500; применяется к TUN |
-| 🔄 Автообновление | Управляет автоматическим обновлением подписок |
-| 📱 Компактный список | Меняет высоту и плотность карточек профилей |
-| 🔔 Уведомления | Меняет важность уведомления VPN-сервиса; системное уведомление активного VPN полностью убрать нельзя |
-| 🧪 Диагностика | Показывает журнал запуска и сетевого пути |
-| ♻️ Сброс настроек | Возвращает настройки интерфейса к значениям по умолчанию без удаления профилей |
-
-Изменения DNS / IPv6 / MTU применяются при следующем подключении, чтобы не ломать уже работающий TUN.
-
----
-
-# 📊 Статистика
-
-NeoTUN получает счётчики непосредственно с VPN-интерфейса.
-
-Отображаются:
-
-- ↓ получено;
-- ↑ отправлено;
-- текущая скорость;
-- активный TUN;
-- состояние подключения.
-
-В будущем:
-
-- график скорости;
-- статистика за день;
-- статистика за месяц;
-- статистика по профилям.
-
----
-
-# 🏓 Диагностика
-
-В приложение встроен диагностический журнал.
-
-Он позволяет проверить:
-
-```text
-JNI
- ↓
-DNS
- ↓
-Android VpnService
- ↓
-TUN
- ↓
-Profile parser
- ↓
-Engine
- ↓
-Configuration
- ↓
-Core startup
- ↓
-Traffic
-```
-
-Секретные параметры профиля не должны попадать в диагностический лог.
-
----
-
-# 🗂️ Структура проекта
-
-```text
-NeoTUN-Client/
-│
-├── android/
-│   └── app/
-│       └── src/main/
-│           ├── java/com/neotun/app/
-│           │   ├── MainActivity.kt
-│           │   ├── NeoTunCore.kt
-│           │   ├── SubscriptionStore.kt
-│           │   ├── ProfileStore.kt
-│           │   ├── NeoTunDiagnostics.kt
-│           │   └── ...
-│           │
-│           └── jniLibs/
-│
-├── core/
-│   ├── src/
-│   │   └── lib.rs
-│   └── Cargo.toml
-│
-├── xraybridge/
-│   ├── main.go
-│   └── bridge.c
-│
-├── .github/
-│   └── workflows/
-│       └── android.yml
-│
-├── Cargo.toml
-└── README.md
-```
-
----
-
-# 🛠️ Локальная сборка
-
-## Требования
+### Требования
 
 - JDK 17
-- Android SDK
-- Android SDK Platform 35
+- Android SDK и Platform 35
 - Rust stable
-- Android Rust targets
-- cargo-ndk
+- Android NDK r29
+- `cargo-ndk`
 - Gradle 8.10.2
 
-### Android targets
+Установите Android-цели Rust:
 
 ```bash
 rustup target add aarch64-linux-android
 rustup target add armv7-linux-androideabi
 rustup target add x86_64-linux-android
-```
-
-### cargo-ndk
-
-```bash
 cargo install cargo-ndk --locked
 ```
 
-### Rust Core
+Сборка Rust Core:
 
 ```bash
 cd core
-
 cargo ndk \
   -t arm64-v8a \
   -t armeabi-v7a \
@@ -378,38 +92,24 @@ cargo ndk \
   build --release
 ```
 
-### APK
+Сборка APK:
 
 ```bash
 cd ../android
 gradle assembleDebug --no-daemon
 ```
 
-APK:
+Debug APK создаётся по пути:
 
 ```text
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
----
+## GitHub Actions и подпись
 
-# 🤖 GitHub Actions
+Workflow `.github/workflows/android.yml` собирает Rust Core, нативный Xray-модуль и APK для Android ABI. Публикация release APK требует постоянного production keystore.
 
-GitHub Actions автоматически:
-
-1. собирает Rust Core;
-2. собирает ARM64;
-3. собирает ARMv7;
-4. собирает x86_64;
-5. собирает Xray native bridge;
-6. собирает Android APK;
-7. подписывает release production-keystore;
-8. публикует artifacts;
-9. создаёт GitHub Release на `main`.
-
-Для нормальных обновлений Android используется **постоянный production keystore**.
-
-### Secrets
+Настройте следующие GitHub Actions Secrets:
 
 ```text
 NEOTUN_KEYSTORE_BASE64
@@ -418,251 +118,31 @@ NEOTUN_KEY_ALIAS
 NEOTUN_KEY_PASSWORD
 ```
 
-⚠️ Никогда не помещайте keystore, пароль или приватные ключи непосредственно в Git.
+Не добавляйте keystore и пароли в репозиторий. Для обновления установленного приложения подпись должна совпадать с предыдущей production-версией.
 
----
+Сборки и артефакты: [GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions). Исходный код: [GitHub](https://github.com/Kolya-YT/NeoTUN-Client).
 
-# 🔄 Обновление приложения
+## Диагностика
 
-В NeoTUN встроен updater.
+Если подключение запускается, но сайты не открываются, проверьте по порядку:
 
-Поток:
+1. Успешно ли разобрана ссылка и сформирован ли профиль.
+2. Запускается ли выбранный движок без ошибки конфигурации.
+3. Создан ли Android TUN.
+4. Обрабатываются ли DNS-запросы.
+5. Проходит ли реальный TCP- или UDP-трафик.
+6. Работают ли отключение и повторное подключение.
 
-```text
-GitHub Release
-      ↓
-Check latest version
-      ↓
-Compare versionName / versionCode
-      ↓
-Download APK
-      ↓
-Verify package
-      ↓
-Verify signing certificate
-      ↓
-Android installer
-```
+Диагностический журнал доступен в приложении. Перед публикацией логов удаляйте адреса серверов, идентификаторы и другие чувствительные данные.
 
-Это позволяет устанавливать новые версии поверх существующей установки при использовании того же production signing key.
+## Текущая версия
 
----
+- Android: **0.5.0**
+- `versionCode`: **30**
+- Rust Core: **0.2.4**
+- Движки: sing-box 1.14.1 и Xray
+- Статус: активная разработка
 
-# 🗺️ Roadmap
+## Лицензия
 
-## Этап 1 — Core
-
-- [x] Rust Core
-- [x] JNI
-- [x] Android project
-- [x] Android TUN
-- [x] Multi-ABI builds
-- [x] GitHub Actions
-
-## Этап 2 — VLESS
-
-- [x] VLESS parser
-- [x] sing-box
-- [x] Xray
-- [x] VLESS TCP
-- [x] VLESS WebSocket
-- [x] VLESS gRPC
-- [x] VLESS HTTP
-- [x] VLESS HTTPUpgrade
-- [x] VLESS XHTTP
-- [x] VLESS SplitHTTP
-- [x] Profile storage
-- [x] Connect / disconnect
-- [x] Reconnect
-- [x] Diagnostics
-- [x] Traffic statistics
-
-## Этап 3 — Import & subscriptions
-
-- [x] Multiple profiles
-- [x] Clipboard import
-- [x] Base64 import
-- [x] JSON import
-- [x] Subscription storage
-- [x] Subscription refresh
-- [x] Multi-link subscription parsing
-- [x] VMess / Trojan / Hysteria2 / TUIC / Shadowsocks parser adapters
-- [ ] QR scanner
-- [ ] Subscription management UI
-- [ ] Import/export profiles
-- [ ] Subscription expiry information
-
-## Этап 4 — Protocol engines
-
-- [🟢] VLESS — Xray: TCP / WS / gRPC / HTTP / HTTPUpgrade / XHTTP / SplitHTTP — активно тестируется
-- [🟡] VMess — sing-box
-- [🟡] Trojan — sing-box
-- [🟡] Hysteria2 — sing-box — URI/port-hopping/public-key-pin adapters, требуется реальный QUIC/UDP тест
-- [🟡] TUIC — sing-box
-- [🟡] Shadowsocks — sing-box
-- [ ] WireGuard
-- [ ] AmneziaWG
-- [ ] AnyTLS
-- [ ] NaiveProxy
-- [ ] ShadowTLS
-
-> 🟡 Конфигурационный адаптер есть, но полноценный сетевой путь должен пройти реальные тесты перед объявлением протокола стабильным.
-
-## Этап 5 — Client features
-
-- [x] Server list
-- [x] Ping
-- [x] Traffic statistics
-- [x] Reconnect
-- [x] In-app updater
-- [x] DNS settings
-- [x] MTU setting
-- [x] IPv6 setting
-- [x] Subscription auto-update setting
-- [x] Responsive server list
-- [ ] Routing rules
-- [ ] Split tunneling
-- [ ] Kill switch
-- [ ] Auto-connect
-- [x] Background VPN notification
-- [ ] Per-profile statistics
-- [ ] Speed graph
-- [ ] QR scanner
-
-## Этап 6 — Cross-platform
-
-- [ ] Windows
-- [ ] Wintun
-- [ ] iOS
-- [ ] Network Extension
-- [ ] macOS
-- [ ] Linux
-- [ ] Shared Rust Core across platforms
-
----
-
-# 🔐 Принципы проекта
-
-### Rust-first
-
-Общая логика находится в Rust.
-
-### Engine reuse
-
-NeoTUN использует зрелые сетевые движки вместо дублирования сложных криптографических реализаций.
-
-### Platform abstraction
-
-Android `VpnService`, Windows Wintun, iOS Network Extension и Linux TUN должны оставаться отдельными платформенными адаптерами.
-
-### Security
-
-- секреты не должны попадать в Git;
-- приватные параметры не должны попадать в логи;
-- production APK должен использовать постоянный signing key;
-- конфигурации пользователей хранятся локально.
-
-### Honest support status
-
-Протокол не считается стабильным только потому, что приложение умеет его распарсить.
-
-Нужен полный путь:
-
-```text
-Import
- ↓
-Parse
- ↓
-Generate config
- ↓
-Start engine
- ↓
-TUN
- ↓
-Real traffic
- ↓
-Reconnect
- ↓
-Disconnect
-```
-
----
-
-# 📦 Текущая версия
-
-```text
-NeoTUN Android: 0.4.9
-versionCode: 28
-
-Core: Rust 0.2.4
-Platform: Android
-Engines: sing-box 1.14.1 + Xray
-Status: Active development — Android-first
-```
-
----
-
-# 📄 License
-
-Смотрите файл [LICENSE](LICENSE).
-
----
-
-## 🧪 Статус тестирования
-
-На текущем этапе нельзя считать все протоколы стабильными только по успешному созданию конфигурации. Основной критерий — реальный трафик через Android TUN.
-
-### Проверяем в первую очередь
-
-1. VLESS TCP — реальный трафик, reconnect и disconnect.
-2. VLESS XHTTP / Reality — текущий рабочий путь.
-3. Hysteria2 — QUIC/UDP, включая запуск без crash.
-4. TUIC — QUIC/UDP.
-5. VMess / Trojan / Shadowsocks — TCP/UDP в зависимости от транспорта.
-
-Каждый протокол должен пройти цепочку:
-
-```text
-Share link
- ↓
-Parser
- ↓
-Config
- ↓
-Engine
- ↓
-Android TUN
- ↓
-DNS
- ↓
-Real traffic
- ↓
-Reconnect
- ↓
-Disconnect
-```
-
----
-
-## ⭐ Проект
-
-NeoTUN создаётся как единый быстрый клиент, где пользователь видит простую оболочку, а внутри приложение автоматически выбирает подходящий сетевой движок.
-
-**Один клиент → несколько протоколов → несколько ядер → единый интерфейс.**
-
-
-## Fixes in 0.4.9
-
-- Rebuilt the home screen and server list with a compact HAPP-inspired layout.
-- Subscription refresh reconciles profiles by normalized link identity instead of adding duplicates.
-- Traffic counters read VPN interface byte counters from sysfs first, then fall back to `/proc/net/dev`.
-- Connect/disconnect and profile actions remain pinned above bottom navigation.
-- Bottom navigation reserves space for Android's system navigation bar.
-- Hysteria2 port hopping is normalized to sing-box syntax (`start:end`), and `server_port` is omitted when `server_ports` is configured.
-- sing-box startup failures are logged and surfaced through the app's connection error state instead of escaping the startup block.
-- A successful APK build does not replace end-to-end Hysteria2 testing on a real device; QUIC/UDP still requires a live server test.
-
-
-### 0.4.9
-- Preserve a subscription's stable ID when the same URL is added again, so refresh reconciles existing profiles instead of treating it as a new subscription.
-- Log profile protocol/configuration failures to in-app diagnostics without exposing the full share link or credentials.
+Условия использования указаны в [LICENSE](LICENSE).
