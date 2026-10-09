@@ -1063,6 +1063,26 @@ class MainActivity : Activity() {
     }
 
     private fun importText(raw: String) {
+        val routingText = raw.trim()
+        if (routingText.equals("off", true) || routingText.contains("://routing/off", true)) {
+            routingStore.setEnabled(false)
+            toast("Встроенная маршрутизация выключена")
+            showScreen(Screen.SETTINGS)
+            return
+        }
+        if (routingText.contains("://routing/", true) || routingText.contains("://autorouting/", true) ||
+            routingText.startsWith("{")) {
+            val routing = NeoTunRoutingProfile.decode(routingText)
+            if (routing != null && (routing.has("Name") || routing.has("GlobalProxy") ||
+                    routing.has("DirectSites") || routing.has("ProxySites") || routing.has("BlockSites") ||
+                    routing.has("DirectIp") || routing.has("ProxyIp") || routing.has("BlockIp"))) {
+                val saved = routingStore.save(routing, activate = true)
+                routingStore.setEnabled(true)
+                toast("Маршрутизация «${saved.name}» импортирована")
+                showScreen(Screen.SETTINGS)
+                return
+            }
+        }
         val candidates = linkedSetOf<String>()
         fun collect(value: String) {
             // Keep commas inside Hysteria2 port-hopping parameters.
