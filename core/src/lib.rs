@@ -427,7 +427,7 @@ impl Profile {
             },
             _ => return Err("Протокол не поддерживается".into())
         };
-        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"auto_detect_interface":true,"final":"proxy"}});
+        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"rules":[{"action":"hijack-dns"}],"auto_detect_interface":true,"final":"proxy"}});
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
     }
 
@@ -519,6 +519,7 @@ impl Profile {
                 {"type": "block", "tag": "block"}
             ],
             "route": {
+                "rules": [{ "action": "hijack-dns" }],
                 "auto_detect_interface": true,
                 "final": "proxy"
             }
