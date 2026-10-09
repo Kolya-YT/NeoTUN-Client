@@ -551,7 +551,11 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
 
         val connection = settingsSection("СОЕДИНЕНИЕ")
-        connection.addView(settingsRow("🧭 Маршрутизация",\n            routingStore.active()?.name ?: if (routingStore.enabled()) "Не выбрана" else "Выключена",\n            "Правила Proxy / Direct / Block, совместимые с INCY",\n        ) { showRoutingSettings() })\n        connection.addView(settingsRow("🌐 DNS",
+        connection.addView(settingsRow("🧭 Маршрутизация",
+            routingStore.active()?.name ?: if (routingStore.enabled()) "Не выбрана" else "Выключена",
+            "Правила Proxy / Direct / Block, совместимые с INCY",
+        ) { showRoutingSettings() })
+        connection.addView(settingsRow("🌐 DNS",
             prefs.getString("dns_mode", "Автоматический") ?: "Автоматический",
             "Системный DNS или выбранный сервер") { showDnsSettings() })
         connection.addView(settingsRow("🔌 MTU",
