@@ -26,7 +26,8 @@ import java.util.UUID
 class MainActivity : Activity() {
     private lateinit var updater: AppUpdater
     private lateinit var store: ProfileStore
-    private lateinit var subscriptions: SubscriptionStore\n    private lateinit var routingStore: RoutingProfileStore
+    private lateinit var subscriptions: SubscriptionStore
+    private lateinit var routingStore: RoutingProfileStore
     private lateinit var content: LinearLayout
     private lateinit var nav: LinearLayout
     private lateinit var bottomActions: LinearLayout
