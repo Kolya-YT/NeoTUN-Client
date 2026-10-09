@@ -72,6 +72,7 @@ class MainActivity : Activity() {
         buildShell()
         showScreen(Screen.HOME)
         handleRoutingIntent(intent)
+        refreshDueRoutingProfiles()
         handler.post(poll)
     }
 
@@ -1438,6 +1439,41 @@ class MainActivity : Activity() {
     private fun normalizeRoutingUrl(value: String): String =
         value.replace("https://github.com/", "https://raw.githubusercontent.com/")
             .replace("/blob/", "/")
+
+    private fun refreshDueRoutingProfiles() {
+        val prefs = getSharedPreferences("neotun_routing", MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        routingStore.all().filter { !it.sourceUrl.isNullOrBlank() }.forEach { profile ->
+            val key = "last_checked_" + profile.id
+            val lastChecked = prefs.getLong(key, 0L)
+            if (now - lastChecked < 24L * 60L * 60L * 1000L) return@forEach
+            prefs.edit().putLong(key, now).apply()
+            Thread {
+                val result = runCatching {
+                    val url = normalizeRoutingUrl(profile.sourceUrl!!)
+                    val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                        connectTimeout = 12_000
+                        readTimeout = 20_000
+                        setRequestProperty("User-Agent", "NeoTUN/0.5")
+                    }
+                    try {
+                        if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
+                        connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    } finally {
+                        connection.disconnect()
+                    }
+                }.mapCatching { body ->
+                    NeoTunRoutingProfile.decode(body) ?: error("Некорректный профиль")
+                }
+                result.onSuccess { updated ->
+                    routingStore.save(updated, sourceUrl = profile.sourceUrl, activate = false)
+                }.onFailure {
+                    // Retry on the next app launch; don't interrupt an active connection.
+                    prefs.edit().putLong(key, 0L).apply()
+                }
+            }.start()
+        }
+    }
 
     override fun onResume() {
         super.onResume()
