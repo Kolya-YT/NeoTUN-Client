@@ -791,6 +791,15 @@ class MainActivity : Activity() {
         route.put("auto_detect_interface", true)
         val routing = RoutingProfileStore(this).active()
         route.put("final", if (routing?.globalProxy != false) "proxy" else "direct")
+        if (routing != null) {
+            val outbounds = root.optJSONArray("outbounds") ?: JSONArray().also { root.put("outbounds", it) }
+            fun ensureOutbound(tag: String, type: String) {
+                val exists = (0 until outbounds.length()).any { outbounds.optJSONObject(it)?.optString("tag") == tag }
+                if (!exists) outbounds.put(JSONObject().put("type", type).put("tag", tag))
+            }
+            ensureOutbound("direct", "direct")
+            ensureOutbound("block", "block")
+        }
         // Keep DNS interception first; routing profile rules are appended after it.
         val routeRules = JSONArray().put(JSONObject().put("action", "hijack-dns"))
         if (routing != null) {
