@@ -178,7 +178,8 @@ object NeoTunRoutingAdapter {
                     else -> Unit
                 }
             }
-            val rule = JSONObject().put("action", action)\n            if (outbound != null) rule.put("outbound", outbound)
+            val rule = JSONObject().put("action", action)
+            if (outbound != null) rule.put("outbound", outbound)
             if (domains.length() > 0) rule.put("domain", domains)
             if (suffixes.length() > 0) rule.put("domain_suffix", suffixes)
             if (ips.length() > 0) rule.put("ip_cidr", ips)
