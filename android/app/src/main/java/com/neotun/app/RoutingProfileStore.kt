@@ -168,11 +168,14 @@ object NeoTunRoutingAdapter {
             val ips = JSONArray()
             values.forEach { value ->
                 when {
-                    value.startsWith("geosite:", true) -> domains.put(value)
-                    value.startsWith("geoip:", true) || value.contains('/') || value.matches(Regex("\\d{1,3}(?:\\.\\d{1,3}){3}")) -> ips.put(value)
-                    isDomain && value.startsWith("domain-suffix:", true) -> suffixes.put(value.substringAfter(':'))
-                    isDomain -> domains.put(value.removePrefix("domain:"))
-                    else -> ips.put(value)
+                    // .dat geodata is handled by the Xray adapter. Do not feed Xray
+                    // geosite/geoip syntax into sing-box domain/ip_cidr fields.
+                    value.startsWith("geosite:", true) || value.startsWith("geoip:", true) -> Unit
+                    value.startsWith("domain-suffix:", true) -> suffixes.put(value.substringAfter(':'))
+                    isDomain && (value.startsWith("domain:", true) || value.startsWith("full:", true)) -> domains.put(value)
+                    isDomain -> domains.put(value)
+                    value.contains('/') || value.matches(Regex("\\d{1,3}(?:\\.\\d{1,3}){3}")) || value.contains(':') -> ips.put(value)
+                    else -> Unit
                 }
             }
             val rule = JSONObject().put("action", action)\n            if (outbound != null) rule.put("outbound", outbound)
@@ -198,7 +201,14 @@ object NeoTunRoutingAdapter {
             val rule = JSONObject().put("type", "field").put("outboundTag", outbound)
             val geo = values.filter { it.startsWith("geoip:", true) }
             val plain = values.filterNot { it.startsWith("geoip:", true) }
-            if (domain && plain.isNotEmpty()) rule.put("domain", JSONArray(plain))
+            val normalizedDomains = plain.map {
+                when {
+                    it.startsWith("geosite:", true) || it.startsWith("domain:", true) ||
+                        it.startsWith("full:", true) || it.startsWith("regexp:", true) -> it
+                    else -> "domain:" + it
+                }
+            }
+            if (domain && normalizedDomains.isNotEmpty()) rule.put("domain", JSONArray(normalizedDomains))
             if (!domain && (plain + geo).isNotEmpty()) rule.put("ip", JSONArray(plain + geo))
             if (rule.length() > 2) rules.put(rule)
         }
