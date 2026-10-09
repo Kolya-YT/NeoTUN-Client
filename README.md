@@ -228,7 +228,9 @@ sing-box
 - Кнопки подключения и действий на экране серверов закреплены над нижней навигацией.
 - Карточки, подписи и кнопки используют ограничение длинных строк и адаптивные размеры.
 
-Цель — подключение за один-два тапа, без прокрутки ради главной кнопки и без элементов, уходящих за границы экрана.
+Цель — подключение за один-два тапа, компактный список серверов и отсутствие элементов, уходящих за границы экрана.
+
+В 0.4.8 интерфейс стал компактнее по мотивам HAPP. Обновление подписки синхронизирует профили по нормализованной ссылке, а счётчики трафика читаются сначала из sysfs-интерфейса VPN, затем из `/proc/net/dev`.
 
 # ⚙️ Настройки Android
 
@@ -589,8 +591,8 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.7
-versionCode: 27
+NeoTUN Android: 0.4.8
+versionCode: 28
 
 Core: Rust 0.2.4
 Platform: Android
@@ -649,9 +651,11 @@ NeoTUN создаётся как единый быстрый клиент, гд�
 **Один клиент → несколько протоколов → несколько ядер → единый интерфейс.**
 
 
-## Fixes in 0.4.7
+## Fixes in 0.4.8
 
-- Rebuilt the home screen, profile list, and bottom navigation with a clearer connection card, compact traffic panel, and improved spacing.
+- Rebuilt the home screen and server list with a compact HAPP-inspired layout.
+- Subscription refresh reconciles profiles by normalized link identity instead of adding duplicates.
+- Traffic counters read VPN interface byte counters from sysfs first, then fall back to `/proc/net/dev`.
 - Connect/disconnect and profile actions remain pinned above bottom navigation.
 - Bottom navigation reserves space for Android's system navigation bar.
 - Hysteria2 port hopping is normalized to sing-box syntax (`start:end`), and `server_port` is omitted when `server_ports` is configured.
