@@ -29,6 +29,7 @@ class MainActivity : Activity() {
     private lateinit var subscriptions: SubscriptionStore
     private lateinit var content: LinearLayout
     private lateinit var nav: LinearLayout
+    private lateinit var bottomActions: LinearLayout
     private var screen = Screen.HOME
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var trafficInterface: String? = null
@@ -86,6 +87,13 @@ class MainActivity : Activity() {
             addView(content, FrameLayout.LayoutParams(-1, -2))
         }
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        bottomActions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setBackgroundColor(Color.rgb(7, 9, 16))
+            visibility = View.GONE
+        }
+        root.addView(bottomActions, LinearLayout.LayoutParams(-1, -2))
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -99,7 +107,9 @@ class MainActivity : Activity() {
             )
             content.setPadding(dp(16) + bars.left, dp(10) + bars.top,
                 dp(16) + bars.right, dp(18) + bars.bottom)
-            nav.setPadding(dp(8) + bars.left, dp(6), dp(8) + bars.right, dp(8) + bars.bottom)
+            nav.setPadding(dp(8) + bars.left, dp(4), dp(8) + bars.right, dp(4))
+            nav.layoutParams = nav.layoutParams.apply { height = dp(58) + bars.bottom }
+            bottomActions.setPadding(dp(14) + bars.left, dp(6), dp(14) + bars.right, dp(6))
             view.requestLayout()
             insets
         }
@@ -109,6 +119,7 @@ class MainActivity : Activity() {
 
     private fun showScreen(value: Screen) {
         screen = value
+        bottomActions.visibility = if (value == Screen.PROFILES) View.VISIBLE else View.GONE
         when (value) {
             Screen.HOME -> renderHome()
             Screen.PROFILES -> renderProfiles()
@@ -328,17 +339,32 @@ class MainActivity : Activity() {
         }
         content.addView(listCard, margins(bottom = 10))
 
-        val selectedProfile = profiles.firstOrNull { it.id == selected }
-        if (selectedProfile != null) {
-            content.addView(button(
-                if (isRunning() && selectedProfile.id == selectedProfileId()) "Отключить" else "Подключить выбранный"
-            ) {
-                if (isRunning()) disconnect() else connect(selectedProfile)
-            }, margins(bottom = 6))
-            content.addView(button("⋮  Действия выбранного сервера") {
-                profileActions(selectedProfile)
-            }, margins(bottom = 18))
+        renderProfileBottomActions(profiles.firstOrNull { it.id == selected })
+    }
+
+    private fun renderProfileBottomActions(profile: NeoTunProfile?) {
+        bottomActions.removeAllViews()
+        if (profile == null) {
+            bottomActions.visibility = View.GONE
+            return
         }
+        bottomActions.visibility = View.VISIBLE
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        row.addView(button(if (isRunning()) "Отключить" else "Подключить") {
+            if (isRunning()) disconnect() else connect(profile)
+        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(0, 0, dp(6), 0) })
+        row.addView(button("Действия  ⋯") {
+            profileActions(profile)
+        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
+        bottomActions.addView(row)
+        bottomActions.addView(txt(profile.name, 11f, Color.rgb(128, 133, 151)).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER
+        }, margins(top = 3))
     }
 
     private fun serverRow(profile: NeoTunProfile, selected: Boolean, compact: Boolean): LinearLayout {
