@@ -64,6 +64,7 @@ class MainActivity : Activity() {
         updater = AppUpdater(this)
         store = ProfileStore(this)
         subscriptions = SubscriptionStore(this)
+        routingStore = RoutingProfileStore(this)
         migrateLegacyProfile()
         if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("subscriptions_auto_update", true)) {
             refreshDueSubscriptions()
