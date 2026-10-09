@@ -118,11 +118,15 @@ class SubscriptionStore(context: Context) {
         val candidates = linkedSetOf<String>()
 
         fun addLines(value: String) {
-            value.lines()
-                .flatMap { it.trim().split(Regex("[,\\s]+")) }
-                .map { it.trim() }
-                .filter { it.contains("://") }
-                .forEach { candidates.add(it) }
+            // Commas are valid in Hysteria2 port-hopping ranges, so they are not
+            // general-purpose link separators. Stop only at whitespace/new URI.
+            val linkPattern = Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://.*?(?=(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://|\\s|$)")
+            value.lines().forEach { line ->
+                linkPattern.findAll(line).forEach { match ->
+                    val link = match.value.trim().trimEnd(',', ';', '"', '\'')
+                    if (link.isNotBlank()) candidates.add(link)
+                }
+            }
         }
 
         addLines(text)
