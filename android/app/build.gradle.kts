@@ -16,12 +16,22 @@ android {
 
     packaging { jniLibs { useLegacyPackaging = true } }
 
+    // Ship device-specific APKs so each install contains only its own native engines.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
     defaultConfig {
         applicationId = "com.neotun.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 30
-        versionName = "0.5.0"
+        versionCode = 31
+        versionName = "0.5.1"
     }
 
     signingConfigs {
