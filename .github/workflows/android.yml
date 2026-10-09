@@ -39,7 +39,7 @@ jobs:
         with:
           go-version: stable
           cache: true
-          cache-dependency-path: xraybridge/go.sum
+          cache-dependency-path: xraybridge/go.mod
 
       - name: Set up Android NDK
         id: ndk
@@ -82,7 +82,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ../android/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}
-          go mod download
+          # go.sum is intentionally generated from the pinned go.mod before compiling.
+          go mod tidy
 
           export GOOS=android
           export CGO_ENABLED=1
