@@ -219,40 +219,16 @@ sing-box
 
 # 📱 Android UI
 
-Интерфейс развивается в сторону удобства **HAPP-подобной модели управления**, но с собственным дизайном NeoTUN.
+Версия интерфейса **0.4.7** — полное обновление Android-экрана в тёмной теме NeoTUN с фиолетовым акцентом и зелёной индикацией активного соединения.
 
-Главный экран:
+- Главный экран объединяет состояние соединения, выбранный профиль и большую кнопку подключения.
+- Смена сервера доступна сразу, без поиска нужного пункта в меню.
+- Полученный и отправленный трафик, а также скорость собраны в одной компактной панели.
+- На главном экране видны три последних профиля; весь список находится на отдельной вкладке.
+- Кнопки подключения и действий на экране серверов закреплены над нижней навигацией.
+- Карточки, подписи и кнопки используют ограничение длинных строк и адаптивные размеры.
 
-```text
-        ⚙          NeoTUN          +
-
-              ┌─────────┐
-              │   ⏻    │
-              └─────────┘
-
-             Подключено
-              Нидерланды
-
-       ↓ 12.4 MB   ↑ 2.1 MB   1.4 MB/s
-
-┌──────────────────────────────────────┐
-│ NeoTUN                         6 проф.│
-├──────────────────────────────────────┤
-│ 🇩🇪  Ютуб без рекламы              ✓ │
-│     VLESS • TCP • REALITY             │
-├──────────────────────────────────────┤
-│ 🇳🇱  Нидерланды                     › │
-│     VLESS • TCP • REALITY             │
-├──────────────────────────────────────┤
-│ 🇫🇮  Финляндия                      › │
-│     VLESS • XHTTP • REALITY           │
-└──────────────────────────────────────┘
-```
-
-Основная цель — минимум экранов и действий для обычного подключения.
-
----
-
+Цель — подключение за один-два тапа, без прокрутки ради главной кнопки и без элементов, уходящих за границы экрана.
 
 # ⚙️ Настройки Android
 
@@ -613,8 +589,8 @@ Disconnect
 # 📦 Текущая версия
 
 ```text
-NeoTUN Android: 0.4.6
-versionCode: 26
+NeoTUN Android: 0.4.7
+versionCode: 27
 
 Core: Rust 0.2.4
 Platform: Android
@@ -673,9 +649,10 @@ NeoTUN создаётся как единый быстрый клиент, гд�
 **Один клиент → несколько протоколов → несколько ядер → единый интерфейс.**
 
 
-## Fixes in 0.4.6
+## Fixes in 0.4.7
 
-- Server screen actions are pinned above bottom navigation, so connect/disconnect and server actions remain visible while scrolling.
+- Rebuilt the home screen, profile list, and bottom navigation with a clearer connection card, compact traffic panel, and improved spacing.
+- Connect/disconnect and profile actions remain pinned above bottom navigation.
 - Bottom navigation reserves space for Android's system navigation bar.
 - Hysteria2 port hopping is normalized to sing-box syntax (`start:end`), and `server_port` is omitted when `server_ports` is configured.
 - sing-box startup failures are logged and surfaced through the app's connection error state instead of escaping the startup block.
