@@ -910,7 +910,7 @@ class MainActivity : Activity() {
                                     toast("Маршрутизация выключена")
                                     renderSettings()
                                 } else {
-                                    val json = NeoTunRoutingProfile.decode(raw)
+                                    val json = RoutingProfileStore.decode(raw)
                                     if (json == null) {
                                         toast("Не удалось прочитать профиль. Проверьте JSON или Base64-ссылку.")
                                     } else {
@@ -1080,7 +1080,7 @@ class MainActivity : Activity() {
         }
         if (routingText.contains("://routing/", true) || routingText.contains("://autorouting/", true) ||
             routingText.startsWith("{")) {
-            val routing = NeoTunRoutingProfile.decode(routingText)
+            val routing = RoutingProfileStore.decode(routingText)
             if (routing != null && (routing.has("Name") || routing.has("GlobalProxy") ||
                     routing.has("DirectSites") || routing.has("ProxySites") || routing.has("BlockSites") ||
                     routing.has("DirectIp") || routing.has("ProxyIp") || routing.has("BlockIp"))) {
@@ -1392,7 +1392,7 @@ class MainActivity : Activity() {
             return
         }
         val activate = link.contains("/onadd/", true)
-        val json = NeoTunRoutingProfile.decode(link)
+        val json = RoutingProfileStore.decode(link)
         if (json != null) {
             val saved = routingStore.save(json, activate = activate)
             routingStore.setEnabled(true)
@@ -1428,7 +1428,7 @@ class MainActivity : Activity() {
                     connection.disconnect()
                 }
             }.mapCatching { body ->
-                NeoTunRoutingProfile.decode(body) ?: error("Сервер вернул не JSON/Base64 профиль")
+                RoutingProfileStore.decode(body) ?: error("Сервер вернул не JSON/Base64 профиль")
             }
             runOnUiThread {
                 result.onSuccess { profile ->
@@ -1468,7 +1468,7 @@ class MainActivity : Activity() {
                         connection.disconnect()
                     }
                 }.mapCatching { body ->
-                    NeoTunRoutingProfile.decode(body) ?: error("Некорректный профиль")
+                    RoutingProfileStore.decode(body) ?: error("Некорректный профиль")
                 }
                 result.onSuccess { updated ->
                     routingStore.save(updated, sourceUrl = profile.sourceUrl, activate = false)

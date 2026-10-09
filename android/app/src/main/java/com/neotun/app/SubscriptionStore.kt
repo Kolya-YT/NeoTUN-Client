@@ -154,9 +154,9 @@ class SubscriptionStore(context: Context) {
         val sourceUrl = remoteUrl.takeIf { auto }
 
         val profileJson = if (remoteUrl != null) {
-            runCatching { NeoTunRoutingProfile.decode(fetch(remoteUrl).body) }.getOrNull()
+            runCatching { RoutingProfileStore.decode(fetch(remoteUrl).body) }.getOrNull()
         } else {
-            NeoTunRoutingProfile.decode(candidate)
+            RoutingProfileStore.decode(candidate)
         } ?: return
         routingProfiles.save(profileJson, sourceUrl = sourceUrl, activate = true)
         routingProfiles.setEnabled(true)
