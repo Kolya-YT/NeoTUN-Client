@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: true
+  # Let the current build finish; a newer push must not cancel native compilation.
+  cancel-in-progress: false
 
 jobs:
   build:
