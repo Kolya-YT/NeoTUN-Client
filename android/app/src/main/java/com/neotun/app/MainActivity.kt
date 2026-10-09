@@ -139,192 +139,208 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(2), 0, dp(10))
+            setPadding(dp(2), dp(4), dp(2), dp(14))
         }
-        top.addView(txt("NeoTUN", 26f, Color.WHITE, Typeface.BOLD),
-            LinearLayout.LayoutParams(0, dp(48), 1f))
-        top.addView(iconButton("＋", 28) { showImportMenu() },
-            LinearLayout.LayoutParams(dp(48), dp(48)))
+        val brand = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        brand.addView(txt("NeoTUN", 27f, Color.WHITE, Typeface.BOLD))
+        brand.addView(txt("PRIVATE CONNECTION", 9f, Color.rgb(129, 135, 158), Typeface.BOLD), margins(top = 3))
+        top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
+        val statusPill = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = rounded(if (running) Color.rgb(18, 54, 43) else Color.rgb(26, 29, 46), 50)
+        }
+        statusPill.addView(txt("●", 9f, if (running) Color.rgb(83, 224, 155) else Color.rgb(127, 132, 153)))
+        statusPill.addView(txt(if (running) " В сети" else " Не подключено", 11f,
+            if (running) Color.rgb(112, 231, 169) else Color.rgb(174, 178, 194), Typeface.BOLD), margins(start = 5))
+        top.addView(statusPill, LinearLayout.LayoutParams(-2, dp(34)))
+        top.addView(iconButton("＋", 25) { showImportMenu() }.apply {
+            background = rounded(Color.rgb(29, 31, 51), 14, Color.rgb(53, 57, 84), 1)
+        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { setMargins(dp(8), 0, 0, 0) })
         content.addView(top)
 
         if (error != null) {
-            val errorCard = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                background = rounded(Color.rgb(42, 22, 30), 16, Color.rgb(120, 53, 72), 1)
+            val errorCard = card().apply {
+                setPadding(dp(14), dp(11), dp(14), dp(11))
+                background = rounded(Color.rgb(47, 24, 34), 16, Color.rgb(129, 54, 76), 1)
             }
-            errorCard.addView(txt("Не удалось подключиться", 14f, Color.rgb(255, 177, 190), Typeface.BOLD))
-            errorCard.addView(txt(error, 12f, Color.rgb(226, 174, 186)).apply {
+            errorCard.addView(txt("Не удалось запустить соединение", 13f, Color.rgb(255, 176, 190), Typeface.BOLD))
+            errorCard.addView(txt(error, 11f, Color.rgb(223, 174, 187)).apply {
                 maxLines = 3
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, margins(top = 5))
-            content.addView(errorCard, margins(bottom = 10))
+            content.addView(errorCard, margins(bottom = 12))
         }
 
-        val connection = LinearLayout(this).apply {
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(16))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(if (running) Color.rgb(17, 58, 48) else Color.rgb(31, 29, 66),
+                    Color.rgb(17, 20, 35))).apply { cornerRadius = dp(26).toFloat() }
+        }
+        val heroTop = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(16), dp(12), dp(16))
-            background = rounded(
-                if (running) Color.rgb(18, 43, 36) else Color.rgb(18, 21, 38),
-                22,
-                if (running) Color.rgb(57, 151, 111) else Color.rgb(40, 44, 70), 1)
         }
-        val stateCircle = FrameLayout(this).apply {
-            background = rounded(
-                if (running) Color.rgb(34, 103, 76) else Color.rgb(31, 34, 72),
-                100,
-                if (running) Color.rgb(83, 222, 156) else Color.rgb(94, 83, 224), 2)
-        }
-        stateCircle.addView(txt(if (running) "✓" else "⏻", 30f,
-            if (running) Color.rgb(116, 239, 177) else Color.rgb(159, 149, 255),
-            Typeface.BOLD, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
-        connection.addView(stateCircle, LinearLayout.LayoutParams(dp(82), dp(82)))
+        heroTop.addView(txt(if (running) "ЗАЩИЩЁННОЕ СОЕДИНЕНИЕ" else "ГОТОВ К ПОДКЛЮЧЕНИЮ",
+            10f, if (running) Color.rgb(112, 231, 169) else Color.rgb(173, 164, 255), Typeface.BOLD),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        heroTop.addView(txt(if (running) "● АКТИВНО" else "○ ОЖИДАНИЕ", 9f,
+            if (running) Color.rgb(112, 231, 169) else Color.rgb(145, 149, 169), Typeface.BOLD))
+        hero.addView(heroTop)
 
-        val info = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), 0, dp(8), 0)
-        }
-        info.addView(txt(if (running) "Подключено" else "Не подключено", 15f,
-            if (running) Color.rgb(103, 232, 166) else Color.rgb(177, 181, 197), Typeface.BOLD))
-        info.addView(txt(selected?.name ?: "Сервер не выбран", 17f, Color.WHITE, Typeface.BOLD).apply {
+        hero.addView(txt(selected?.name ?: "Выберите сервер", 24f, Color.WHITE, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 5))
-        info.addView(txt(selected?.let(::protocolLabel) ?: "Добавьте сервер из буфера или по ссылке",
-            11f, Color.rgb(130, 135, 154)).apply {
+        }, margins(top = 17))
+        hero.addView(txt(selected?.let(::protocolLabel) ?: "Добавьте ссылку или импортируйте подписку",
+            12f, Color.rgb(157, 162, 184)).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 4))
-        connection.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-        connection.addView(button(
-            if (running) "Отключить" else if (selected == null) "Серверы" else "Подключить"
-        ) {
+        }, margins(top = 6, bottom = 17))
+
+        val connect = button(if (running) "Отключиться" else if (selected == null) "Выбрать сервер" else "Подключиться") {
             if (running) disconnect()
             else if (selected == null) showScreen(Screen.PROFILES)
             else connect(selected)
-        }, LinearLayout.LayoutParams(dp(108), dp(50)))
-        content.addView(connection, margins(bottom = 10))
+        }
+        connect.textSize = 15f
+        connect.minHeight = dp(54)
+        connect.background = rounded(if (running) Color.rgb(36, 73, 62) else Color.rgb(125, 109, 255), 17)
+        connect.setTextColor(Color.WHITE)
+        hero.addView(connect, LinearLayout.LayoutParams(-1, dp(54)))
+        val choose = txt("⌁   Изменить сервер", 12f, Color.rgb(178, 174, 211), Typeface.BOLD, Gravity.CENTER)
+        choose.setPadding(0, dp(13), 0, dp(1))
+        choose.setOnClickListener { showScreen(Screen.PROFILES) }
+        hero.addView(choose)
+        content.addView(hero, margins(bottom = 14))
 
         val traffic = readVpnTraffic()
         val trafficCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(10), dp(12), dp(10), dp(12))
-            background = rounded(Color.rgb(15, 18, 30), 18, Color.rgb(33, 37, 58), 1)
+            setPadding(dp(8), dp(13), dp(8), dp(13))
+            background = rounded(Color.rgb(16, 19, 31), 20, Color.rgb(37, 41, 62), 1)
         }
-        trafficCard.addView(metric("↓", formatBytes(traffic.sessionRx), "получено"),
-            LinearLayout.LayoutParams(0, dp(58), 1f))
-        trafficCard.addView(metric("↑", formatBytes(traffic.sessionTx), "отправлено"),
-            LinearLayout.LayoutParams(0, dp(58), 1f))
-        trafficCard.addView(metric("↯", if (traffic.hasTraffic) formatRate(maxOf(traffic.rxRate, traffic.txRate)) else "—", "скорость"),
-            LinearLayout.LayoutParams(0, dp(58), 1f))
-        content.addView(trafficCard, margins(bottom = 10))
+        trafficCard.addView(metric("↓", formatBytes(traffic.sessionRx), "ПОЛУЧЕНО"),
+            LinearLayout.LayoutParams(0, dp(64), 1f))
+        trafficCard.addView(View(this).apply { setBackgroundColor(Color.rgb(39, 43, 62)) },
+            LinearLayout.LayoutParams(dp(1), dp(42)))
+        trafficCard.addView(metric("↑", formatBytes(traffic.sessionTx), "ОТПРАВЛЕНО"),
+            LinearLayout.LayoutParams(0, dp(64), 1f))
+        trafficCard.addView(View(this).apply { setBackgroundColor(Color.rgb(39, 43, 62)) },
+            LinearLayout.LayoutParams(dp(1), dp(42)))
+        trafficCard.addView(metric("↯", if (traffic.hasTraffic) formatRate(maxOf(traffic.rxRate, traffic.txRate)) else "—", "СКОРОСТЬ"),
+            LinearLayout.LayoutParams(0, dp(64), 1f))
+        content.addView(trafficCard, margins(bottom = 20))
 
-        val serverCard = card().apply { setPadding(dp(14), dp(12), dp(14), dp(8)) }
-        val serverHeader = LinearLayout(this).apply {
+        val sectionHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setOnClickListener { showScreen(Screen.PROFILES) }
         }
-        serverHeader.addView(txt("Серверы", 16f, Color.WHITE, Typeface.BOLD),
+        sectionHeader.addView(txt("Мои серверы", 18f, Color.WHITE, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        serverHeader.addView(txt(profiles.size.toString(), 12f, Color.rgb(139, 126, 255), Typeface.BOLD))
-        serverCard.addView(serverHeader, margins(bottom = 6))
+        sectionHeader.addView(txt(if (profiles.isEmpty()) "Добавить +" else profiles.size.toString() + " всего  ›",
+            12f, Color.rgb(160, 148, 255), Typeface.BOLD).apply {
+            setOnClickListener { if (profiles.isEmpty()) showImportMenu() else showScreen(Screen.PROFILES) }
+        })
+        content.addView(sectionHeader, margins(bottom = 9))
 
+        val serverCard = card().apply { setPadding(dp(8), dp(6), dp(8), dp(6)) }
         if (profiles.isEmpty()) {
-            serverCard.addView(txt("Добавьте профиль — он появится здесь.", 13f, Color.rgb(133, 138, 156)),
-                margins(bottom = 6))
-            serverCard.addView(button("＋ Добавить сервер") { showImportMenu() })
+            serverCard.addView(txt("Здесь будут ваши подключения", 14f, Color.WHITE, Typeface.BOLD))
+            serverCard.addView(txt("Импортируйте ссылку или подписку — NeoTUN настроит профиль автоматически.",
+                12f, Color.rgb(135, 141, 161)).apply { maxLines = 3 }, margins(top = 6, bottom = 12))
+            serverCard.addView(button("＋  Импортировать сервер") { showImportMenu() })
         } else {
-            profiles.take(4).forEachIndexed { index, p ->
+            profiles.take(3).forEachIndexed { index, p ->
                 val row = serverRow(p, p.id == selected?.id, compact = true)
                 row.setOnClickListener {
                     setSelectedProfile(p.id)
                     renderHome()
                 }
                 serverCard.addView(row)
-                if (index < minOf(3, profiles.lastIndex)) {
-                    serverCard.addView(View(this).apply { setBackgroundColor(Color.rgb(31, 35, 54)) },
+                if (index < minOf(2, profiles.lastIndex)) {
+                    serverCard.addView(View(this).apply { setBackgroundColor(Color.rgb(35, 39, 58)) },
                         LinearLayout.LayoutParams(-1, dp(1)))
                 }
             }
-            if (profiles.size > 4) {
-                val more = txt("Показать все серверы  •  +" + (profiles.size - 4), 12f,
-                    Color.rgb(145, 132, 255), Typeface.BOLD, Gravity.CENTER)
-                more.setPadding(0, dp(11), 0, dp(8))
+            if (profiles.size > 3) {
+                val more = txt("Все серверы  →", 12f, Color.rgb(160, 148, 255), Typeface.BOLD, Gravity.CENTER)
+                more.setPadding(0, dp(12), 0, dp(8))
                 more.setOnClickListener { showScreen(Screen.PROFILES) }
                 serverCard.addView(more)
             }
         }
-        content.addView(serverCard, margins(bottom = 10))
+        content.addView(serverCard, margins(bottom = 14))
 
-        val quick = LinearLayout(this).apply {
+        val tools = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        quick.addView(button("Проверить сервер") { pingSelected(selected) },
+        tools.addView(button("◉  Проверить") { pingSelected(selected) },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(0, 0, dp(5), 0) })
-        quick.addView(button("Переподключить") { reconnectSelected(selected) },
+        tools.addView(button("↻  Переподключить") { reconnectSelected(selected) },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(5), 0, 0, 0) })
-        content.addView(quick, margins(bottom = 6))
+        content.addView(tools, margins(bottom = 8))
     }
 
     private fun renderProfiles() {
         content.removeAllViews()
-        addBackHeader("Серверы", store.all().size.toString() + " профилей • " + subscriptions.all().size + " подписок")
-        content.addView(button("＋  Импортировать сервер / подписку") { showImportMenu() }, margins(bottom = 10))
+        addBackHeader("Серверы", store.all().size.toString() + " серверов • " + subscriptions.all().size + " подписок")
+        content.addView(button("＋  Импортировать сервер или подписку") { showImportMenu() }, margins(bottom = 14))
         val profiles = store.all()
         val selected = selectedProfileId()
         val subs = subscriptions.all()
 
         if (subs.isNotEmpty()) {
             val subCard = card()
-            subCard.addView(txt("ПОДПИСКИ", 11f, Color.rgb(139, 126, 255), Typeface.BOLD), margins(bottom = 4))
+            subCard.addView(txt("ПОДПИСКИ", 10f, Color.rgb(160, 148, 255), Typeface.BOLD), margins(bottom = 5))
             subs.forEachIndexed { index, sub ->
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(8), 0, dp(8))
+                    setPadding(dp(2), dp(10), 0, dp(10))
                 }
                 val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 info.addView(txt(sub.name, 14f, Color.WHITE, Typeface.BOLD).apply {
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 })
-                info.addView(txt(
-                    if (sub.lastUpdated > 0)
-                        "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
-                    else "Ожидает первого обновления",
-                    11f, Color.rgb(125, 130, 148)
-                ), margins(top = 3))
+                info.addView(txt(if (sub.lastUpdated > 0)
+                    "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
+                    else "Ожидает первого обновления", 11f, Color.rgb(133, 139, 158)), margins(top = 4))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-                row.addView(iconButton("↻", 22) { refreshSubscription(sub) }, LinearLayout.LayoutParams(dp(44), dp(44)))
+                row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
+                    background = rounded(Color.rgb(29, 31, 51), 13)
+                }, LinearLayout.LayoutParams(dp(42), dp(42)))
                 subCard.addView(row)
-                if (index < subs.lastIndex) {
-                    subCard.addView(View(this).apply { setBackgroundColor(Color.rgb(31, 35, 54)) },
-                        LinearLayout.LayoutParams(-1, dp(1)))
-                }
+                if (index < subs.lastIndex) subCard.addView(View(this).apply {
+                    setBackgroundColor(Color.rgb(35, 39, 58))
+                }, LinearLayout.LayoutParams(-1, dp(1)))
             }
-            content.addView(subCard, margins(bottom = 10))
+            content.addView(subCard, margins(bottom = 14))
         }
 
         if (profiles.isEmpty()) {
-            val empty = card()
-            empty.gravity = Gravity.CENTER_HORIZONTAL
-            empty.addView(txt("Серверов пока нет", 18f, Color.WHITE, Typeface.BOLD, Gravity.CENTER))
-            empty.addView(txt(
-                "Вставьте ссылку в буфер обмена — NeoTUN сам определит: подписка это или отдельный сервер.",
-                13f, Color.rgb(139, 144, 161), Gravity.CENTER
-            ).apply { maxLines = 3 }, margins(top = 7, bottom = 12))
-            empty.addView(button("＋ Импортировать") { showImportMenu() })
+            val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(26), dp(20), dp(26)) }
+            empty.addView(txt("Пока пусто", 21f, Color.WHITE, Typeface.BOLD, Gravity.CENTER))
+            empty.addView(txt("Добавьте ссылку на сервер или подписку. NeoTUN сам распознает формат и создаст профиль.",
+                13f, Color.rgb(139, 145, 164), Gravity.CENTER).apply { maxLines = 4 },
+                margins(top = 8, bottom = 16))
+            empty.addView(button("＋  Добавить подключение") { showImportMenu() })
             content.addView(empty)
             return
         }
 
-        val listCard = card().apply { setPadding(dp(10), dp(8), dp(10), dp(8)) }
-        listCard.addView(txt("СЕРВЕРЫ", 11f, Color.rgb(139, 126, 255), Typeface.BOLD),
-            margins(start = 4, bottom = 3))
+        content.addView(txt("ВСЕ ПОДКЛЮЧЕНИЯ", 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
+            margins(start = 4, bottom = 7))
+        val listCard = card().apply { setPadding(dp(8), dp(6), dp(8), dp(6)) }
         profiles.forEachIndexed { index, p ->
             val row = serverRow(p, p.id == selected, compact = false)
             row.setOnClickListener {
@@ -332,13 +348,11 @@ class MainActivity : Activity() {
                 renderProfiles()
             }
             listCard.addView(row)
-            if (index < profiles.lastIndex) {
-                listCard.addView(View(this).apply { setBackgroundColor(Color.rgb(31, 35, 54)) },
-                    LinearLayout.LayoutParams(-1, dp(1)))
-            }
+            if (index < profiles.lastIndex) listCard.addView(View(this).apply {
+                setBackgroundColor(Color.rgb(35, 39, 58))
+            }, LinearLayout.LayoutParams(-1, dp(1)))
         }
-        content.addView(listCard, margins(bottom = 10))
-
+        content.addView(listCard, margins(bottom = 12))
         renderProfileBottomActions(profiles.firstOrNull { it.id == selected })
     }
 
@@ -349,55 +363,55 @@ class MainActivity : Activity() {
             return
         }
         bottomActions.visibility = View.VISIBLE
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        row.addView(button(if (isRunning()) "Отключить" else "Подключить") {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        val primary = button(if (isRunning()) "Отключиться" else "Подключиться") {
             if (isRunning()) disconnect() else connect(profile)
-        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(0, 0, dp(6), 0) })
-        row.addView(button("Действия  ⋯") {
-            profileActions(profile)
-        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
+        }
+        primary.background = rounded(if (isRunning()) Color.rgb(36, 73, 62) else Color.rgb(125, 109, 255), 15)
+        row.addView(primary, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(0, 0, dp(6), 0) })
+        row.addView(button("⋯  Действия") { profileActions(profile) },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
         bottomActions.addView(row)
-        bottomActions.addView(txt(profile.name, 11f, Color.rgb(128, 133, 151)).apply {
+        bottomActions.addView(txt(profile.name, 10f, Color.rgb(137, 143, 163), Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-            gravity = Gravity.CENTER
-        }, margins(top = 3))
+        }, margins(top = 4))
     }
 
     private fun serverRow(profile: NeoTunProfile, selected: Boolean, compact: Boolean): LinearLayout {
-        val rowHeight = if (compact) 58 else 68
+        val rowHeight = if (compact) 66 else 74
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(if (compact) 6 else 8), dp(8), dp(if (compact) 6 else 8))
-            background = if (selected) rounded(Color.rgb(28, 31, 55), 14) else ColorDrawable(Color.TRANSPARENT)
+            setPadding(dp(8), dp(7), dp(8), dp(7))
+            background = if (selected) rounded(Color.rgb(29, 31, 52), 15, Color.rgb(78, 69, 136), 1)
+                else ColorDrawable(Color.TRANSPARENT)
         }
-        row.addView(txt(countryFlag(profile.name), if (compact) 23f else 25f, Color.WHITE,
-            Typeface.NORMAL, Gravity.CENTER), LinearLayout.LayoutParams(dp(42), dp(rowHeight)))
-        val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val flag = FrameLayout(this).apply {
+            background = rounded(if (selected) Color.rgb(48, 43, 83) else Color.rgb(27, 30, 47), 13)
+        }
+        flag.addView(txt(countryFlag(profile.name), if (compact) 23f else 25f, Color.WHITE,
+            Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
+        row.addView(flag, LinearLayout.LayoutParams(dp(46), dp(46)).apply { setMargins(0, 0, dp(10), 0) })
+        val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
         info.addView(txt(profile.name, if (compact) 14f else 15f, Color.WHITE, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        info.addView(txt(protocolLabel(profile), 10.5f, Color.rgb(130, 135, 154)).apply {
+        info.addView(txt(protocolLabel(profile), 10.5f, Color.rgb(151, 156, 176)).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(top = 4))
+        info.addView(txt(maskUri(profile.uri), 10f, Color.rgb(104, 110, 132)).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
-        info.addView(txt(maskUri(profile.uri), 10f, Color.rgb(96, 101, 119)).apply {
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 2))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(txt(if (selected) "✓" else "›", 22f,
-            if (selected) Color.rgb(105, 226, 160) else Color.rgb(100, 105, 124),
+        row.addView(txt(if (selected) "✓" else "›", if (selected) 19f else 24f,
+            if (selected) Color.rgb(109, 226, 164) else Color.rgb(102, 108, 129),
             Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(30), dp(rowHeight)))
         return row
     }
-
-
 
     private fun renderSettings() {
         content.removeAllViews()
@@ -453,7 +467,7 @@ class MainActivity : Activity() {
 
     private fun settingsSection(title: String): LinearLayout {
         val section = card().apply { setPadding(dp(14), dp(10), dp(14), dp(8)) }
-        section.addView(txt(title, 11f, Color.rgb(139, 126, 255), Typeface.BOLD),
+        section.addView(txt(title, 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
             margins(start = 2, bottom = 2))
         return section
     }
@@ -477,7 +491,7 @@ class MainActivity : Activity() {
         }, margins(top = 3))
         row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
         if (value.isNotBlank()) {
-            row.addView(txt(value, 11.5f, Color.rgb(151, 139, 255), Typeface.BOLD, Gravity.END).apply {
+            row.addView(txt(value, 11.5f, Color.rgb(174, 161, 255), Typeface.BOLD, Gravity.END).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(dp(112), -2))
@@ -1208,29 +1222,26 @@ class MainActivity : Activity() {
 
     private fun renderNavigation() {
         nav.removeAllViews()
-        val items = listOf("⌂" to "Главная", "▣" to "Серверы", "⚙" to "Настройки")
+        val items = listOf("⌂" to "Главная", "⇄" to "Серверы", "⚙" to "Настройки")
         items.forEachIndexed { index, pair ->
-            val target = when (index) {
-                0 -> Screen.HOME
-                1 -> Screen.PROFILES
-                else -> Screen.SETTINGS
-            }
+            val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(4), dp(2), dp(4), dp(2))
-                background = rounded(if (selected) Color.rgb(29, 27, 54) else Color.TRANSPARENT, 14)
+                setPadding(dp(4), dp(4), dp(4), dp(3))
+                background = rounded(if (selected) Color.rgb(36, 33, 66) else Color.TRANSPARENT, 15)
+                isClickable = true
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 20f,
-                if (selected) Color.rgb(158, 145, 255) else Color.rgb(119, 124, 141),
+            item.addView(txt(pair.first, 21f,
+                if (selected) Color.rgb(174, 161, 255) else Color.rgb(117, 123, 145),
                 Typeface.BOLD, Gravity.CENTER))
             item.addView(txt(pair.second, 10f,
-                if (selected) Color.WHITE else Color.rgb(119, 124, 141),
-                Typeface.BOLD, Gravity.CENTER), margins(top = 2))
-            nav.addView(item, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
-                setMargins(dp(3), 0, dp(3), 0)
+                if (selected) Color.WHITE else Color.rgb(117, 123, 145),
+                if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 3))
+            nav.addView(item, LinearLayout.LayoutParams(0, dp(52), 1f).apply {
+                setMargins(dp(4), 0, dp(4), 0)
             })
         }
     }
@@ -1251,7 +1262,7 @@ class MainActivity : Activity() {
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = rounded(Color.rgb(15, 18, 30), 20, Color.rgb(35, 39, 61), 1)
+        background = rounded(Color.rgb(17, 20, 33), 20, Color.rgb(38, 42, 64), 1)
         elevation = dp(1).toFloat()
     }
 
@@ -1272,7 +1283,7 @@ class MainActivity : Activity() {
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(8), 0, dp(8), 0)
-        background = rounded(Color.rgb(30, 34, 55), 14, Color.rgb(62, 59, 103), 1)
+        background = rounded(Color.rgb(32, 35, 57), 14, Color.rgb(65, 61, 100), 1)
         setOnClickListener { action() }
     }
 
