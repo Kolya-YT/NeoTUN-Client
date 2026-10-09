@@ -171,8 +171,9 @@ object NeoTunRoutingAdapter {
                     // .dat geodata is handled by the Xray adapter. Do not feed Xray
                     // geosite/geoip syntax into sing-box domain/ip_cidr fields.
                     value.startsWith("geosite:", true) || value.startsWith("geoip:", true) -> Unit
-                    value.startsWith("domain-suffix:", true) -> suffixes.put(value.substringAfter(':'))
-                    isDomain && (value.startsWith("domain:", true) || value.startsWith("full:", true)) -> domains.put(value)
+                    value.startsWith("domain-suffix:", true) || value.startsWith("domain:", true) ->
+                        suffixes.put(value.substringAfter(':'))
+                    value.startsWith("full:", true) -> domains.put(value.substringAfter(':'))
                     isDomain -> domains.put(value)
                     value.contains('/') || value.matches(Regex("\\d{1,3}(?:\\.\\d{1,3}){3}")) || value.contains(':') -> ips.put(value)
                     else -> Unit
