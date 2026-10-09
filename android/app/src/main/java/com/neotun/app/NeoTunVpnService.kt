@@ -28,33 +28,34 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             return START_NOT_STICKY
         }
         if (!running) {
-            startForegroundNotification()
-            platform = NeoTunPlatform(this)
-            commandServer = CommandServer(this, platform)
-            commandServer.start()
+            runCatching {
+                startForegroundNotification()
+                platform = NeoTunPlatform(this)
+                commandServer = CommandServer(this, platform)
+                commandServer.start()
 
-            val config = intent?.getStringExtra(EXTRA_CONFIG)
-                ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CONFIG, null)
-
-            if (config.isNullOrBlank()) {
-                stopWithError("Нет профиля. Добавьте VLESS-ссылку.")
-            } else {
-                runCatching {
-                    val normalizedConfig = config.trim()
-                    if (!normalizedConfig.startsWith("{")) {
-                        error("Некорректная конфигурация sing-box")
-                    }
-                    commandServer.startOrReloadService(normalizedConfig, OverrideOptions())
-                    getSharedPreferences(PREFS, MODE_PRIVATE)
-                        .edit()
-                        .putString(KEY_CONFIG, config)
-                        .remove(KEY_ERROR)
-                        .putBoolean(KEY_RUNNING, true)
-                        .apply()
-                    running = true
-                }.onFailure {
-                    stopWithError(it.message ?: "Не удалось запустить sing-box")
+                val config = intent?.getStringExtra(EXTRA_CONFIG)
+                    ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CONFIG, null)
+                if (config.isNullOrBlank()) {
+                    throw IllegalArgumentException("Нет конфигурации sing-box")
                 }
+                val normalizedConfig = config.trim()
+                if (!normalizedConfig.startsWith("{")) {
+                    throw IllegalArgumentException("Некорректная конфигурация sing-box")
+                }
+
+                android.util.Log.i("NeoTUN", "Starting sing-box; config bytes=" + normalizedConfig.length)
+                commandServer.startOrReloadService(normalizedConfig, OverrideOptions())
+                getSharedPreferences(PREFS, MODE_PRIVATE)
+                    .edit()
+                    .putString(KEY_CONFIG, config)
+                    .remove(KEY_ERROR)
+                    .putBoolean(KEY_RUNNING, true)
+                    .apply()
+                running = true
+            }.onFailure { error ->
+                android.util.Log.e("NeoTUN", "sing-box startup failed", error)
+                stopWithError(error.message ?: error.javaClass.simpleName ?: "Не удалось запустить sing-box")
             }
         }
         return START_NOT_STICKY
