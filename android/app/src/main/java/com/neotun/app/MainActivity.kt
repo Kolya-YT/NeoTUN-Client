@@ -843,10 +843,14 @@ class MainActivity : Activity() {
     private fun importText(raw: String) {
         val candidates = linkedSetOf<String>()
         fun collect(value: String) {
-            value.lines()
-                .flatMap { it.trim().split(Regex("[,\\s]+")) }
-                .filter { it.contains("://") }
-                .forEach { candidates.add(it.trim()) }
+            // Keep commas inside Hysteria2 port-hopping parameters.
+            val linkPattern = Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://.*?(?=(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://|\\s|$)")
+            value.lines().forEach { line ->
+                linkPattern.findAll(line).forEach { match ->
+                    val link = match.value.trim().trimEnd(',', ';', '"', '\'')
+                    if (link.isNotBlank()) candidates.add(link)
+                }
+            }
         }
         collect(raw)
         if (candidates.none { it.contains("://") }) {
