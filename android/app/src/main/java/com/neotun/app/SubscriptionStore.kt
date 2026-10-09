@@ -18,6 +18,7 @@ data class NeoTunSubscription(
 )
 
 class SubscriptionStore(context: Context) {
+    private val routingProfiles = RoutingProfileStore(context)
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun all(): List<NeoTunSubscription> {
@@ -68,7 +69,9 @@ class SubscriptionStore(context: Context) {
     fun refresh(subscription: NeoTunSubscription, profiles: ProfileStore): Result<Int> = runCatching {
         // Resolve and persist the stable subscription ID before assigning profile ownership.
         val stableSubscription = save(subscription)
-        val links = decodeLinks(fetch(stableSubscription.url))
+        val response = fetch(stableSubscription.url)
+        importRoutingFromSubscription(response.body, response.routingHeader, response.autoRoutingHeader)
+        val links = decodeLinks(response.body)
         if (links.isEmpty()) error("Подписка не содержит поддерживаемых ссылок")
 
         val parsed = links.mapNotNull { uri ->
@@ -88,7 +91,13 @@ class SubscriptionStore(context: Context) {
         imported
     }
 
-    private fun fetch(url: String): String {
+    private data class SubscriptionResponse(
+        val body: String,
+        val routingHeader: String?,
+        val autoRoutingHeader: String?,
+    )
+
+    private fun fetch(url: String): SubscriptionResponse {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12_000
@@ -107,11 +116,49 @@ class SubscriptionStore(context: Context) {
             } else {
                 rawStream
             }
-            stream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
+            val body = stream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
+            SubscriptionResponse(body, connection.getHeaderField("routing"), connection.getHeaderField("autorouting"))
         } finally {
             connection.disconnect()
         }
     }
+
+    private fun importRoutingFromSubscription(body: String, routingHeader: String?, autoRoutingHeader: String?) {
+        // INCY source priority: autorouting header > autorouting body > routing header > routing body.
+        val lines = body.lineSequence().map { it.trim() }.filter {
+            it.contains("://autorouting/", true) || it.contains("://routing/", true)
+        }.toList()
+        val candidate = autoRoutingHeader?.takeIf { it.isNotBlank() }
+            ?: lines.firstOrNull { it.contains("://autorouting/", true) }
+            ?: routingHeader?.takeIf { it.isNotBlank() }
+            ?: lines.firstOrNull { it.contains("://routing/", true) }
+            ?: return
+        if (candidate.equals("off", true) || candidate.contains("://routing/off", true)) {
+            routingProfiles.setEnabled(false)
+            return
+        }
+
+        val auto = candidate.contains("://autorouting/", true)
+        val sourceUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
+            candidate.contains("://routing/add/http", true)) {
+            val index = candidate.indexOf("://", ignoreCase = true)
+            val payload = if (index >= 0) candidate.substring(index).substringAfter('/').substringAfter('/') else ""
+            payload.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
+                ?.let(::normalizeGitHubRawUrl)
+        } else null
+
+        val profileJson = if (sourceUrl != null) {
+            runCatching { NeoTunRoutingProfile.decode(fetch(sourceUrl).body) }.getOrNull()
+        } else {
+            NeoTunRoutingProfile.decode(candidate)
+        } ?: return
+        routingProfiles.save(profileJson, sourceUrl = sourceUrl, activate = true)
+        routingProfiles.setEnabled(true)
+    }
+
+    private fun normalizeGitHubRawUrl(url: String): String =
+        url.replace("https://github.com/", "https://raw.githubusercontent.com/")
+            .replace("/blob/", "/")
 
     private fun decodeLinks(body: String): List<String> {
         val text = body.trim()
