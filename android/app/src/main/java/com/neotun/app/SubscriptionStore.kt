@@ -141,8 +141,13 @@ class SubscriptionStore(context: Context) {
         val auto = candidate.contains("://autorouting/", true)
         val sourceUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
             candidate.contains("://routing/add/http", true)) {
-            val index = candidate.indexOf("://", ignoreCase = true)
-            val payload = if (index >= 0) candidate.substring(index).substringAfter('/').substringAfter('/') else ""
+            val payload = when {
+                candidate.contains("://autorouting/", true) ->
+                    candidate.substringAfter("://autorouting/", "").substringAfter('/', "")
+                candidate.contains("://routing/", true) ->
+                    candidate.substringAfter("://routing/", "").substringAfter('/', "")
+                else -> ""
+            }
             payload.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
                 ?.let(::normalizeGitHubRawUrl)
         } else null
