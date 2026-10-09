@@ -82,7 +82,7 @@ class RoutingProfileStore(context: Context) {
             name,
             JSONObject(profileJson.toString()),
             sourceUrl ?: existing?.sourceUrl,
-            maxOf(timestamp, System.currentTimeMillis() / 1000L),
+            timestamp,
         )
         val list = all().toMutableList()
         val index = list.indexOfFirst { it.id == saved.id }
