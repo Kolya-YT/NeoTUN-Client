@@ -641,11 +641,6 @@ class MainActivity : Activity() {
             if (prefs.getBoolean("ipv6_enabled", false)) "Включён" else "Выключен",
             "Добавляет IPv6-адрес и маршрут по умолчанию в TUN"
         ) { toggleSetting("ipv6_enabled", "IPv6") { renderSettings() } })
-        connection.addView(settingsRow(
-            "🚀 Автонастройка скорости Hysteria 2",
-            if (prefs.getBoolean("hysteria_auto_bandwidth", true)) "Включена · BBR" else "Выключена · параметры профиля",
-            "По умолчанию убирает заданные в ссылке лимиты up/down и использует адаптивный BBR. Применяется после переподключения."
-        ) { toggleSetting("hysteria_auto_bandwidth", "Автонастройка скорости Hysteria 2") { renderSettings() } })
         val pingMode = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getString("ping_mode", "tcp") ?: "tcp"
         val pingModeLabel = when (pingMode) {
             "proxy_get" -> "Через прокси · GET"
@@ -987,27 +982,9 @@ class MainActivity : Activity() {
         val ipv6 = prefs.getBoolean("ipv6_enabled", false)
         val dnsMode = prefs.getString("dns_mode", "Автоматический") ?: "Автоматический"
 
-        // Imported Hysteria2 share links may carry low up/down bandwidth hints.
-        // In sing-box these select Brutal's rate rather than acting as harmless metadata.
-        // Default to adaptive BBR unless the user explicitly opts to keep profile values.
-        val hysteriaAutoBandwidth = prefs.getBoolean("hysteria_auto_bandwidth", true)
-        if (hysteriaAutoBandwidth) {
-            val outbounds = root.optJSONArray("outbounds") ?: JSONArray()
-            for (i in 0 until outbounds.length()) {
-                val outbound = outbounds.optJSONObject(i) ?: continue
-                if (!"hysteria2".equals(outbound.optString("type"), true)) continue
-                val hadUp = outbound.has("up_mbps")
-                val hadDown = outbound.has("down_mbps")
-                outbound.remove("up_mbps")
-                outbound.remove("down_mbps")
-                if (hadUp || hadDown) {
-                    NeoTunDiagnostics.log(this,
-                        "Hysteria2 auto bandwidth: removed imported up/down hints; using adaptive BBR")
-                } else {
-                    NeoTunDiagnostics.log(this, "Hysteria2 auto bandwidth: adaptive BBR enabled")
-                }
-            }
-        }
+        // Keep the Hysteria2 bandwidth values from the imported profile unchanged.
+        // Removing up_mbps/down_mbps can change the congestion-control behavior and
+        // break servers that expect the profile's original Brutal bandwidth settings.
 
         val inbounds = root.optJSONArray("inbounds") ?: JSONArray()
         for (i in 0 until inbounds.length()) {
