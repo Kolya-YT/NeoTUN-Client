@@ -141,6 +141,29 @@ jobs:
           & (Join-Path $runtime "sing-box.exe") version
           & (Join-Path $runtime "xray.exe") version
 
+
+      - name: Smoke-test Windows app startup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Join-Path (Resolve-Path "dist/NeoTUN-Windows") "NeoTUN.exe"
+          if (!(Test-Path $exe)) { throw "Application executable was not published: $exe" }
+          # The manifest requests elevation for TUN support. The CI runner is already
+          # running in a privileged session, so launch without ShellExecute elevation prompts.
+          $proc = Start-Process -FilePath $exe -PassThru -WorkingDirectory (Split-Path $exe) -RedirectStandardOutput "$env:RUNNER_TEMP\neotun-smoke-out.log" -RedirectStandardError "$env:RUNNER_TEMP\neotun-smoke-err.log"
+          try {
+            Start-Sleep -Seconds 8
+            $proc.Refresh()
+            if ($proc.HasExited) {
+              Get-Content "$env:RUNNER_TEMP\neotun-smoke-out.log" -ErrorAction SilentlyContinue
+              Get-Content "$env:RUNNER_TEMP\neotun-smoke-err.log" -ErrorAction SilentlyContinue
+              throw "NeoTUN exited during startup with code $($proc.ExitCode)"
+            }
+            Write-Host "NeoTUN stayed alive for 8 seconds (PID $($proc.Id))."
+          } finally {
+            if (!$proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
