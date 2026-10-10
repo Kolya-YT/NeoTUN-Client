@@ -200,7 +200,7 @@ public partial class MainWindow : Window
     private string RuntimeLogPath => Path.Combine(DataDirectory, "windows-runtime.log");
 
     private sealed record RoutingSettings(
-        bool GlobalProxy, int RouteOrder, string RemoteDns, string DomesticDns,
+        bool GlobalProxy, int RouteOrder, string RemoteDns, string DomesticDns, string DomesticDnsDomains,
         string BlockSites, string BlockIp, string ProxySites, string ProxyIp,
         string DirectSites, string DirectIp);
 
@@ -217,6 +217,7 @@ public partial class MainWindow : Window
             RouteOrderSelector.SelectedIndex = Math.Clamp(settings.RouteOrder, 0, 2);
             RemoteDnsInput.Text = settings.RemoteDns;
             DomesticDnsInput.Text = settings.DomesticDns;
+            DomesticDnsDomainsEditor.Text = settings.DomesticDnsDomains;
             BlockSitesEditor.Text = settings.BlockSites;
             BlockIpEditor.Text = settings.BlockIp;
             ProxySitesEditor.Text = settings.ProxySites;
@@ -242,6 +243,7 @@ public partial class MainWindow : Window
             Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
             RemoteDnsInput.Text.Trim(),
             DomesticDnsInput.Text.Trim(),
+            NormalizeLines(DomesticDnsDomainsEditor.Text),
             NormalizeLines(BlockSitesEditor.Text),
             NormalizeLines(BlockIpEditor.Text),
             NormalizeLines(ProxySitesEditor.Text),
@@ -289,7 +291,7 @@ public partial class MainWindow : Window
             var settings = new RoutingSettings(
                 GlobalProxyToggle.IsChecked == true,
                 Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
-                RemoteDnsInput.Text.Trim(), DomesticDnsInput.Text.Trim(),
+                RemoteDnsInput.Text.Trim(), DomesticDnsInput.Text.Trim(), NormalizeLines(DomesticDnsDomainsEditor.Text),
                 NormalizeLines(BlockSitesEditor.Text), NormalizeLines(BlockIpEditor.Text),
                 NormalizeLines(ProxySitesEditor.Text), NormalizeLines(ProxyIpEditor.Text),
                 NormalizeLines(DirectSitesEditor.Text), NormalizeLines(DirectIpEditor.Text));
@@ -307,6 +309,7 @@ public partial class MainWindow : Window
         RouteOrderSelector.SelectedIndex = 0;
         RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
         DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
+        DomesticDnsDomainsEditor.Text = "ru" + Environment.NewLine + "su" + Environment.NewLine + "рф";
         BlockSitesEditor.Clear(); BlockIpEditor.Clear();
         ProxySitesEditor.Clear(); ProxyIpEditor.Clear();
         DirectSitesEditor.Clear(); DirectIpEditor.Clear();
