@@ -67,12 +67,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path $runtime | Out-Null
           # Cargo's target directory can be affected by workspace-level Cargo config.
           # Locate the exact built DLL instead of assuming a fixed target path.
-          $coreDll = Get-ChildItem "core" -Filter "neotun_core.dll" -File -Recurse |
-            Where-Object { $_.FullName -match "[\\\\/]x86_64-pc-windows-msvc[\\\\/]release[\\\\/]" } |
+          $coreDll = Get-ChildItem "." -Filter "neotun_core.dll" -File -Recurse |
+            Where-Object { $_.FullName -notmatch "[\\\\/]dist[\\\\/]" -and $_.FullName -match "[\\\\/]x86_64-pc-windows-msvc[\\\\/]release[\\\\/]" } |
             Select-Object -First 1
           if (!$coreDll) {
             $coreDll = Get-ChildItem "core" -Filter "neotun_core.dll" -File -Recurse |
-              Where-Object { $_.FullName -match "[\\\\/]release[\\\\/]" } |
+              Where-Object { $_.FullName -notmatch "[\\\\/]dist[\\\\/]" -and $_.FullName -match "[\\\\/]release[\\\\/]" } |
               Select-Object -First 1
           }
           if (!$coreDll) {
