@@ -4,6 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using System.Text;
 using System.Text.Json;
 
@@ -14,12 +18,16 @@ internal sealed class EngineRuntime : IDisposable
     private readonly object _sync = new();
     private Process? _singBox;
     private Process? _xray;
+    private TrafficMonitor? _trafficMonitor;
+    private long _totalUpload;
+    private long _totalDownload;
     private readonly string _dataDirectory;
     private readonly string _runtimeDirectory;
     private readonly string _logPath;
 
     public event Action<string>? LogLine;
     public event Action<bool, string>? StateChanged;
+    public event Action<long, long, long, long>? TrafficUpdated;
     public bool IsRunning
     {
         get { lock (_sync) return _singBox is { HasExited: false }; }
@@ -39,6 +47,7 @@ internal sealed class EngineRuntime : IDisposable
         if (!IsAdministrator())
             throw new InvalidOperationException("Для создания системного TUN нужны права администратора. Запусти NeoTUN от имени администратора.");
         if (IsRunning) return;
+        if (_singBox is not null || _xray is not null) await StopAsync();
 
         var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
         var xrayPath = Path.Combine(_runtimeDirectory, "xray.exe");
@@ -46,7 +55,20 @@ internal sealed class EngineRuntime : IDisposable
 
         var runtime = NativeCore.BuildRuntimeConfig(shareUri);
         var singBoxConfigPath = Path.Combine(_dataDirectory, "sing-box-runtime.json");
-        await File.WriteAllTextAsync(singBoxConfigPath, runtime.SingBoxJson, new UTF8Encoding(false), cancellationToken);
+        var apiPort = GetAvailableLoopbackPort();
+        var apiSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+        var singBoxRoot = JsonNode.Parse(runtime.SingBoxJson)?.AsObject()
+            ?? throw new InvalidOperationException("Rust core вернул некорректный sing-box JSON.");
+        var experimental = singBoxRoot["experimental"] as JsonObject ?? new JsonObject();
+        singBoxRoot["experimental"] = experimental;
+        experimental["clash_api"] = new JsonObject
+        {
+            ["external_controller"] = $"127.0.0.1:{apiPort}",
+            ["secret"] = apiSecret
+        };
+        await File.WriteAllTextAsync(singBoxConfigPath,
+            singBoxRoot.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+            new UTF8Encoding(false), cancellationToken);
 
         if (runtime.Engine == "xray")
         {
@@ -85,12 +107,35 @@ internal sealed class EngineRuntime : IDisposable
             throw;
         }
 
-        StateChanged?.Invoke(true, "Сетевой движок запущен. Проверяем доступность трафика…");
+        _totalUpload = 0;
+        _totalDownload = 0;
+        _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
+        _trafficMonitor.LogLine += WriteLog;
+        _trafficMonitor.SampleReceived += (upload, download) =>
+        {
+            long totalUpload;
+            long totalDownload;
+            lock (_sync)
+            {
+                _totalUpload += upload;
+                _totalDownload += download;
+                totalUpload = _totalUpload;
+                totalDownload = _totalDownload;
+            }
+            TrafficUpdated?.Invoke(upload, download, totalUpload, totalDownload);
+        };
+        _trafficMonitor.Start();
+        StateChanged?.Invoke(true, "Сетевой движок запущен. Проверяй доступ к TCP/UDP и DNS.");
         WriteLog("Runtime started; engine=" + runtime.Engine);
     }
 
     public async Task StopAsync()
     {
+        if (_trafficMonitor is not null)
+        {
+            await _trafficMonitor.DisposeAsync();
+            _trafficMonitor = null;
+        }
         await StopSingBoxAsync();
         await StopXrayAsync();
         StateChanged?.Invoke(false, "Отключено");
@@ -190,6 +235,13 @@ internal sealed class EngineRuntime : IDisposable
         var entry = $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] {line}";
         try { File.AppendAllText(_logPath, entry + Environment.NewLine, Encoding.UTF8); } catch { }
         LogLine?.Invoke(entry);
+    }
+
+    private static int GetAvailableLoopbackPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
     private static bool IsAdministrator()
