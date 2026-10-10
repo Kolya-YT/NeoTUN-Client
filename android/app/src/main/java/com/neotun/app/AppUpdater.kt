@@ -114,6 +114,11 @@ class AppUpdater(private val context: Context) {
                 val responseSize = c.contentLengthLong
                 val total = expectedSize.takeIf { it > 0L } ?: responseSize
                 val file = File(context.cacheDir, "NeoTUN-$version.apk")
+                // Keep only the APK currently being prepared; older downloaded
+                // releases are no longer needed and otherwise accumulate in cache.
+                context.cacheDir.listFiles()
+                    ?.filter { it.isFile && it.name.startsWith("NeoTUN-") && it.name.endsWith(".apk") && it.absolutePath != file.absolutePath }
+                    ?.forEach { it.delete() }
                 file.delete()
                 post { onProgress(0) }
                 val sha256 = MessageDigest.getInstance("SHA-256")
@@ -144,8 +149,9 @@ class AppUpdater(private val context: Context) {
                     throw IllegalStateException("Скачанный APK слишком мал или пуст")
                 }
                 if (file.length() != expectedSize) {
+                    val actualSize = file.length()
                     file.delete()
-                    throw IllegalStateException("Размер APK не совпал с релизом: " + file.length() + " из " + expectedSize + " байт")
+                    throw IllegalStateException("Размер APK не совпал с релизом: " + actualSize + " из " + expectedSize + " байт")
                 }
                 val actualSha256 = sha256.digest().joinToString("") { "%02x".format(it) }
                 if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {

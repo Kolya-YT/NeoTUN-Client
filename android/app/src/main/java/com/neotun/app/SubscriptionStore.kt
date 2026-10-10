@@ -67,10 +67,22 @@ class SubscriptionStore(context: Context) {
 
     @Synchronized
     fun refresh(subscription: NeoTunSubscription, profiles: ProfileStore): Result<Int> = runCatching {
-        // Resolve and persist the stable subscription ID before assigning profile ownership.
-        val stableSubscription = save(subscription)
-        val response = fetch(stableSubscription.url)
-        importRoutingFromSubscription(response.body, response.routingHeader, response.autoRoutingHeader)
+        val normalizedUrl = subscription.url.trim()
+        val parsedUrl = URL(normalizedUrl)
+        require(parsedUrl.protocol.equals("https", true) || parsedUrl.protocol.equals("http", true)) {
+            "Ссылка подписки должна начинаться с HTTP или HTTPS"
+        }
+
+        // Resolve a stable ID without writing anything yet. A failed fetch or an
+        // unsupported feed must not overwrite the last known-good subscription.
+        val existing = all().firstOrNull {
+            it.id == subscription.id ||
+                it.url.trim().trimEnd('/') == normalizedUrl.trimEnd('/')
+        }
+        val stableId = existing?.id ?: subscription.id.ifBlank { UUID.randomUUID().toString() }
+        val candidate = subscription.copy(id = stableId, url = normalizedUrl)
+
+        val response = fetch(candidate.url)
         val links = decodeLinks(response.body)
         if (links.isEmpty()) error("Подписка не содержит поддерживаемых ссылок")
 
@@ -81,13 +93,19 @@ class SubscriptionStore(context: Context) {
                 ProfileStore.displayNameFromUri(uri),
                 uri,
                 engine,
-                stableSubscription.id,
+                stableId,
             )
         }
         if (parsed.isEmpty()) error("В подписке нет поддерживаемых профилей")
-        val imported = profiles.replaceFromSubscription(stableSubscription.id, parsed)
+
+        // Do not touch routing or stored subscription metadata until the feed
+        // has been downloaded and yielded at least one supported profile.
+        val imported = profiles.replaceFromSubscription(stableId, parsed)
         if (imported == 0) error("В подписке нет поддерживаемых профилей")
-        save(stableSubscription.copy(lastUpdated = System.currentTimeMillis()))
+        save(candidate.copy(lastUpdated = System.currentTimeMillis()))
+
+        // Apply optional routing metadata only after the subscription itself is valid.
+        importRoutingFromSubscription(response.body, response.routingHeader, response.autoRoutingHeader)
         imported
     }
 
