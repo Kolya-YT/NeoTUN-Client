@@ -243,7 +243,7 @@ impl Profile {
         let port=value.get("port").and_then(|v|v.as_str()).and_then(|v|v.parse().ok()).or_else(||value.get("port").and_then(|v|v.as_u64()).map(|v|v as u16)).ok_or("VMess: нет port")?;
         let uuid=value.get("id").and_then(|v|v.as_str()).map(str::to_string);
         let mut params=HashMap::new();
-        for (key,target) in [("net","network"),("host","host"),("path","path"),("tls","security"),("sni","sni"),("scy","encryption"),("type","network"),("serviceName","service_name")] {
+        for (key,target) in [("net","network"),("host","host"),("path","path"),("tls","security"),("sni","sni"),("scy","encryption"),("type","network"),("headerType","headerType"),("header_type","header_type"),("serviceName","service_name")] {
             if let Some(v)=value.get(key).and_then(|v|v.as_str()) { params.insert(target.into(),v.into()); }
         }
         Ok(Self { protocol:"vmess".into(), address:address.into(), port, name:value.get("ps").and_then(|v|v.as_str()).map(str::to_string), uuid, password:None, params })

@@ -1822,9 +1822,13 @@ class MainActivity : Activity() {
         val security = uriParam(p.uri, "security")?.uppercase()
         val core = engineLabel(p.engine)
 
-        // Do not leak the URI fragment/name into the transport label.
-        // Some subscription generators percent-encode "#" as %23 inside a value.
-        val cleanTransport = transport?.substringBefore('#')?.substringBefore("%23")
+        // Missing type means native TCP for VLESS/VMess. "raw" is a common alias.
+        val rawTransport = transport?.substringBefore('#')?.substringBefore("%23")
+        val cleanTransport = when (rawTransport) {
+            "RAW" -> "TCP"
+            null, "" -> if (scheme == "VLESS" || scheme == "VMESS") "TCP" else null
+            else -> rawTransport
+        }
         val cleanSecurity = security?.substringBefore('#')?.substringBefore("%23")
 
         return listOf(scheme, cleanTransport, cleanSecurity, core)
