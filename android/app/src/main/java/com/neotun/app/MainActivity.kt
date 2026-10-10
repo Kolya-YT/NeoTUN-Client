@@ -1583,10 +1583,114 @@ class MainActivity : Activity() {
     }
 
     private fun profileActions(p: NeoTunProfile) {
-        AlertDialog.Builder(this).setTitle(p.name)
-            .setItems(arrayOf("Переименовать", "Удалить")) { _, which ->
-                if (which == 0) rename(p) else confirmDelete(p)
-            }.show()
+        val options = arrayOf(
+            "Настройки сервера",
+            "Просмотреть конфигурацию",
+            "Скопировать ссылку",
+            "Переименовать",
+            "Удалить"
+        )
+        val dialog = AlertDialog.Builder(this).setTitle(p.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> editProfile(p)
+                    1 -> showProfileConfig(p)
+                    2 -> {
+                        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NeoTUN profile", p.uri))
+                        toast("Ссылка скопирована")
+                    }
+                    3 -> rename(p)
+                    4 -> confirmDelete(p)
+                }
+            }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun editProfile(p: NeoTunProfile) {
+        val name = EditText(this).apply {
+            setText(p.name)
+            hint = "Название сервера"
+            singleLine = true
+        }
+        val uri = EditText(this).apply {
+            setText(p.uri)
+            hint = "Ссылка конфигурации"
+            minLines = 4
+            maxLines = 8
+            gravity = Gravity.TOP
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), 0)
+            addView(txt("Название", 12f, NeoTunDesign.TEXT_MUTED), margins(bottom = 4))
+            addView(name, LinearLayout.LayoutParams(-1, dp(48)))
+            addView(txt("Ссылка / конфигурация", 12f, NeoTunDesign.TEXT_MUTED), margins(top = 12, bottom = 4))
+            addView(uri, LinearLayout.LayoutParams(-1, dp(132)))
+            if (p.sourceSubscriptionId != null) {
+                addView(txt("Профиль получен из подписки. При следующем обновлении подписки изменения ссылки могут быть заменены исходной конфигурацией.",
+                    11f, NeoTunDesign.TEXT_MUTED), margins(top = 8))
+            }
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("Настройки сервера")
+            .setView(ScrollView(this).apply { addView(box) })
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить", null)
+            .create()
+        dialog.setOnShowListener {
+            styleDialog(dialog)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val newUri = uri.text.toString().trim()
+                val engine = NeoTunCore.nativeShareEngine(newUri)
+                if (engine == "unknown") {
+                    uri.error = "Неподдерживаемая ссылка"
+                    return@setOnClickListener
+                }
+                store.save(p.copy(name = name.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine))
+                dialog.dismiss()
+                renderProfiles()
+                toast("Настройки сервера сохранены")
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showProfileConfig(p: NeoTunProfile) {
+        val text = TextView(this).apply {
+            text = buildString {
+                appendLine("Название: ${p.name}")
+                appendLine("Ядро: ${p.engine}")
+                appendLine("Протокол: ${protocolLabel(p)}")
+                appendLine()
+                appendLine("Исходная ссылка:")
+                appendLine(p.uri)
+                appendLine()
+                appendLine("Конфигурация ядра:")
+                val config = runCatching { NeoTunCore.nativeShareConfig(p.uri) }.getOrNull()
+                append(config?.takeIf { it.isNotBlank() } ?: "Для этого формата ядро не вернуло отдельный JSON-конфиг.")
+            }
+            textSize = 12f
+            setTextColor(NeoTunDesign.TEXT_PRIMARY)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setTextIsSelectable(true)
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("Конфигурация сервера")
+            .setView(ScrollView(this).apply { addView(text) })
+            .setNegativeButton("Закрыть", null)
+            .setNeutralButton("Копировать", null)
+            .create()
+        dialog.setOnShowListener {
+            styleDialog(dialog)
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NeoTUN config", text.text))
+                toast("Конфигурация скопирована")
+            }
+        }
+        dialog.show()
     }
 
     private fun rename(p: NeoTunProfile) {
@@ -1647,14 +1751,7 @@ class MainActivity : Activity() {
         pingResults[profile.id] = "…"
         if (screen == Screen.PROFILES) renderProfiles()
 
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Проверка сервера")
-            .setMessage("Проверяем доступность ${profile.name}…")
-            .setNegativeButton("Отмена", null)
-            .create()
-        dialog.setOnShowListener { styleDialog(dialog) }
-        dialog.show()
-
+        // Ping runs silently in the background; the row itself shows progress/result.
         Thread {
             val pingMode = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
                 .getString("ping_mode", "tcp") ?: "tcp"
@@ -1709,13 +1806,9 @@ class MainActivity : Activity() {
             runOnUiThread {
                 pingInProgress.remove(profile.id)
                 pingResults[profile.id] = if (pingResult >= 0L) "${pingResult}мс" else "Ошибка"
-                if (dialog.isShowing) dialog.dismiss()
                 if (screen == Screen.PROFILES) renderProfiles()
-                if (pingResult >= 0L) {
-                    toast("${profile.name}: ${pingResult} мс")
-                } else {
-                    toast("Пинг не пройден: ${profile.name}. Проверьте профиль и доступность сервера.")
-                }
+                // Keep the result inline to avoid interrupting the user with modal dialogs/toasts.
+
             }
         }.start()
     }
