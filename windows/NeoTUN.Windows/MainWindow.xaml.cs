@@ -392,10 +392,10 @@ public partial class MainWindow : Window
         }
 
         var processExclusions = NormalizeLines(ProcessExclusionsEditor.Text)
-            .Split(Environment.NewLine, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            .Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var invalidProcessName = processExclusions.FirstOrDefault(name =>
             !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-            name != Path.GetFileName(name) || name.Contains('/') || name.Contains((char)92) || name.Contains(':'));
+            name != Path.GetFileName(name) || name.Contains('/') || name.Contains('\\') || name.Contains(':'));
         if (invalidProcessName is not null)
         {
             MessageBox.Show("Имя процесса «" + invalidProcessName + "» некорректно. Укажите только имя файла .exe, без пути.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
