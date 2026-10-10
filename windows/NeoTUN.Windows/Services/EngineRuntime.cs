@@ -76,7 +76,7 @@ internal sealed class EngineRuntime : IDisposable
         }
         catch
         {
-            await StopProcessAsync(ref _xray, "xray");
+            await StopXrayAsync();
             throw;
         }
 
@@ -86,8 +86,8 @@ internal sealed class EngineRuntime : IDisposable
 
     public async Task StopAsync()
     {
-        await StopProcessAsync(ref _singBox, "sing-box");
-        await StopProcessAsync(ref _xray, "xray");
+        await StopSingBoxAsync();
+        await StopXrayAsync();
         StateChanged?.Invoke(false, "Отключено");
         WriteLog("Runtime stopped");
     }
@@ -151,10 +151,22 @@ internal sealed class EngineRuntime : IDisposable
         return process;
     }
 
-    private async Task StopProcessAsync(ref Process? process, string name)
+    private async Task StopSingBoxAsync()
     {
         Process? current;
-        lock (_sync) { current = process; process = null; }
+        lock (_sync) { current = _singBox; _singBox = null; }
+        await StopProcessAsync(current, "sing-box");
+    }
+
+    private async Task StopXrayAsync()
+    {
+        Process? current;
+        lock (_sync) { current = _xray; _xray = null; }
+        await StopProcessAsync(current, "xray");
+    }
+
+    private async Task StopProcessAsync(Process? current, string name)
+    {
         if (current is null) return;
         try
         {
