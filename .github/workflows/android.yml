@@ -9,6 +9,7 @@ on:
       - "core/**"
       - "xraybridge/**"
       - ".github/workflows/android.yml"
+      - "DESIGN_SYSTEM.md"
   workflow_dispatch:
 
 permissions:
