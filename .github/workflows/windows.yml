@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -32,11 +32,39 @@ jobs:
         run: dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release
       - name: Publish self-contained Windows x64 app
         run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/NeoTUN-Windows
-      - name: Package portable ZIP
-        run: Compress-Archive -Path dist/NeoTUN-Windows/* -DestinationPath dist/NeoTUN-Windows-x64.zip
-      - name: Upload Windows build
+      - name: Prepare standalone EXE and ZIP
+        shell: pwsh
+        run: |
+          $exe = "dist/NeoTUN-Windows/NeoTUN.Windows.exe"
+          if (!(Test-Path $exe)) { throw "Published EXE not found: $exe" }
+          Copy-Item $exe "dist/NeoTUN-Windows-x64.exe"
+          Compress-Archive -Path dist/NeoTUN-Windows/* -DestinationPath dist/NeoTUN-Windows-x64.zip -Force
+          Get-Item dist/NeoTUN-Windows-x64.exe, dist/NeoTUN-Windows-x64.zip | Select-Object Name, Length
+      - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
         with:
           name: NeoTUN-Windows-x64
-          path: dist/NeoTUN-Windows-x64.zip
+          path: |
+            dist/NeoTUN-Windows-x64.exe
+            dist/NeoTUN-Windows-x64.zip
           if-no-files-found: error
+      - name: Publish Windows EXE to GitHub Release
+        if: github.ref == 'refs/heads/windows/desktop-client'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: windows-v0.1.0
+          target_commitish: ${{ github.sha }}
+          name: NeoTUN Windows v0.1.0
+          body: |
+            Windows x64 desktop build of NeoTUN.
+
+            - `NeoTUN-Windows-x64.exe`: standalone self-contained executable.
+            - `NeoTUN-Windows-x64.zip`: complete portable package.
+            
+            Note: profile import and subscription refresh are available; network connection engine is still under development.
+          files: |
+            dist/NeoTUN-Windows-x64.exe
+            dist/NeoTUN-Windows-x64.zip
+          draft: false
+          prerelease: true
+          make_latest: false
