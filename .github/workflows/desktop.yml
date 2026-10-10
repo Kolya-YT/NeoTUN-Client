@@ -12,13 +12,14 @@ on:
       - ".github/workflows/desktop.yml"
       - "DESIGN_SYSTEM.md"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Android APK"]
-    types: [completed]
+    inputs:
+      release_tag:
+        description: "Existing release tag to attach the Windows package to (leave empty for CI only)"
+        required: false
+        type: string
 
 permissions:
   contents: write
-  actions: read
 
 concurrency:
   group: windows-desktop-${{ github.event_name }}-${{ github.ref }}
@@ -27,12 +28,11 @@ concurrency:
 jobs:
   windows:
     name: Windows x64 desktop app and runtime
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -118,22 +118,11 @@ jobs:
           path: dist/NeoTUN-Windows-x64.zip
           retention-days: 30
 
-      - name: Read Android version
-        id: version
-        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-        shell: pwsh
-        run: |
-          $gradle = Get-Content "android/app/build.gradle.kts" -Raw
-          $match = [regex]::Match($gradle, 'versionName\s*=\s*"([^"]+)"')
-          if (!$match.Success) { throw "Android versionName not found" }
-          "version=$($match.Groups[1].Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Attach Windows package to matching Android release
-        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+      - name: Attach Windows package to a manually selected release
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: NeoTUN v${{ steps.version.outputs.version }}
+          tag_name: ${{ inputs.release_tag }}
           files: dist/NeoTUN-Windows-x64.zip
           fail_on_unmatched_files: true
           make_latest: false
