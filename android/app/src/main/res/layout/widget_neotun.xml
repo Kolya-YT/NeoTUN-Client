@@ -4,39 +4,29 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center_vertical"
-    android:padding="16dp"
+    android:gravity="center"
+    android:padding="4dp"
     android:background="@drawable/widget_neotun_background">
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="NEOTUN  •  QUICK CONNECT"
-        android:textColor="#B8B0FF"
-        android:textSize="10sp"
+        android:text="N"
+        android:textColor="#FFFFFF"
+        android:textSize="25sp"
         android:textStyle="bold"
-        android:letterSpacing="0.08" />
+        android:includeFontPadding="false" />
+
     <TextView
         android:id="@+id/widget_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
-        android:text="Не подключено"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:maxLines="1" />
-    <TextView
-        android:id="@+id/widget_action"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:paddingStart="13dp"
-        android:paddingEnd="13dp"
-        android:paddingTop="7dp"
-        android:paddingBottom="7dp"
-        android:background="@drawable/widget_neotun_button"
-        android:text="Подключить"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
-        android:textStyle="bold" />
+        android:layout_marginTop="1dp"
+        android:text="ВЫКЛ"
+        android:textColor="#AEB1C4"
+        android:textSize="8sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.04"
+        android:includeFontPadding="false"
+        android:maxLines="1" />
 </LinearLayout>
