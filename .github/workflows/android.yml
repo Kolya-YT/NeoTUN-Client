@@ -168,3 +168,5 @@ jobs:
           files: dist/*.apk
           generate_release_notes: true
           make_latest: true
+          fail_on_unmatched_files: true
+          token: ${{ secrets.NEOTUN_RELEASE_TOKEN || github.token }}
