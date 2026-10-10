@@ -52,23 +52,11 @@ jobs:
             dist/NeoTUN-Windows-x64.exe
             dist/NeoTUN-Windows-x64.zip
           if-no-files-found: error
-      - name: Publish Windows EXE to GitHub Release
+      - name: Add Windows files to the main release
         if: github.ref == 'refs/heads/windows/desktop-client'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: windows-v0.1.0
-          target_commitish: ${{ github.sha }}
-          name: NeoTUN Windows v0.1.0
-          body: |
-            Windows x64 desktop build of NeoTUN.
-
-            - `NeoTUN-Windows-x64.exe`: standalone self-contained executable.
-            - `NeoTUN-Windows-x64.zip`: complete portable package.
-
-            Note: profile import and subscription refresh are available; network connection engine is still under development.
+          tag_name: v0.6.7
           files: |
             dist/NeoTUN-Windows-x64.exe
             dist/NeoTUN-Windows-x64.zip
-          draft: false
-          prerelease: true
-          make_latest: false
