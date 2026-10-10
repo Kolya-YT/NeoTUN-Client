@@ -674,28 +674,41 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(11), 0, dp(11))
+            setPadding(dp(4), dp(10), dp(2), dp(10))
+            minimumHeight = dp(58)
             isClickable = true
+            isFocusable = true
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(NeoTunDesign.BRAND_SOFT),
+                ColorDrawable(Color.TRANSPARENT),
+                rounded(Color.WHITE, 10)
+            )
+            contentDescription = listOf(title, value, summary).filter { it.isNotBlank() }.joinToString(". ")
             setOnClickListener { action() }
         }
-        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(txt(title, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        texts.addView(txt(title, 13.5f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        texts.addView(txt(summary, 11f, Color.rgb(124, 129, 147)).apply {
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 3))
-        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
-        if (value.isNotBlank()) {
-            row.addView(txt(value, 11.5f, Color.rgb(174, 161, 255), Typeface.BOLD, Gravity.END).apply {
+        if (summary.isNotBlank()) {
+            texts.addView(txt(summary, 10.5f, NeoTunDesign.TEXT_MUTED).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(dp(112), -2))
+            }, margins(top = 3))
         }
-        row.addView(txt("›", 23f, Color.rgb(94, 99, 117), Gravity.CENTER),
-            LinearLayout.LayoutParams(dp(28), dp(42)))
+        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        if (value.isNotBlank()) {
+            row.addView(txt(value, 10.5f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(dp(88), -2))
+        }
+        row.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER),
+            LinearLayout.LayoutParams(dp(22), dp(42)))
         return row
     }
 
