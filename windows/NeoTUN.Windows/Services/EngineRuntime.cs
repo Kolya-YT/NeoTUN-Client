@@ -49,7 +49,7 @@ internal sealed class EngineRuntime : IDisposable
             if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
             var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
             await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
-            await ValidateAsync(xrayPath, "run", "-test", "-config", xrayConfigPath, cancellationToken);
+            await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
             _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
             await Task.Delay(650, cancellationToken);
             if (_xray.HasExited)
@@ -63,7 +63,7 @@ internal sealed class EngineRuntime : IDisposable
 
         try
         {
-            await ValidateAsync(singBoxPath, "check", "-c", singBoxConfigPath, cancellationToken);
+            await ValidateAsync(singBoxPath, cancellationToken, "check", "-c", singBoxConfigPath);
             _singBox = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
             await Task.Delay(900, cancellationToken);
             if (_singBox.HasExited)
@@ -92,10 +92,8 @@ internal sealed class EngineRuntime : IDisposable
         WriteLog("Runtime stopped");
     }
 
-    private async Task ValidateAsync(string executable, params object[] args)
+    private async Task ValidateAsync(string executable, CancellationToken cancellationToken, params string[] values)
     {
-        var cancellationToken = (CancellationToken)args[^1];
-        var values = args[..^1].Select(x => (string)x).ToArray();
         var start = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
