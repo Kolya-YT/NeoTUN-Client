@@ -32,8 +32,12 @@ class RoutingSettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = NeoTunDesign.BACKGROUND
-        window.navigationBarColor = NeoTunDesign.BACKGROUND
-        window.decorView.systemUiVisibility = 0
+        window.navigationBarColor = NeoTunDesign.NAVIGATION
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
         val createNew = intent.getBooleanExtra(EXTRA_NEW_PROFILE, false)
         val active = if (createNew) null else (store.active() ?: store.all().firstOrNull())
         profileJson = JSONObject(active?.json?.toString() ?: "{}")
@@ -115,7 +119,10 @@ class RoutingSettingsActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(orderLabel, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(text("⌄", 22, NeoTunDesign.TEXT_SECONDARY), params())
+            addView(
+                text("⌄", 22, NeoTunDesign.TEXT_SECONDARY),
+                LinearLayout.LayoutParams(dp(28), -2).apply { gravity = Gravity.CENTER_VERTICAL }
+            )
             isClickable = true
             setOnClickListener { chooseOrder() }
         }
@@ -179,8 +186,17 @@ class RoutingSettingsActivity : Activity() {
             NeoTunDesign.TEXT_MUTED, false).apply { gravity = Gravity.CENTER },
             params(top = 10))
 
+        scroll.clipToPadding = false
         scroll.addView(body)
         setContentView(scroll)
+        // Android 15 enforces edge-to-edge for targetSdk 35. Keep content below
+        // the status bar and make the final action scroll fully above navigation.
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            body.setPadding(dp(20), dp(12) + bars.top, dp(20), dp(28) + bars.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(scroll)
     }
 
     private fun addRuleRow(parent: LinearLayout, key: String, label: String, hint: String) {
@@ -408,7 +424,15 @@ class RoutingSettingsActivity : Activity() {
     }
 
     private fun styleDialog(dialog: AlertDialog) {
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setBackgroundDrawable(GradientDrawable().apply {
+            setColor(NeoTunDesign.SURFACE)
+            cornerRadius = dp(20).toFloat()
+            setStroke(dp(1), NeoTunDesign.BORDER)
+        })
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels - dp(36)).coerceAtMost(dp(520)),
+            android.view.WindowManager.LayoutParams.WRAP_CONTENT
+        )
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(NeoTunDesign.BRAND_VIOLET)
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(NeoTunDesign.TEXT_SECONDARY)
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(NeoTunDesign.TEXT_SECONDARY)

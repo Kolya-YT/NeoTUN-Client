@@ -176,3 +176,6 @@ NEOTUN_KEY_PASSWORD
 - Bottom navigation is now a compact floating-style capsule with a clear selected state and reduced vertical footprint.
 - Screen headings and spacing are scaled down to avoid oversized titles and wasted vertical space on narrow phones.
 - This is a visual layout change; runtime behavior still needs verification on a real Android device.
+
+
+**Routing UI (0.7.6):** исправлены системные отступы edge-to-edge для Android 15+, нижняя кнопка сохранения больше не должна уходить под навигационную панель, стрелка выбора порядка групп больше не занимает всю ширину строки; диалоги получили оформление в стиле NeoTUN.
