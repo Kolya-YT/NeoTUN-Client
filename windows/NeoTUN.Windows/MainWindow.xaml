@@ -223,6 +223,9 @@
                       <TextBox x:Name="DirectIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
                   </Grid>
+                  <TextBlock Text="Исключения процессов (напрямую)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,5"/>
+                  <TextBox x:Name="ProcessExclusionsEditor" MinHeight="62" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                  <TextBlock Text="Укажите имена исполняемых файлов, по одному на строку, например chrome.exe. Эти процессы будут направляться напрямую." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
                   <WrapPanel Margin="0,16,0,0">
                     <Button Content="Сохранить маршруты" Click="SaveRouting_Click" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Margin="0,0,8,8"/>
                     <Button Content="Проверить JSON-файл" Click="LoadRouting_Click" Margin="0,0,8,8"/>
