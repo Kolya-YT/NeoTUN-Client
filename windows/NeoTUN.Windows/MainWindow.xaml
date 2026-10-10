@@ -166,7 +166,10 @@
                 <StackPanel>
                   <TextBlock Text="Режим обработки соединений" FontSize="19" FontWeight="Bold"/>
                   <TextBlock Text="Настройки маршрутов и DNS для профиля NeoTUN. Списки сохраняются отдельно от ссылки сервера и применяются при следующем подключении." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,14"/>
-                  <CheckBox x:Name="GlobalProxyToggle" Content="Направлять соединения через выбранный профиль по умолчанию" IsChecked="True" Margin="0,0,0,12"/>
+                  <CheckBox x:Name="GlobalProxyToggle" Content="Направлять соединения через выбранный профиль по умолчанию" IsChecked="True" Margin="0,0,0,8"/>
+                  <CheckBox x:Name="Ipv6Toggle" Content="Использовать IPv6 в TUN" IsChecked="False" Margin="0,0,0,12"/>
+                  <TextBlock Text="MTU интерфейса (1280–1500)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                  <TextBox x:Name="MtuInput" Text="1500" MaxLength="4" Width="150" HorizontalAlignment="Left" Margin="0,0,0,12"/>
                   <TextBlock Text="Порядок правил" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                   <ComboBox x:Name="RouteOrderSelector" SelectedIndex="0" MinHeight="38">
                     <ComboBoxItem Content="Блокировка → Прокси → Напрямую"/>
