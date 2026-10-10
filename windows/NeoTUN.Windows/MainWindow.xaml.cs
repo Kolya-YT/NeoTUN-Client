@@ -635,9 +635,15 @@ public partial class MainWindow : Window
         };
 
         foreach (var item in colors)
-            if (Application.Current.Resources[item.Key] is SolidColorBrush brush &&
-                ColorConverter.ConvertFromString(item.Value) is Color color)
-                brush.Color = color;
+        {
+            if (ColorConverter.ConvertFromString(item.Value) is not Color color)
+                continue;
+
+            // Brushes referenced by StaticResource in the compiled XAML can be frozen
+            // by WPF. Replace the resource with a new mutable brush instead of trying
+            // to change the Color property on a possibly frozen instance.
+            Application.Current.Resources[item.Key] = new SolidColorBrush(color);
+        }
     }
 
     private bool IsLaunchWithWindowsEnabled()
