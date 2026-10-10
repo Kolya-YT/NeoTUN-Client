@@ -733,7 +733,31 @@ class MainActivity : Activity() {
             }.show()
     }
 
-    private fun connect(profile: NeoTunProfile) {
+    private fun connect(profile: NeoTunProfile, skipGeoWarning: Boolean = false) {
+        // Happ/INCY geosite/geoip tokens point to Xray .dat geodata. sing-box
+        // cannot consume those tokens as plain domains, so don't silently let
+        // the user connect with part of their routing policy missing.
+        if (profile.engine != NeoTunVpnService.ENGINE_XRAY && !skipGeoWarning) {
+            val unsupportedGeo = RoutingProfileStore(this).active()
+                ?.let { NeoTunRoutingAdapter.unsupportedSingBoxGeoTokens(it) }
+                .orEmpty()
+            if (unsupportedGeo.isNotEmpty()) {
+                val preview = unsupportedGeo.take(8).joinToString("\\n")
+                val remainder = if (unsupportedGeo.size > 8) "\\n… и ещё ${unsupportedGeo.size - 8}" else ""
+                AlertDialog.Builder(this)
+                    .setTitle("Часть правил маршрутизации не поддерживается")
+                    .setMessage(
+                        "Активный профиль содержит geosite/geoip правила, которые sing-box пока не может применить из Xray .dat баз. " +
+                            "Если продолжить, эти правила не будут работать:\\n\\n" + preview + remainder +
+                            "\\n\\nПодключиться всё равно?"
+                    )
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Продолжить") { _, _ -> connect(profile, skipGeoWarning = true) }
+                    .show()
+                return
+            }
+        }
+
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         prefs.edit()
             .putString(NeoTunVpnService.KEY_URI, profile.uri)
