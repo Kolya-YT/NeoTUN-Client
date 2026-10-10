@@ -47,17 +47,12 @@ public partial class MainWindow : Window
 
     private void Connect_Click(object sender, RoutedEventArgs e)
     {
-        if (_vm.IsConnected)
-        {
-            _vm.IsConnected = false;
-            _vm.Status = "Отключено";
-        }
-        else
-        {
-            _vm.Status = _vm.SelectedProfile is null
-                ? "Сначала выберите или импортируйте сервер."
-                : "Профиль готов. Windows TUN / сетевой runtime ещё не подключён.";
-        }
+        // Never claim a real connection until the Windows tunnel/runtime lifecycle
+        // has been integrated and can confirm a successful start.
+        _vm.IsConnected = false;
+        _vm.Status = _vm.SelectedProfile is null
+            ? "Сначала выберите или импортируйте сервер."
+            : "Сервер выбран, но Windows TUN и запуск сетевого движка ещё не интегрированы. Трафик не перенаправляется.";
         AddLog(_vm.Status);
     }
 
