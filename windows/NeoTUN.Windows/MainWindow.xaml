@@ -1,8 +1,8 @@
 <Window x:Class="NeoTUN.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NeoTUN" Width="1180" Height="780" MinWidth="920" MinHeight="620"
-        WindowStartupLocation="CenterScreen">
+        Title="NeoTUN" Width="1100" Height="720" MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen" WindowState="Normal" ResizeMode="CanResize" SizeToContent="Manual">
   <Grid Background="{StaticResource BackgroundBrush}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="224"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Border Grid.Column="0" Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="0,0,1,0">
