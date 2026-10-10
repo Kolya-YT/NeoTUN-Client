@@ -463,8 +463,11 @@ class MainActivity : Activity() {
                     "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
                     else "Ожидает первого обновления", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 4))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+                row.setOnClickListener { subscriptionActions(sub) }
+                row.setOnLongClickListener { subscriptionActions(sub); true }
                 row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
                     background = rounded(NeoTunDesign.SURFACE_RAISED, 13)
+                    contentDescription = "Обновить подписку"
                 }, LinearLayout.LayoutParams(dp(42), dp(42)))
                 subCard.addView(row)
                 if (index < subs.lastIndex) subCard.addView(View(this).apply {
@@ -1347,6 +1350,82 @@ class MainActivity : Activity() {
                 )
                 refreshSubscription(subscription)
             }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun subscriptionActions(subscription: NeoTunSubscription) {
+        val options = arrayOf(
+            "Настройки подписки",
+            "Просмотреть конфигурации серверов",
+            "Обновить сейчас"
+        )
+        val dialog = AlertDialog.Builder(this).setTitle(subscription.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> editSubscription(subscription)
+                    1 -> showSubscriptionConfigs(subscription)
+                    2 -> refreshSubscription(subscription)
+                }
+            }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun editSubscription(subscription: NeoTunSubscription) {
+        val name = EditText(this).apply {
+            setText(subscription.name)
+            hint = "Название подписки"
+            singleLine = true
+        }
+        val url = EditText(this).apply {
+            setText(subscription.url)
+            hint = "HTTPS-ссылка подписки"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            maxLines = 3
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), 0)
+            addView(txt("Название", 12f, NeoTunDesign.TEXT_MUTED), margins(bottom = 4))
+            addView(name, LinearLayout.LayoutParams(-1, dp(48)))
+            addView(txt("URL подписки", 12f, NeoTunDesign.TEXT_MUTED), margins(top = 12, bottom = 4))
+            addView(url, LinearLayout.LayoutParams(-1, dp(64)))
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("Настройки подписки")
+            .setView(box).setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить", null).create()
+        dialog.setOnShowListener {
+            styleDialog(dialog)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val newUrl = url.text.toString().trim()
+                if (!newUrl.startsWith("https://", true) && !newUrl.startsWith("http://", true)) {
+                    url.error = "Укажите HTTP(S)-ссылку"
+                    return@setOnClickListener
+                }
+                val saved = subscriptions.save(subscription.copy(
+                    name = name.text.toString().trim().ifBlank { subscription.name },
+                    url = newUrl
+                ))
+                dialog.dismiss()
+                renderProfiles()
+                if (saved.url != subscription.url) refreshSubscription(saved)
+                else toast("Настройки подписки сохранены")
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showSubscriptionConfigs(subscription: NeoTunSubscription) {
+        val owned = store.all().filter { it.sourceSubscriptionId == subscription.id }
+        if (owned.isEmpty()) {
+            toast("У подписки пока нет сохранённых серверов")
+            return
+        }
+        val labels = owned.map { "${it.name} · ${protocolLabel(it)}" }.toTypedArray()
+        val dialog = AlertDialog.Builder(this).setTitle("Конфигурации · ${subscription.name}")
+            .setItems(labels) { _, which -> showProfileConfig(owned[which]) }
+            .setNegativeButton("Закрыть", null).create()
         dialog.setOnShowListener { styleDialog(dialog) }
         dialog.show()
     }
