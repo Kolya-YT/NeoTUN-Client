@@ -1034,6 +1034,7 @@ class MainActivity : Activity() {
             ContextCompat.startForegroundService(this, Intent(this, NeoTunVpnService::class.java).putExtra(NeoTunVpnService.EXTRA_CONFIG, config))
         }
         renderHome()
+        NeoTunHomeWidget.refreshAll(this)
     }
 
     private fun disconnect() {
@@ -1058,6 +1059,7 @@ class MainActivity : Activity() {
             .edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         resetTrafficCounters()
         renderHome()
+        NeoTunHomeWidget.refreshAll(this)
         handler.postDelayed({
             if (!isFinishing && screen == Screen.HOME) renderHome()
         }, 500L)
