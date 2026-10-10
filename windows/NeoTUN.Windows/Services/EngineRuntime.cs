@@ -64,6 +64,8 @@ internal sealed class EngineRuntime : IDisposable
         var singBoxConfigPath = Path.Combine(_dataDirectory, "sing-box-runtime.json");
         var apiPort = GetAvailableLoopbackPort();
         var apiSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+        var xrayStarted = false;
+        var singBoxStarted = false;
         var singBoxRoot = JsonNode.Parse(runtime.SingBoxJson)?.AsObject()
             ?? throw new InvalidOperationException("Rust core вернул некорректный sing-box JSON.");
         var experimental = singBoxRoot["experimental"] as JsonObject;
@@ -90,12 +92,11 @@ internal sealed class EngineRuntime : IDisposable
             await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
             await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
             _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
+            xrayStarted = true;
             await Task.Delay(650, cancellationToken);
             if (_xray.HasExited)
             {
                 var exit = _xray.ExitCode;
-                _xray.Dispose();
-                _xray = null;
                 throw new InvalidOperationException($"Xray завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
             }
         }
@@ -104,18 +105,18 @@ internal sealed class EngineRuntime : IDisposable
         {
             await ValidateAsync(singBoxPath, cancellationToken, "check", "-c", singBoxConfigPath);
             _singBox = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
+            singBoxStarted = true;
             await Task.Delay(900, cancellationToken);
             if (_singBox.HasExited)
             {
                 var exit = _singBox.ExitCode;
-                _singBox.Dispose();
-                _singBox = null;
                 throw new InvalidOperationException($"sing-box завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
             }
         }
         catch
         {
-            await StopXrayAsync();
+            if (singBoxStarted) await StopSingBoxAsync();
+            if (xrayStarted) await StopXrayAsync();
             throw;
         }
 
