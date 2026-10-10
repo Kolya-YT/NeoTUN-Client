@@ -1117,10 +1117,20 @@ class MainActivity : Activity() {
             ?: dnsEndpoint("RemoteDns")
         val configuredDomesticDns = dnsEndpoint("DomesticDNS")
             ?: dnsEndpoint("DomesticDns")
+        val systemDns = runCatching {
+            val connectivity = getSystemService(ConnectivityManager::class.java)
+            connectivity.getLinkProperties(connectivity.activeNetwork)
+                ?.dnsServers
+                ?.firstOrNull { address ->
+                    address is java.net.Inet4Address && !address.isLoopbackAddress && !address.isLinkLocalAddress
+                }
+                ?.hostAddress
+        }.getOrNull()
         val dnsIp = when {
             dnsMode.contains("8.8.8.8") -> "8.8.8.8"
             dnsMode.contains("9.9.9.9") -> "9.9.9.9"
-            else -> "1.1.1.1"
+            dnsMode.contains("1.1.1.1") -> "1.1.1.1"
+            else -> systemDns ?: "1.1.1.1"
         }
         fun dnsServer(tag: String, endpoint: String?, fallbackIp: String): JSONObject {
             val value = endpoint.orEmpty()
