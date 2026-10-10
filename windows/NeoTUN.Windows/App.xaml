@@ -19,22 +19,22 @@
     <Color x:Key="SuccessSurfaceColor">#12372E</Color>
     <Color x:Key="DangerColor">#FFB1C0</Color>
     <Color x:Key="DangerSurfaceColor">#311B27</Color>
-    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
-    <SolidColorBrush x:Key="NavigationBrush" Color="{StaticResource NavigationColor}"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
-    <SolidColorBrush x:Key="RaisedSurfaceBrush" Color="{StaticResource RaisedSurfaceColor}"/>
-    <SolidColorBrush x:Key="InputSurfaceBrush" Color="{StaticResource InputSurfaceColor}"/>
-    <SolidColorBrush x:Key="BorderBrushNeo" Color="{StaticResource BorderColor}"/>
-    <SolidColorBrush x:Key="BrandVioletBrush" Color="{StaticResource BrandVioletColor}"/>
-    <SolidColorBrush x:Key="BrandBlueBrush" Color="{StaticResource BrandBlueColor}"/>
-    <SolidColorBrush x:Key="AccentSurfaceBrush" Color="{StaticResource AccentSurfaceColor}"/>
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
-    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}"/>
-    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
-    <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="{StaticResource SuccessSurfaceColor}"/>
-    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
-    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="{StaticResource DangerSurfaceColor}"/>
+    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+    <SolidColorBrush x:Key="NavigationBrush" Color="{StaticResource NavigationColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+    <SolidColorBrush x:Key="RaisedSurfaceBrush" Color="{StaticResource RaisedSurfaceColor}" />
+    <SolidColorBrush x:Key="InputSurfaceBrush" Color="{StaticResource InputSurfaceColor}" />
+    <SolidColorBrush x:Key="BorderBrushNeo" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="BrandVioletBrush" Color="{StaticResource BrandVioletColor}" />
+    <SolidColorBrush x:Key="BrandBlueBrush" Color="{StaticResource BrandBlueColor}" />
+    <SolidColorBrush x:Key="AccentSurfaceBrush" Color="{StaticResource AccentSurfaceColor}" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="{StaticResource SuccessSurfaceColor}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="{StaticResource DangerSurfaceColor}" />
 
     <Style TargetType="TextBlock">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
