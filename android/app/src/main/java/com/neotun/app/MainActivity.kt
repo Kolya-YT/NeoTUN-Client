@@ -843,6 +843,7 @@ class MainActivity : Activity() {
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR,
                         "Ошибка конфигурации: " + (error.message ?: error.javaClass.simpleName))
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                     .apply()
                 renderHome()
                 return
@@ -853,6 +854,7 @@ class MainActivity : Activity() {
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR,
                         "Ядро не смогло разобрать профиль. Откройте «Диагностика» для подробностей.")
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                     .apply()
                 renderHome()
                 return
@@ -860,6 +862,7 @@ class MainActivity : Activity() {
             val config = runCatching { applyConnectionSettings(rawConfig) }.getOrElse {
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR, "Ошибка настроек: " + (it.message ?: "некорректная конфигурация"))
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                     .apply()
                 renderHome()
                 return
