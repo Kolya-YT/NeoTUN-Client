@@ -201,15 +201,17 @@ object NeoTunRoutingAdapter {
         fun add(values: List<String>, domain: Boolean, outbound: String) {
             if (values.isEmpty()) return
             val rule = JSONObject().put("type", "field").put("outboundTag", outbound)
-            val geo = values.filter { it.startsWith("geoip:", true) }
-            val plain = values.filterNot { it.startsWith("geoip:", true) }
-            // Xray's geosite:<category> rules require a compatible geosite.dat
-            // file and an explicit geodata path. NeoTUN does not currently bundle
-            // that database, so passing these rules makes Xray try /system/bin/geosite.dat
-            // and abort startup. Ignore only geosite rules until managed geodata is added;
-            // keep ordinary domain/full/regexp rules from the same profile.
+            // Xray geoip/geosite rules require bundled .dat databases and an explicit
+            // geodata path. NeoTUN currently ships neither database, so passing any
+            // geoip:<category> or geosite:<category> rule aborts Xray startup. Ignore
+            // those entries safely while preserving ordinary domain and literal IP rules.
+            val geo = values.filter {
+                it.startsWith("geoip:", true) || it.startsWith("geosite:", true)
+            }
+            val plain = values.filterNot {
+                it.startsWith("geoip:", true) || it.startsWith("geosite:", true)
+            }
             val normalizedDomains = plain
-                .filterNot { it.startsWith("geosite:", true) }
                 .map {
                     when {
                         it.startsWith("domain:", true) ||
@@ -218,7 +220,7 @@ object NeoTunRoutingAdapter {
                     }
                 }
             if (domain && normalizedDomains.isNotEmpty()) rule.put("domain", JSONArray(normalizedDomains))
-            if (!domain && (plain + geo).isNotEmpty()) rule.put("ip", JSONArray(plain + geo))
+            if (!domain && plain.isNotEmpty()) rule.put("ip", JSONArray(plain))
             if (rule.length() > 2) rules.put(rule)
         }
         add(profile.values("BlockSites"), true, "block")
