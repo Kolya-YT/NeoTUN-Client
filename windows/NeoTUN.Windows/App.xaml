@@ -1,1 +1,20 @@
-<Application x:Class="NeoTUN.Windows.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml"><Application.Resources><SolidColorBrush x:Key="BackgroundBrush" Color="#0B1016"/><SolidColorBrush x:Key="PanelBrush" Color="#121B24"/><SolidColorBrush x:Key="AccentBrush" Color="#39D98A"/><SolidColorBrush x:Key="MutedBrush" Color="#91A3B5"/><Style TargetType="Button"><Setter Property="Foreground" Value="#F3F7FA"/><Setter Property="Background" Value="#22313E"/><Setter Property="BorderBrush" Value="#314453"/><Setter Property="Padding" Value="14,9"/><Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FontSize" Value="13"/></Style><Style TargetType="TextBox"><Setter Property="Foreground" Value="#F3F7FA"/><Setter Property="Background" Value="#0D151D"/><Setter Property="BorderBrush" Value="#314453"/><Setter Property="Padding" Value="12,10"/><Setter Property="CaretBrush" Value="#39D98A"/><Setter Property="FontSize" Value="13"/></Style></Application.Resources></Application>
+<Application x:Class="NeoTUN.Windows.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml"><Application.Resources>
+<SolidColorBrush x:Key="BackgroundBrush" Color="#070910"/>
+<SolidColorBrush x:Key="NavigationBrush" Color="#0C0F19"/>
+<SolidColorBrush x:Key="PanelBrush" Color="#121521"/>
+<SolidColorBrush x:Key="RaisedBrush" Color="#1C2033"/>
+<SolidColorBrush x:Key="InputBrush" Color="#0D111D"/>
+<SolidColorBrush x:Key="BorderBrushToken" Color="#2A2E44"/>
+<SolidColorBrush x:Key="AccentBrush" Color="#8769FF"/>
+<SolidColorBrush x:Key="AccentBlueBrush" Color="#5B5BF1"/>
+<SolidColorBrush x:Key="AccentSoftBrush" Color="#23203B"/>
+<SolidColorBrush x:Key="MutedBrush" Color="#8F96AD"/>
+<SolidColorBrush x:Key="SecondaryTextBrush" Color="#A5ABC2"/>
+<SolidColorBrush x:Key="SuccessBrush" Color="#5FE6A6"/>
+<SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#12372E"/>
+<SolidColorBrush x:Key="DangerBrush" Color="#FFB1C0"/>
+<SolidColorBrush x:Key="DangerSurfaceBrush" Color="#311B27"/>
+<LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#8769FF" Offset="0"/><GradientStop Color="#5B5BF1" Offset="1"/></LinearGradientBrush>
+<Style TargetType="Button"><Setter Property="Foreground" Value="#F3F4FF"/><Setter Property="Background" Value="#23203B"/><Setter Property="BorderBrush" Value="#48416F"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="14,10"/><Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+<Style TargetType="TextBox"><Setter Property="Foreground" Value="#FFFFFF"/><Setter Property="Background" Value="{StaticResource InputBrush}"/><Setter Property="BorderBrush" Value="{StaticResource BorderBrushToken}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="12,10"/><Setter Property="CaretBrush" Value="#8769FF"/><Setter Property="FontSize" Value="13"/></Style>
+</Application.Resources></Application>
