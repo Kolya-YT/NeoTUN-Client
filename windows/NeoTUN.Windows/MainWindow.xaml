@@ -245,19 +245,46 @@
                 <StackPanel>
                   <TextBlock Text="Внешний вид" FontSize="19" FontWeight="Bold"/>
                   <TextBlock Text="Цветовая тема приложения" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,10"/>
-                  <ComboBox x:Name="ThemeSelector" SelectedIndex="0" SelectionChanged="ThemeSelector_SelectionChanged" MinHeight="38">
+                  <ComboBox x:Name="ThemeSelector" SelectedIndex="0" SelectionChanged="ThemeSelector_SelectionChanged" MinHeight="38" Margin="0,0,0,14">
                     <ComboBoxItem Content="Тёмная"/>
                     <ComboBoxItem Content="Светлая"/>
                     <ComboBoxItem Content="OLED — чёрная"/>
                   </ComboBox>
+                  <TextBlock Text="Размер текста" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                  <ComboBox x:Name="FontScaleSelector" SelectedIndex="1" SelectionChanged="FontScaleSelector_SelectionChanged" MinHeight="38" Margin="0,0,0,12">
+                    <ComboBoxItem Content="Маленький · 85%"/>
+                    <ComboBoxItem Content="Стандартный · 100%"/>
+                    <ComboBoxItem Content="Крупный · 115%"/>
+                    <ComboBoxItem Content="Очень крупный · 130%"/>
+                  </ComboBox>
+                  <CheckBox x:Name="UiAnimationsToggle" Content="Плавные переходы интерфейса" IsChecked="True" Checked="UiAnimations_Changed" Unchecked="UiAnimations_Changed" Margin="0,0,0,6"/>
+                  <TextBlock Text="Размер текста и анимации сохраняются отдельно для этого пользователя." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap"/>
                 </StackPanel>
               </Border>
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
                 <StackPanel>
                   <TextBlock Text="Запуск приложения" FontSize="19" FontWeight="Bold"/>
                   <TextBlock Text="NeoTUN можно запускать автоматически при входе в Windows." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,12"/>
-                  <CheckBox x:Name="LaunchWithWindowsToggle" Content="Запускать NeoTUN вместе с Windows" Checked="LaunchWithWindows_Changed" Unchecked="LaunchWithWindows_Changed"/>
-                  <TextBlock Text="Настройка применяется только для текущего пользователя Windows." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                  <CheckBox x:Name="LaunchWithWindowsToggle" Content="Запускать NeoTUN вместе с Windows" Checked="LaunchWithWindows_Changed" Unchecked="LaunchWithWindows_Changed" Margin="0,0,0,6"/>
+                  <CheckBox x:Name="AutoUpdateSubscriptionsToggle" Content="Обновлять подписки при запуске" Checked="AutoUpdateSubscriptions_Changed" Unchecked="AutoUpdateSubscriptions_Changed" Margin="0,8,0,10"/>
+                  <TextBlock Text="Интервал обновления подписок" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                  <ComboBox x:Name="SubscriptionIntervalSelector" SelectedIndex="2" SelectionChanged="SubscriptionInterval_SelectionChanged" MinHeight="38">
+                    <ComboBoxItem Content="Каждый час"/>
+                    <ComboBoxItem Content="Каждые 6 часов"/>
+                    <ComboBoxItem Content="Каждые 12 часов"/>
+                    <ComboBoxItem Content="Каждые 24 часа"/>
+                    <ComboBoxItem Content="Раз в 3 дня"/>
+                    <ComboBoxItem Content="Раз в 7 дней"/>
+                  </ComboBox>
+                  <TextBlock Text="Настройки применяются только для текущего пользователя Windows." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                </StackPanel>
+              </Border>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="Обновления" FontSize="19" FontWeight="Bold"/>
+                  <TextBlock x:Name="AppVersionLabel" Text="" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,10"/>
+                  <Button x:Name="CheckUpdatesButton" Content="Проверить новую версию" Click="CheckUpdates_Click" HorizontalAlignment="Left" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}"/>
+                  <TextBlock x:Name="UpdateSummary" Text="Проверка обновлений не выполнялась." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
                 </StackPanel>
               </Border>
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
