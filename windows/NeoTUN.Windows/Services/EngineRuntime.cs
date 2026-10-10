@@ -78,6 +78,7 @@ internal sealed class EngineRuntime : IDisposable
         var singBoxStarted = false;
         var singBoxRoot = JsonNode.Parse(runtime.SingBoxJson)?.AsObject()
             ?? throw new InvalidOperationException("Rust core вернул некорректный sing-box JSON.");
+        ApplyRoutingPreferences(singBoxRoot);
         var experimental = singBoxRoot["experimental"] as JsonObject;
         if (experimental is null)
         {
@@ -161,6 +162,212 @@ internal sealed class EngineRuntime : IDisposable
         await StopXrayAsync();
         StateChanged?.Invoke(false, "Отключено");
         WriteLog("Runtime stopped");
+    }
+
+    private void ApplyRoutingPreferences(JsonObject singBoxRoot)
+    {
+        var settingsPath = Path.Combine(_dataDirectory, "routing-settings.json");
+        if (!File.Exists(settingsPath)) return;
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+            var settings = document.RootElement;
+            bool ReadBool(string name, bool fallback) =>
+                settings.TryGetProperty(name, out var value) &&
+                (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False)
+                    ? value.GetBoolean() : fallback;
+            int ReadInt(string name, int fallback) =>
+                settings.TryGetProperty(name, out var value) && value.TryGetInt32(out var number)
+                    ? number : fallback;
+            string ReadString(string name, string fallback) =>
+                settings.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+                    ? value.GetString() ?? fallback : fallback;
+            string[] ReadLines(string name) => ReadString(name, "")
+                .Replace("\r", "")
+                .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Where(line => !line.StartsWith("#", StringComparison.Ordinal))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var route = singBoxRoot["route"] as JsonObject;
+            if (route is null)
+            {
+                route = new JsonObject();
+                singBoxRoot["route"] = route;
+            }
+            route["final"] = ReadBool("GlobalProxy", true) ? "proxy" : "direct";
+
+            var previousRules = route["rules"] as JsonArray ?? new JsonArray();
+            var priorityRules = new List<JsonNode>();
+            var remainingRules = new List<JsonNode>();
+            foreach (var rule in previousRules)
+            {
+                if (rule is not JsonObject obj) continue;
+                if (string.Equals(obj["action"]?.GetValue<string>(), "hijack-dns", StringComparison.OrdinalIgnoreCase))
+                    priorityRules.Add(rule.DeepClone());
+                else
+                    remainingRules.Add(rule.DeepClone());
+            }
+
+            JsonObject? MakeRule(string field, string[] values, string outbound)
+            {
+                if (values.Length == 0) return null;
+                var rule = new JsonObject { ["outbound"] = outbound };
+                rule[field] = new JsonArray(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
+                return rule;
+            }
+
+            var blockDomains = ReadLines("BlockSites")
+                .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
+            var proxyDomains = ReadLines("ProxySites")
+                .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
+            var directDomains = ReadLines("DirectSites")
+                .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
+            var blockIps = ReadLines("BlockIp").Where(IsIpOrCidr).ToArray();
+            var proxyIps = ReadLines("ProxyIp").Where(IsIpOrCidr).ToArray();
+            var directIps = ReadLines("DirectIp").Where(IsIpOrCidr).ToArray();
+
+            var groups = new Dictionary<string, (string[] Domains, string[] Ips)>
+            {
+                ["block"] = (blockDomains, blockIps),
+                ["proxy"] = (proxyDomains, proxyIps),
+                ["direct"] = (directDomains, directIps)
+            };
+            var order = ReadInt("RouteOrder", 0) switch
+            {
+                1 => new[] { "block", "direct", "proxy" },
+                2 => new[] { "proxy", "block", "direct" },
+                _ => new[] { "block", "proxy", "direct" }
+            };
+            var mergedRules = new JsonArray();
+            foreach (var rule in priorityRules) mergedRules.Add(rule);
+            foreach (var tag in order)
+            {
+                var group = groups[tag];
+                var domains = MakeRule("domain_suffix", group.Domains, tag);
+                var ips = MakeRule("ip_cidr", group.Ips, tag);
+                if (domains is not null) mergedRules.Add(domains);
+                if (ips is not null) mergedRules.Add(ips);
+            }
+            foreach (var rule in remainingRules) mergedRules.Add(rule);
+            route["rules"] = mergedRules;
+
+            ApplyDnsPreferences(singBoxRoot, ReadString("RemoteDns", ""), ReadString("DomesticDns", ""),
+                ReadLines("DomesticDnsDomains"));
+
+            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}.");
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or FormatException)
+        {
+            throw new InvalidOperationException("Не удалось применить настройки маршрутизации Windows: " + ex.Message, ex);
+        }
+    }
+
+    private static string? NormalizeDomainSuffix(string value)
+    {
+        var domain = value.Trim().TrimStart('*').TrimStart('.');
+        if (domain.Length == 0 || domain.Any(char.IsWhiteSpace) || domain.Contains('/') ||
+            domain.Contains(':') || domain.StartsWith("geosite", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return "." + domain;
+    }
+
+    private static bool IsIpOrCidr(string value)
+    {
+        var parts = value.Split('/', 2, StringSplitOptions.TrimEntries);
+        if (!IPAddress.TryParse(parts[0], out var address)) return false;
+        if (parts.Length == 1) return true;
+        if (!int.TryParse(parts[1], out var prefix)) return false;
+        return prefix >= 0 && prefix <= (address.AddressFamily == AddressFamily.InterNetwork ? 32 : 128);
+    }
+
+    private static void ApplyDnsPreferences(JsonObject root, string remote, string domestic, string[] domesticDomains)
+    {
+        var dns = root["dns"] as JsonObject;
+        if (dns is null)
+        {
+            dns = new JsonObject();
+            root["dns"] = dns;
+        }
+
+        var servers = new JsonArray();
+        var existing = dns["servers"] as JsonArray;
+        if (existing is not null)
+        {
+            foreach (var item in existing)
+            {
+                if (item is JsonObject obj && string.Equals(obj["tag"]?.GetValue<string>(), "system", StringComparison.Ordinal))
+                    servers.Add(item.DeepClone());
+            }
+        }
+        if (servers.Count == 0)
+            servers.Add(new JsonObject { ["type"] = "local", ["tag"] = "system" });
+
+        var remoteTag = AddDnsServer(servers, remote, "neotun-remote");
+        var domesticTag = AddDnsServer(servers, domestic, "neotun-domestic");
+        dns["servers"] = servers;
+
+        if (remoteTag is not null)
+            dns["final"] = remoteTag;
+        else if (dns["final"] is null)
+            dns["final"] = "system";
+
+        if (domesticTag is not null && domesticDomains.Length > 0)
+        {
+            var rules = dns["rules"] as JsonArray ?? new JsonArray();
+            var newRules = new JsonArray();
+            newRules.Add(new JsonObject
+            {
+                ["domain_suffix"] = new JsonArray(domesticDomains
+                    .Select(NormalizeDomainSuffix)
+                    .Where(v => v is not null)
+                    .Select(v => (JsonNode?)JsonValue.Create(v))
+                    .ToArray()),
+                ["action"] = "route",
+                ["server"] = domesticTag
+            });
+            foreach (var rule in rules) newRules.Add(rule?.DeepClone());
+            dns["rules"] = newRules;
+        }
+    }
+
+    private static string? AddDnsServer(JsonArray servers, string endpoint, string tag)
+    {
+        endpoint = endpoint.Trim();
+        if (endpoint.Length == 0) return null;
+
+        if (endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host))
+                throw new InvalidDataException("Некорректный HTTPS DNS endpoint: " + endpoint);
+            var server = new JsonObject
+            {
+                ["type"] = "https",
+                ["tag"] = tag,
+                ["server"] = uri.Host,
+                ["server_port"] = uri.IsDefaultPort ? 443 : uri.Port,
+                ["path"] = string.IsNullOrWhiteSpace(uri.AbsolutePath) ? "/dns-query" : uri.AbsolutePath
+            };
+            if (!IPAddress.TryParse(uri.Host, out _))
+                server["domain_resolver"] = "system";
+            servers.Add(server);
+            return tag;
+        }
+
+        if (IPAddress.TryParse(endpoint, out var ip))
+        {
+            servers.Add(new JsonObject
+            {
+                ["type"] = "udp",
+                ["tag"] = tag,
+                ["server"] = ip.ToString(),
+                ["server_port"] = 53
+            });
+            return tag;
+        }
+
+        throw new InvalidDataException("DNS должен быть IP-адресом или HTTPS URL: " + endpoint);
     }
 
     private async Task WaitForClashApiAsync(
