@@ -72,6 +72,7 @@ class MainActivity : Activity() {
         subscriptions = SubscriptionStore(this)
         routingStore = RoutingProfileStore(this)
         migrateLegacyProfile()
+        refreshStoredProfileEngines()
         if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("subscriptions_auto_update", true)) {
             refreshDueSubscriptions()
         }
@@ -674,28 +675,41 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(11), 0, dp(11))
+            setPadding(dp(4), dp(10), dp(2), dp(10))
+            minimumHeight = dp(58)
             isClickable = true
+            isFocusable = true
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(NeoTunDesign.BRAND_SOFT),
+                ColorDrawable(Color.TRANSPARENT),
+                rounded(Color.WHITE, 10)
+            )
+            contentDescription = listOf(title, value, summary).filter { it.isNotBlank() }.joinToString(". ")
             setOnClickListener { action() }
         }
-        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(txt(title, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        texts.addView(txt(title, 13.5f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        texts.addView(txt(summary, 11f, Color.rgb(124, 129, 147)).apply {
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 3))
-        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
-        if (value.isNotBlank()) {
-            row.addView(txt(value, 11.5f, Color.rgb(174, 161, 255), Typeface.BOLD, Gravity.END).apply {
+        if (summary.isNotBlank()) {
+            texts.addView(txt(summary, 10.5f, NeoTunDesign.TEXT_MUTED).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(dp(112), -2))
+            }, margins(top = 3))
         }
-        row.addView(txt("›", 23f, Color.rgb(94, 99, 117), Gravity.CENTER),
-            LinearLayout.LayoutParams(dp(28), dp(42)))
+        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        if (value.isNotBlank()) {
+            row.addView(txt(value, 10.5f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(dp(88), -2))
+        }
+        row.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER),
+            LinearLayout.LayoutParams(dp(22), dp(42)))
         return row
     }
 
@@ -764,10 +778,32 @@ class MainActivity : Activity() {
     }
 
     private fun connect(profile: NeoTunProfile, skipGeoWarning: Boolean = false) {
+        // Engine choice is derived from the URI by the native core. Older app
+        // versions persisted VLESS as sing-box, so never trust the cached engine
+        // field when starting a connection.
+        val detectedEngine = runCatching { NeoTunCore.nativeShareEngine(profile.uri) }
+            .getOrDefault("unknown")
+        if (detectedEngine == "unknown" || detectedEngine.isBlank()) {
+            NeoTunDiagnostics.log(this, "Engine detection failed for protocol=" +
+                profile.uri.substringBefore("://").lowercase())
+            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
+                .putString(NeoTunVpnService.KEY_ERROR, "Не удалось определить ядро для этого профиля.")
+                .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+                .apply()
+            renderHome()
+            return
+        }
+        val activeProfile = profile.copy(engine = detectedEngine)
+        if (activeProfile.engine != profile.engine) {
+            store.save(activeProfile)
+            NeoTunDiagnostics.log(this, "Profile engine refreshed: " +
+                profile.uri.substringBefore("://").lowercase() + " -> " + activeProfile.engine)
+        }
+
         // Happ/INCY geosite/geoip tokens point to Xray .dat geodata. sing-box
         // cannot consume those tokens as plain domains, so don't silently let
         // the user connect with part of their routing policy missing.
-        if (profile.engine != NeoTunVpnService.ENGINE_XRAY && !skipGeoWarning) {
+        if (activeProfile.engine != NeoTunVpnService.ENGINE_XRAY && !skipGeoWarning) {
             val unsupportedGeo = RoutingProfileStore(this).active()
                 ?.let { NeoTunRoutingAdapter.unsupportedSingBoxGeoTokens(it) }
                 .orEmpty()
@@ -782,7 +818,7 @@ class MainActivity : Activity() {
                             "\n\nПодключиться всё равно?"
                     )
                     .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Продолжить") { _, _ -> connect(profile, skipGeoWarning = true) }
+                    .setPositiveButton("Продолжить") { _, _ -> connect(activeProfile, skipGeoWarning = true) }
                     .show()
                 return
             }
@@ -790,33 +826,35 @@ class MainActivity : Activity() {
 
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         prefs.edit()
-            .putString(NeoTunVpnService.KEY_URI, profile.uri)
-            .putString(NeoTunVpnService.KEY_ENGINE, profile.engine)
+            .putString(NeoTunVpnService.KEY_URI, activeProfile.uri)
+            .putString(NeoTunVpnService.KEY_ENGINE, activeProfile.engine)
             .remove(NeoTunVpnService.KEY_ERROR)
             .apply()
 
-        if (profile.engine == NeoTunVpnService.ENGINE_XRAY) {
+        if (activeProfile.engine == NeoTunVpnService.ENGINE_XRAY) {
             prefs.edit().remove(NeoTunVpnService.KEY_CONFIG).apply()
         } else {
             val rawConfig = runCatching {
                 NeoTunDiagnostics.log(this, "Building sing-box config for protocol=" +
-                    profile.uri.substringBefore("://").lowercase() + ", engine=" + profile.engine)
-                NeoTunCore.nativeShareConfig(profile.uri)
+                    activeProfile.uri.substringBefore("://").lowercase() + ", engine=" + activeProfile.engine)
+                NeoTunCore.nativeShareConfig(activeProfile.uri)
             }.getOrElse { error ->
                 NeoTunDiagnostics.error(this, "Не удалось собрать конфигурацию профиля", error)
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR,
                         "Ошибка конфигурации: " + (error.message ?: error.javaClass.simpleName))
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                     .apply()
                 renderHome()
                 return
             }
             if (rawConfig.isBlank()) {
                 NeoTunDiagnostics.error(this, "Core returned an empty config for protocol=" +
-                    profile.uri.substringBefore("://").lowercase())
+                    activeProfile.uri.substringBefore("://").lowercase())
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR,
                         "Ядро не смогло разобрать профиль. Откройте «Диагностика» для подробностей.")
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                     .apply()
                 renderHome()
                 return
@@ -824,6 +862,7 @@ class MainActivity : Activity() {
             val config = runCatching { applyConnectionSettings(rawConfig) }.getOrElse {
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR, "Ошибка настроек: " + (it.message ?: "некорректная конфигурация"))
+                    .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                     .apply()
                 renderHome()
                 return
@@ -2012,6 +2051,27 @@ class MainActivity : Activity() {
             transport?.takeIf { it.isNotBlank() },
             security?.takeIf { it.isNotBlank() }
         ).distinct().joinToString("  •  ").ifBlank { "Подключение" }
+    }
+
+    /**
+     * Reclassify profiles created by older builds. Engine selection changed for
+     * VLESS transports, and a cached "sing-box" label must not survive an app update.
+     */
+    private fun refreshStoredProfileEngines() {
+        val current = store.all()
+        var changed = false
+        val refreshed = current.map { profile ->
+            val detected = runCatching { NeoTunCore.nativeShareEngine(profile.uri) }
+                .getOrDefault("unknown")
+            if (detected.isNotBlank() && detected != "unknown" && detected != profile.engine) {
+                changed = true
+                profile.copy(engine = detected)
+            } else profile
+        }
+        if (changed) {
+            store.saveAll(refreshed)
+            NeoTunDiagnostics.log(this, "Updated cached engines for stored profiles")
+        }
     }
 
     private fun migrateLegacyProfile() {
