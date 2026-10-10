@@ -14,7 +14,7 @@
             </Border>
             <StackPanel Margin="11,1,0,0">
               <TextBlock Text="NeoTUN" FontWeight="Bold" FontSize="21"/>
-              <TextBlock Text="CLIENT" FontSize="10" Foreground="{StaticResource TextMutedBrush}" CharacterSpacing="220"/>
+              <TextBlock Text="CLIENT" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
             </StackPanel>
           </StackPanel>
         </StackPanel>
