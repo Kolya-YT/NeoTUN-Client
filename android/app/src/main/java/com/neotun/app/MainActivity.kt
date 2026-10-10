@@ -781,19 +781,54 @@ class MainActivity : Activity() {
             inbound.put("dns_address", JSONArray().put("172.19.0.2"))
         }
 
-        // sing-box "local" DNS can resolve to ::1 on some Android 16 devices,
-        // where no DNS listener exists. Use a reachable upstream resolver by default.
+        // Use DNS endpoints from the active profile only when the user/imported profile
+        // explicitly defines them; otherwise retain the app's selected resolver.
+        val routingProfile = RoutingProfileStore(this).active()
+        val configuredRemoteDns = routingProfile?.json?.optString("RemoteDNS")
+            ?.trim()?.takeIf { it.isNotEmpty() }
+        val configuredDomesticDns = routingProfile?.json?.optString("DomesticDNS")
+            ?.trim()?.takeIf { it.isNotEmpty() }
         val dnsIp = when {
             dnsMode.contains("8.8.8.8") -> "8.8.8.8"
             dnsMode.contains("9.9.9.9") -> "9.9.9.9"
             else -> "1.1.1.1"
         }
-        val dnsServer = JSONObject().put("type", "udp").put("tag", "selected-dns")
-            .put("server", dnsIp).put("server_port", 53)
-        root.put("dns", JSONObject()
-            .put("servers", JSONArray().put(dnsServer))
-            .put("final", "selected-dns")
-            .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only"))
+        fun dnsServer(tag: String, endpoint: String?, fallbackIp: String): JSONObject {
+            val value = endpoint.orEmpty()
+            if (value.startsWith("https://", true)) {
+                val uri = java.net.URI(value)
+                val host = uri.host ?: throw IllegalArgumentException("Некорректный DoH URL")
+                return JSONObject()
+                    .put("type", "https")
+                    .put("tag", tag)
+                    .put("server", host)
+                    .put("server_port", if (uri.port > 0) uri.port else 443)
+                    .put("path", (uri.rawPath?.takeIf { it.isNotBlank() } ?: "/dns-query") +
+                        (uri.rawQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""))
+                    .put("tls", JSONObject().put("enabled", true).put("server_name", host))
+            }
+            val serverIp = value.takeIf {
+                it.matches(Regex("[0-9a-fA-F:.]+")) && (it.contains('.') || it.contains(':'))
+            } ?: fallbackIp
+            return JSONObject().put("type", "udp").put("tag", tag)
+                .put("server", serverIp).put("server_port", 53)
+        }
+        val dnsServers = JSONArray().put(dnsServer("remote-dns", configuredRemoteDns, dnsIp))
+        val dnsConfig = JSONObject()
+            .put("servers", dnsServers)
+            .put("final", "remote-dns")
+            .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only")
+        val domesticDomains = routingProfile?.values("DomesticDNSDomains").orEmpty()
+        if (configuredDomesticDns != null && domesticDomains.isNotEmpty()) {
+            dnsServers.put(dnsServer("domestic-dns", configuredDomesticDns, dnsIp))
+            val suffixes = JSONArray()
+            domesticDomains.forEach { suffixes.put(it.removePrefix("domain-suffix:").removePrefix("domain:")) }
+            dnsConfig.put("rules", JSONArray().put(JSONObject()
+                .put("domain_suffix", suffixes)
+                .put("action", "route")
+                .put("server", "domestic-dns")))
+        }
+        root.put("dns", dnsConfig)
 
         val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
         route.put("auto_detect_interface", true)

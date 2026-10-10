@@ -42,3 +42,11 @@ This file is the source of truth for Android, Windows, and future iOS clients. N
 Android tokens: `android/app/src/main/java/com/neotun/app/NeoTunDesign.kt`.
 Windows token map: `windows/NeoTUN.Windows/App.xaml`.
 Update both token maps and this document when visual tokens change. Platform-specific controls are fine, but don't invent platform-specific colors, labels, or status meanings.
+
+
+## Functional UI contract
+- Routing editor uses the same `NeoTunDesign` palette and spacing scale as the main Android screens.
+- Every visible routing control must persist to the active profile and be consumed by the relevant engine adapter.
+- GeoSite/GeoIP refresh runs off the main thread, validates HTTPS sources, and preserves the last working files if a download fails.
+- DNS split routing is opt-in: the domestic DNS is only selected for the profile's explicit `DomesticDNSDomains` list. Do not invent a domain list or silently rewrite imported profiles.
+- Hide controls whose runtime behavior is not implemented; a decorative control is a bug, not a placeholder.

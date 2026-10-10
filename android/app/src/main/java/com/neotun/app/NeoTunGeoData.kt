@@ -29,7 +29,7 @@ object NeoTunGeoData {
         "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/geosite.dat"
 
     @Synchronized
-    fun ensure(context: Context, directory: File, profile: JSONObject?): NeoTunGeoDataResult {
+    fun ensure(context: Context, directory: File, profile: JSONObject?, forceRefresh: Boolean = false): NeoTunGeoDataResult {
         if (!directory.exists() && !directory.mkdirs()) error("Не удалось создать каталог геоданных")
         val geoIp = File(directory, GEOIP)
         val geoSite = File(directory, GEOSITE)
@@ -41,13 +41,13 @@ object NeoTunGeoData {
         val geoSiteUrl = profileUrl(profile, listOf("Geositeurl", "GeoSiteurl", "GeositeUrl", "GeoSiteURL"))
             ?: DEFAULT_GEOSITE_URL
 
-        if (needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L))) {
+        if (forceRefresh || needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L))) {
             changed = download(context, geoIpUrl, geoIp, GEOIP) || changed
             if (geoIp.isFile && geoIp.length() > 0L) {
                 prefs.edit().putLong("geoip_updated", geoIp.lastModified()).apply()
             }
         }
-        if (needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L))) {
+        if (forceRefresh || needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L))) {
             changed = download(context, geoSiteUrl, geoSite, GEOSITE) || changed
             if (geoSite.isFile && geoSite.length() > 0L) {
                 prefs.edit().putLong("geosite_updated", geoSite.lastModified()).apply()
