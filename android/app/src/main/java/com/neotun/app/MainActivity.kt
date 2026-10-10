@@ -781,11 +781,11 @@ class MainActivity : Activity() {
         // Engine choice is derived from the URI by the native core. Older app
         // versions persisted VLESS as sing-box, so never trust the cached engine
         // field when starting a connection.
-        val detectedEngine = runCatching { NeoTunCore.nativeShareEngine(activeProfile.uri) }
+        val detectedEngine = runCatching { NeoTunCore.nativeShareEngine(profile.uri) }
             .getOrDefault("unknown")
         if (detectedEngine == "unknown" || detectedEngine.isBlank()) {
             NeoTunDiagnostics.log(this, "Engine detection failed for protocol=" +
-                profile.uri.substringBefore("://").lowercase())
+                activeProfile.uri.substringBefore("://").lowercase())
             getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
                 .putString(NeoTunVpnService.KEY_ERROR, "Не удалось определить ядро для этого профиля.")
                 .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
@@ -826,18 +826,18 @@ class MainActivity : Activity() {
 
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         prefs.edit()
-            .putString(NeoTunVpnService.KEY_URI, profile.uri)
-            .putString(NeoTunVpnService.KEY_ENGINE, profile.engine)
+            .putString(NeoTunVpnService.KEY_URI, activeProfile.uri)
+            .putString(NeoTunVpnService.KEY_ENGINE, activeProfile.engine)
             .remove(NeoTunVpnService.KEY_ERROR)
             .apply()
 
-        if (profile.engine == NeoTunVpnService.ENGINE_XRAY) {
+        if (activeProfile.engine == NeoTunVpnService.ENGINE_XRAY) {
             prefs.edit().remove(NeoTunVpnService.KEY_CONFIG).apply()
         } else {
             val rawConfig = runCatching {
                 NeoTunDiagnostics.log(this, "Building sing-box config for protocol=" +
-                    profile.uri.substringBefore("://").lowercase() + ", engine=" + profile.engine)
-                NeoTunCore.nativeShareConfig(profile.uri)
+                    activeProfile.uri.substringBefore("://").lowercase() + ", engine=" + activeProfile.engine)
+                NeoTunCore.nativeShareConfig(activeProfile.uri)
             }.getOrElse { error ->
                 NeoTunDiagnostics.error(this, "Не удалось собрать конфигурацию профиля", error)
                 prefs.edit()
