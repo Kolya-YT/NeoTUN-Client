@@ -1822,10 +1822,7 @@ class MainActivity : Activity() {
             showScreen(Screen.PROFILES)
             return
         }
-        if (isRunning()) {
-            toast("Отключите соединение, чтобы проверить сервер")
-            return
-        }
+        // Ping checks use an independent socket/proxy test and are allowed while the tunnel is active.
         if (!pingInProgress.add(profile.id)) return
         pingResults[profile.id] = "…"
         if (screen == Screen.PROFILES) renderProfiles()
