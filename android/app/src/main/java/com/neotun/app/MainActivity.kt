@@ -642,6 +642,12 @@ class MainActivity : Activity() {
             prefs.getInt("mtu", 1500).toString(),
             "Размер пакета TUN, допустимый диапазон 1280–1500"
         ) { showMtuSettings() })
+        val excludedPackages = prefs.getStringSet("excluded_apps", emptySet()).orEmpty()
+        connection.addView(settingsRow(
+            "📱 Исключения приложений",
+            if (excludedPackages.isEmpty()) "Все через туннель" else "Исключено: ${excludedPackages.size}",
+            "Выберите приложения, которым нужно использовать обычное соединение"
+        ) { showAppExclusionSettings() })
         connection.addView(settingsRow(
             "📡 IPv6",
             if (prefs.getBoolean("ipv6_enabled", false)) "Включён" else "Выключен",
@@ -846,6 +852,47 @@ class MainActivity : Activity() {
                 dialog.dismiss()
                 buildShell()
                 showScreen(screen)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun showAppExclusionSettings() {
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val launchables = packageManager.queryIntentActivities(launcherIntent, 0)
+            .mapNotNull { resolve ->
+                val appInfo = resolve.activityInfo?.applicationInfo ?: return@mapNotNull null
+                val packageName = appInfo.packageName
+                if (packageName == packageName || packageName == this.packageName) null
+                else packageName to (resolve.loadLabel(packageManager)?.toString() ?: packageName)
+            }
+            .distinctBy { it.first }
+            .filter { it.first != packageName }
+            .sortedBy { it.second.lowercase() }
+        if (launchables.isEmpty()) {
+            toast("Не удалось получить список приложений")
+            return
+        }
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val selected = prefs.getStringSet("excluded_apps", emptySet()).orEmpty().toMutableSet()
+        val labels = launchables.map { (pkg, label) ->
+            "$label  ·  $pkg" + if (pkg in selected) "  ✓" else ""
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Исключения приложений")
+            .setMultiChoiceItems(labels, BooleanArray(launchables.size) { launchables[it].first in selected }) { _, which, checked ->
+                val pkg = launchables[which].first
+                if (checked) selected.add(pkg) else selected.remove(pkg)
+            }
+            .setPositiveButton("Сохранить") { _, _ ->
+                prefs.edit().putStringSet("excluded_apps", selected.toSet()).apply()
+                toast("Исключения сохранены. Переподключитесь для применения.")
+                renderSettings()
+            }
+            .setNeutralButton("Сбросить") { _, _ ->
+                prefs.edit().remove("excluded_apps").apply()
+                toast("Все приложения снова используют туннель")
+                renderSettings()
             }
             .setNegativeButton("Отмена", null)
             .show()
