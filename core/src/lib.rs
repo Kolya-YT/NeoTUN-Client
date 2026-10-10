@@ -516,7 +516,23 @@ impl Profile {
             });
             return Ok(serde_json::json!({ "engine": "xray", "sing_box_config": sing_box, "xray_config": xray }).to_string());
         }
-        let sing_box = serde_json::from_str::<serde_json::Value>(&self.to_generic_sing_box_json()?).map_err(|e| e.to_string())?;
+        let mut sing_box = serde_json::from_str::<serde_json::Value>(&self.to_generic_sing_box_json()?).map_err(|e| e.to_string())?;
+
+        // Windows needs strict route handling to prevent DNS and other packets from
+        // escaping the TUN route. The generic config also contains legacy TUN DNS
+        // fields; Windows uses sing-box's DNS hijack rule instead, so remove those
+        // legacy fields only from the Windows runtime config (Android stays unchanged).
+        if let Some(inbounds) = sing_box.get_mut("inbounds").and_then(|value| value.as_array_mut()) {
+            for inbound in inbounds {
+                if inbound.get("type").and_then(|value| value.as_str()) == Some("tun") {
+                    let object = inbound.as_object_mut().expect("TUN inbound must be an object");
+                    object.insert("strict_route".into(), serde_json::Value::Bool(true));
+                    object.remove("dns_mode");
+                    object.remove("dns_address");
+                }
+            }
+        }
+
         Ok(serde_json::json!({ "engine": "sing-box", "sing_box_config": sing_box }).to_string())
     }
 
@@ -810,6 +826,24 @@ mod tests {
         assert_eq!(runtime["sing_box_config"]["dns"]["final"], "system");
         assert_eq!(runtime["sing_box_config"]["dns"]["strategy"], "prefer_ipv4");
         assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["action"], "hijack-dns");
+    }
+
+    #[test]
+    fn windows_sing_box_tun_uses_strict_route_without_legacy_dns_fields() {
+        let profile = Profile::from_share_uri(
+            "hysteria2://secret@example.com:443?sni=example.com"
+        ).unwrap();
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        let tun = &runtime["sing_box_config"]["inbounds"][0];
+        assert_eq!(tun["type"], "tun");
+        assert_eq!(tun["strict_route"], true);
+        assert!(tun.get("dns_mode").is_none());
+        assert!(tun.get("dns_address").is_none());
+        assert_eq!(
+            runtime["sing_box_config"]["route"]["rules"][0]["action"],
+            "hijack-dns"
+        );
     }
 
     #[test]
