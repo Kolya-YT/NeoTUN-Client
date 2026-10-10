@@ -59,8 +59,12 @@ internal sealed class EngineRuntime : IDisposable
         var apiSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         var singBoxRoot = JsonNode.Parse(runtime.SingBoxJson)?.AsObject()
             ?? throw new InvalidOperationException("Rust core вернул некорректный sing-box JSON.");
-        var experimental = singBoxRoot["experimental"] as JsonObject ?? new JsonObject();
-        singBoxRoot["experimental"] = experimental;
+        var experimental = singBoxRoot["experimental"] as JsonObject;
+        if (experimental is null)
+        {
+            experimental = new JsonObject();
+            singBoxRoot["experimental"] = experimental;
+        }
         experimental["clash_api"] = new JsonObject
         {
             ["external_controller"] = $"127.0.0.1:{apiPort}",
