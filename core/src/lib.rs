@@ -277,7 +277,6 @@ impl Profile {
                     "tag":"proxy",
                     "server":self.address,
                     "password":self.password.clone().unwrap_or_default(),
-                    "network":"udp",
                     "tls":{"enabled":true}
                 });
                 if let Some(ports) = ports {
@@ -713,7 +712,7 @@ mod tests {
         assert_eq!(profile.protocol, "hysteria2");
         let config = profile.to_generic_sing_box_json().unwrap();
         assert!(config.contains("\"type\":\"hysteria2\""));
-        assert!(config.contains("\"network\":\"udp\""));
+        assert!(!config.contains("\"network\":\"udp\""));
         assert!(config.contains("\"action\":\"hijack-dns\""));
         assert!(config.contains("\"server_name\":\"example.com\""));
         assert!(config.contains("\"type\":\"salamander\""));

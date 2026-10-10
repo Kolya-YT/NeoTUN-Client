@@ -67,7 +67,7 @@ Android VpnService / TUN
 DNS и пользовательский трафик
 ```
 
-Для sing-box 1.14.x явный `dns_address` на TUN требует правила `hijack-dns` с условием `protocol: dns`. Правило без условия протокола может совпадать и с обычными соединениями, поэтому NeoTUN ограничивает перехват только DNS-трафиком.
+Для sing-box 1.14.x явный `dns_address` на TUN требует правила `hijack-dns` с условием `protocol: dns`. Правило без условия протокола может совпадать и с обычными соединениями, поэтому NeoTUN ограничивает перехват только DNS-трафиком. Для Hysteria2 не задаётся поле outbound `network: udp`: оно ограничивало proxy UDP и приводило к ошибке `TCP is not supported by outbound: proxy`, из-за которой обычный интернет-трафик не проходил.
 
 
 ## Интеграция Android TUN
@@ -147,8 +147,8 @@ NEOTUN_KEY_PASSWORD
 
 ## Текущая версия
 
-- Android: **0.6.6**
-- `versionCode`: **46**
+- Android: **0.6.7**
+- `versionCode`: **47**
 - Rust Core: **0.2.4**
 - Движки: sing-box 1.14.1 и Xray
 - Статус: активная разработка
