@@ -26,9 +26,6 @@ import org.json.JSONObject
 import java.util.UUID
 
 class MainActivity : Activity() {
-    companion object {
-        const val ACTION_WIDGET_TOGGLE = "com.neotun.app.action.WIDGET_TOGGLE"
-    }
     private lateinit var updater: AppUpdater
     private lateinit var store: ProfileStore
     private lateinit var subscriptions: SubscriptionStore
@@ -2193,6 +2190,7 @@ class MainActivity : Activity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        const val ACTION_WIDGET_TOGGLE = "com.neotun.app.action.WIDGET_TOGGLE"
         private const val REQUEST_VPN = 100
         private const val UI_PREFS = "neotun_ui"
         private const val SELECTED = "selected_profile"
