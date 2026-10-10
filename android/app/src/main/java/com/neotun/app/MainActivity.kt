@@ -67,6 +67,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        NeoTunDesign.apply(this)
         updater = AppUpdater(this)
         store = ProfileStore(this)
         subscriptions = SubscriptionStore(this)
@@ -134,6 +135,12 @@ class MainActivity : Activity() {
             insets
         }
         ViewCompat.requestApplyInsets(root)
+        window.statusBarColor = NeoTunDesign.BACKGROUND
+        window.navigationBarColor = NeoTunDesign.BACKGROUND
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = if (
+            getSharedPreferences(UI_PREFS, MODE_PRIVATE).getString("appearance_theme", "dark") == "light"
+        ) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
         setContentView(root)
     }
 
@@ -147,10 +154,15 @@ class MainActivity : Activity() {
         }
         renderNavigation()
         content.animate().cancel()
-        content.alpha = 0f
-        content.translationY = dp(5).toFloat()
-        content.animate().alpha(1f).translationY(0f).setDuration(180L)
-            .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("ui_animations", true)) {
+            content.alpha = 0f
+            content.translationY = dp(5).toFloat()
+            content.animate().alpha(1f).translationY(0f).setDuration(180L)
+                .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        } else {
+            content.alpha = 1f
+            content.translationY = 0f
+        }
     }
 
     private fun renderHome() {
@@ -587,6 +599,27 @@ class MainActivity : Activity() {
             else -> "Не настроена"
         }
 
+        val appearance = settingsSection("ВНЕШНИЙ ВИД И ДОСТУПНОСТЬ")
+        val themeLabels = mapOf("dark" to "Тёмная", "light" to "Светлая", "oled" to "OLED-чёрная")
+        val theme = prefs.getString("appearance_theme", "dark") ?: "dark"
+        appearance.addView(settingsRow(
+            "🎨 Тема оформления",
+            themeLabels[theme] ?: "Тёмная",
+            "Тёмная, светлая или чёрная для OLED-экранов"
+        ) { showAppearanceThemeSettings() })
+        val fontScale = prefs.getInt("font_scale", 100)
+        appearance.addView(settingsRow(
+            "🔤 Размер текста",
+            when (fontScale) { 85 -> "Маленький"; 115 -> "Крупный"; 130 -> "Очень крупный"; else -> "Стандартный" },
+            "Изменяет размер текста в интерфейсе приложения"
+        ) { showFontSizeSettings() })
+        appearance.addView(settingsRow(
+            "✨ Анимации интерфейса",
+            if (prefs.getBoolean("ui_animations", true)) "Включены" else "Выключены",
+            "Плавные переходы между экранами"
+        ) { toggleSetting("ui_animations", "Анимации интерфейса") { renderSettings() } })
+        content.addView(appearance, margins(bottom = 12))
+
         val connection = settingsSection("СОЕДИНЕНИЕ")
         connection.addView(settingsRow(
             "🧭 Правила маршрутизации",
@@ -722,6 +755,41 @@ class MainActivity : Activity() {
     }
 
 
+
+    private fun showAppearanceThemeSettings() {
+        val modes = arrayOf("Тёмная", "Светлая", "OLED-чёрная")
+        val keys = arrayOf("dark", "light", "oled")
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val selected = keys.indexOf(prefs.getString("appearance_theme", "dark")).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Тема оформления")
+            .setSingleChoiceItems(modes, selected) { dialog, which ->
+                prefs.edit().putString("appearance_theme", keys[which]).apply()
+                NeoTunDesign.apply(keys[which])
+                dialog.dismiss()
+                buildShell()
+                showScreen(screen)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun showFontSizeSettings() {
+        val labels = arrayOf("Маленький · 85%", "Стандартный · 100%", "Крупный · 115%", "Очень крупный · 130%")
+        val values = intArrayOf(85, 100, 115, 130)
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val selected = values.indexOf(prefs.getInt("font_scale", 100)).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Размер текста")
+            .setSingleChoiceItems(labels, selected) { dialog, which ->
+                prefs.edit().putInt("font_scale", values[which]).apply()
+                dialog.dismiss()
+                buildShell()
+                showScreen(screen)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
 
     private fun showDnsSettings() {
         val values = arrayOf("Автоматический", "Cloudflare • 1.1.1.1", "Google • 8.8.8.8", "Quad9 • 9.9.9.9")
@@ -1970,7 +2038,7 @@ class MainActivity : Activity() {
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = rounded(Color.rgb(17, 20, 33), 20, Color.rgb(38, 42, 64), 1)
+        background = rounded(NeoTunDesign.SURFACE, 20, NeoTunDesign.BORDER, 1)
         elevation = dp(1).toFloat()
     }
 
@@ -1991,7 +2059,7 @@ class MainActivity : Activity() {
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(8), 0, dp(8), 0)
-        background = rounded(Color.rgb(32, 35, 57), 14, Color.rgb(65, 61, 100), 1)
+        background = rounded(NeoTunDesign.SURFACE_RAISED, 14, NeoTunDesign.BORDER_ACCENT, 1)
         setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN ->
@@ -2022,7 +2090,7 @@ class MainActivity : Activity() {
         TextView(this).apply {
             includeFontPadding = false
             text = value
-            textSize = size
+            textSize = size * fontScaleFactor()
             setTextColor(color)
             typeface = Typeface.create("sans", style)
             gravity = textGravity
@@ -2249,6 +2317,9 @@ class MainActivity : Activity() {
             .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
     }
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    private fun fontScaleFactor(): Float =
+        getSharedPreferences(UI_PREFS, MODE_PRIVATE).getInt("font_scale", 100).coerceIn(85, 130) / 100f
+
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     companion object {
