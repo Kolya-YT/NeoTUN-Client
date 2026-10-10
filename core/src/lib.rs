@@ -469,7 +469,7 @@ impl Profile {
             }
             "grpc" => {
                 stream["grpcSettings"] = serde_json::json!({
-                    "serviceName": self.params.get("serviceName").or_else(|| self.params.get("serviceName".into())).cloned().unwrap_or_else(|| path.trim_start_matches('/').to_string()),
+                    "serviceName": self.params.get("serviceName").or_else(|| self.params.get("service_name")).cloned().unwrap_or_else(|| path.trim_start_matches('/').to_string()),
                     "multiMode": self.params.get("mode").map(|v| v.eq_ignore_ascii_case("multi")).unwrap_or(false)
                 });
             }
