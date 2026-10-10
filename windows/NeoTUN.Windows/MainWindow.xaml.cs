@@ -361,7 +361,7 @@ public partial class MainWindow : Window
         {
             Directory.CreateDirectory(DataDirectory);
             File.WriteAllText(RoutingSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-            RoutingSummary.Text = "Маршруты сохранены локально. Важно: текущий сетевой движок ещё не применяет эти пользовательские списки к системному трафику.";
+            RoutingSummary.Text = "Маршруты сохранены локально. Настройки будут учтены при следующем подключении.";
             _vm.Notice = "Настройки маршрутизации сохранены.";
             AddLog("Routing preferences saved to " + RoutingSettingsPath);
         }
@@ -525,6 +525,29 @@ public partial class MainWindow : Window
         PersistUiSettings("Интервал обновления подписок сохранён.");
     }
 
+    private void ApplyFontScale()
+    {
+        var factor = FontScaleSelector.SelectedIndex switch { 0 => 0.85, 2 => 1.15, 3 => 1.30, _ => 1.0 };
+        ApplyFontScaleRecursive(MainRoot, factor);
+    }
+
+    private void ApplyFontScaleRecursive(DependencyObject parent, double factor)
+    {
+        if (parent is Control control)
+        {
+            if (!_fontBaselines.ContainsKey(parent)) _fontBaselines[parent] = control.FontSize;
+            control.FontSize = _fontBaselines[parent] * factor;
+        }
+        else if (parent is TextBlock textBlock)
+        {
+            if (!_fontBaselines.ContainsKey(parent)) _fontBaselines[parent] = textBlock.FontSize;
+            textBlock.FontSize = _fontBaselines[parent] * factor;
+        }
+
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var index = 0; index < count; index++)
+            ApplyFontScaleRecursive(VisualTreeHelper.GetChild(parent, index), factor);
+    }
     private void ApplyTheme(string theme)
     {
         var colors = theme switch
