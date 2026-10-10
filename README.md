@@ -148,7 +148,7 @@ NEOTUN_KEY_PASSWORD
 ## Текущая версия
 
 - Android: **0.7.8**
-- `versionCode`: **56**
+- `versionCode`: **60**
 - Rust Core: **0.2.4**
 - Движки Android: sing-box 1.14.1 и Xray
 - Статус: активная разработка; требуется проверка реального трафика на устройствах
@@ -202,4 +202,11 @@ NEOTUN_KEY_PASSWORD
 **0.7.8:** sing-box GeoSite/GeoIP rule-sets now use the same RoscomVPN `.srs` data source as the user's Happ profile, including `twitch-ads`, `google-play`, `github`, `youtube`, `telegram`, and GeoIP `direct/whitelist/private`. Android Actions no longer cancels an in-progress build when a newer commit is pushed.
 
 
-**0.7.9:** routing profiles that omit DNS fields now get working remote/domestic DoH defaults (Google 8.8.8.8 and Yandex 77.88.8.8), with `.ru`, `.su`, and `.рф` sent to domestic DNS. DoH TLS server names are set correctly for IP-based resolver URLs.
+**0.8.0:** routing profiles that omit DNS fields now get working remote/domestic DoH defaults (Google 8.8.8.8 and Yandex 77.88.8.8), with `.ru`, `.su`, and `.рф` sent to domestic DNS. DoH TLS server names are set correctly for IP-based resolver URLs.
+
+
+### Исправления маршрутизации 0.8.0
+
+- Загрузки sing-box rule-set направляются через `direct`, чтобы не зависеть от прокси-маршрутизации при запуске туннеля.
+- Исправлено соответствие `geosite:epicgames` и алиаса `geosite:epic-games` фактическому файлу `epicgames.srs`.
+- Список поддерживаемых GeoSite-наборов приведён к опубликованным SRS-файлам проекта; неизвестные токены остаются явно неподдерживаемыми.

@@ -195,9 +195,9 @@ object NeoTunRoutingAdapter {
         "whitelist", "category-ru", "category-geoblock-ru",
         "apple", "google-play", "google-deepmind", "microsoft", "github",
         "telegram", "youtube", "twitch", "twitch-ads", "pinterest",
-        "steam", "epic-games", "riot", "escapefromtarkov", "faceit",
-        "category-ads", "win-spy", "private", "torrent",
-        "category-ban-ru", "category-ip-geo-detect"
+        "steam", "epicgames", "riot", "escapefromtarkov", "faceit",
+        "category-ads", "category-geoblock-ru", "origin", "win-spy",
+        "private", "torrent"
     )
 
     private val supportedGeoIpRuleSets = setOf("direct", "whitelist", "private")
@@ -207,8 +207,15 @@ object NeoTunRoutingAdapter {
         val separator = token.indexOf(':')
         if (separator <= 0) return null
         val kind = token.substring(0, separator).lowercase()
-        val label = token.substring(separator + 1).trim().lowercase()
-        if (label.isBlank() || !label.matches(Regex("[a-z0-9_!@.-]+"))) return null
+        val rawLabel = token.substring(separator + 1).trim().lowercase()
+        if (rawLabel.isBlank() || !rawLabel.matches(Regex("[a-z0-9_!@.-]+"))) return null
+        // The actual upstream file is epicgames.srs; accept the common Happ/Xray
+        // spelling with a hyphen, but always resolve it to the existing filename.
+        val label = when (rawLabel) {
+            "epic-games" -> "epicgames"
+            "category-geoblockru", "category-geoblock-ru" -> "category-geoblock-ru"
+            else -> rawLabel
+        }
         return when (kind) {
             "geosite" -> if (label in supportedGeositeRuleSets) kind to label else null
             "geoip" -> if (label in supportedGeoIpRuleSets) kind to label else null
@@ -252,6 +259,9 @@ object NeoTunRoutingAdapter {
                 .put("tag", ruleSetTag(token))
                 .put("format", "binary")
                 .put("url", ruleSetUrl(token))
+                // Rule-set downloads must not inherit proxy routing rules; otherwise
+                // startup can recursively depend on the tunnel it is trying to start.
+                .put("download_detour", "direct")
                 .put("update_interval", "24h"))
         }
         return sets
