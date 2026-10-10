@@ -190,54 +190,114 @@ public partial class MainWindow : Window
 
     private void ClearImport_Click(object sender, RoutedEventArgs e) => ImportEditor.Clear();
 
-    private async void RefreshSubscriptions_Click(object sender, RoutedEventArgs e)
+    private string SubscriptionUpdateStatePath => Path.Combine(DataDirectory, "subscription-update-state.json");
+
+    private async void RefreshSubscriptions_Click(object sender, RoutedEventArgs e) =>
+        await RefreshSubscriptionSourcesAsync(automatic: false);
+
+    private async Task AutoRefreshSubscriptionsOnStartupAsync()
     {
-        var sources = _vm.Profiles
+        if (AutoUpdateSubscriptionsToggle.IsChecked != true) return;
+        await RefreshSubscriptionSourcesAsync(automatic: true);
+    }
+
+    private int SelectedSubscriptionIntervalHours() => SubscriptionIntervalSelector.SelectedIndex switch
+    {
+        0 => 1, 1 => 6, 3 => 24, 4 => 72, 5 => 168, _ => 12
+    };
+
+    private Dictionary<string, DateTimeOffset> LoadSubscriptionUpdateState()
+    {
+        try
+        {
+            if (!File.Exists(SubscriptionUpdateStatePath)) return new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+            var saved = JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(File.ReadAllText(SubscriptionUpdateStatePath));
+            return saved is null
+                ? new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, DateTimeOffset>(saved, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            AddLog("Could not read subscription update state: " + ex.Message);
+            return new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private async Task RefreshSubscriptionSourcesAsync(bool automatic)
+    {
+        var allSources = _vm.Profiles
             .Select(profile => profile.Source?.Trim() ?? "")
             .Where(source => Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
                 (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (sources.Length == 0)
+        if (allSources.Length == 0)
         {
-            _vm.Notice = "Нет URL-подписок для обновления. Импортируйте HTTPS-ссылку подписки, чтобы обновлять её позже.";
-            AddLog(_vm.Notice);
+            if (!automatic)
+            {
+                _vm.Notice = "Нет URL-подписок для обновления. Импортируйте HTTPS-ссылку подписки, чтобы обновлять её позже.";
+                AddLog(_vm.Notice);
+            }
             return;
         }
 
+        var state = LoadSubscriptionUpdateState();
+        var now = DateTimeOffset.UtcNow;
+        var interval = TimeSpan.FromHours(SelectedSubscriptionIntervalHours());
+        var sources = allSources.Where(source => !automatic || !state.TryGetValue(source, out var last) || now - last >= interval).ToArray();
+        if (sources.Length == 0) return;
+
         RefreshSubscriptionsButton.IsEnabled = false;
         var refreshedProfiles = 0;
+        var successfulFeeds = 0;
         var errors = new List<string>();
         try
         {
             foreach (var source in sources)
             {
+                var host = new Uri(source).Host;
                 try
                 {
                     var imported = await SubscriptionImporter.ImportAsync(source);
                     if (imported.Count == 0)
                     {
-                        errors.Add(new Uri(source).Host + ": поддерживаемые профили не найдены; прежние серверы сохранены.");
+                        errors.Add(host + ": поддерживаемые профили не найдены; прежние серверы сохранены.");
                         continue;
                     }
 
                     refreshedProfiles += _vm.ReplaceSubscriptionProfiles(source, imported);
-                    AddLog($"Subscription refreshed: {new Uri(source).Host}, profiles={imported.Count}");
+                    state[source] = DateTimeOffset.UtcNow;
+                    successfulFeeds++;
+                    AddLog($"Subscription refreshed: {host}, profiles={imported.Count}");
                 }
                 catch (Exception ex)
                 {
-                    errors.Add(new Uri(source).Host + ": " + ex.Message);
-                    AddLog("Subscription refresh failed: " + source + " — " + ex.Message);
+                    errors.Add(host + ": " + ex.Message);
+                    AddLog("Subscription refresh failed: " + host + " — " + ex.Message);
                 }
+            }
+
+            if (successfulFeeds > 0)
+            {
+                Directory.CreateDirectory(DataDirectory);
+                File.WriteAllText(SubscriptionUpdateStatePath, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
             }
 
             ProfileList.Items.Refresh();
             SyncSelectedProfileToEditor();
-            _vm.Notice = errors.Count == 0
-                ? $"Обновлено подписок: {sources.Length}. Получено профилей: {refreshedProfiles}."
-                : $"Обновлено подписок: {sources.Length - errors.Count} из {sources.Length}. Профилей: {refreshedProfiles}. Ошибки: " + string.Join(" | ", errors);
-            AddLog(_vm.Notice);
+            if (!automatic || errors.Count > 0)
+            {
+                _vm.Notice = errors.Count == 0
+                    ? $"Обновлено подписок: {successfulFeeds}. Получено профилей: {refreshedProfiles}."
+                    : $"Обновлено подписок: {successfulFeeds} из {sources.Length}. Профилей: {refreshedProfiles}. Ошибки: " + string.Join(" | ", errors);
+                AddLog(_vm.Notice);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AddLog("Could not save subscription update state: " + ex.Message);
+            if (!automatic) _vm.Notice = "Подписки обновлены, но время последнего обновления не сохранилось: " + ex.Message;
         }
         finally
         {
