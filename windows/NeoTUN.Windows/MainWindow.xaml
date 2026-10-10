@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="NeoTUN" Width="1180" Height="780" MinWidth="920" MinHeight="620"
         WindowStartupLocation="CenterScreen">
-  <Grid>
+  <Grid Background="{StaticResource BackgroundBrush}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="224"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Border Grid.Column="0" Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="0,0,1,0">
       <DockPanel LastChildFill="True">
@@ -39,7 +39,7 @@
       </DockPanel>
     </Border>
 
-    <Grid Grid.Column="1" Margin="30,24,30,22">
+    <Grid Grid.Column="1" Margin="30,24,30,22" Background="{StaticResource BackgroundBrush}">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <Grid Grid.Row="0" Margin="0,0,0,24">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
