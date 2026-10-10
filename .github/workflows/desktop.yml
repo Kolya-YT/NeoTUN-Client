@@ -1,17 +1,20 @@
-name: NeoTUN Desktop Builds
+name: NeoTUN Windows Desktop
 
 on:
   push:
-    branches: ["**"]
-    tags: ["v*"]
+    branches: [main]
+    paths:
+      - "windows/**"
+      - "core/**"
+      - ".github/workflows/desktop.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: desktop-${{ github.ref }}
-  cancel-in-progress: false
+  group: windows-desktop-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows:
