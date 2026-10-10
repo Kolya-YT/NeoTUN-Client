@@ -105,7 +105,8 @@
             <DockPanel>
               <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Поиск серверов" Margin="0,0,0,10"/>
-                <Button Content="＋  Добавить из буфера / ссылки" Click="ImportNav_Click" HorizontalAlignment="Stretch"/>
+                <Button Content="＋  Добавить из буфера / ссылки" Click="ImportNav_Click" HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
+                <Button x:Name="RefreshSubscriptionsButton" Content="↻  Обновить подписки" Click="RefreshSubscriptions_Click" HorizontalAlignment="Stretch"/>
               </StackPanel>
               <ListBox x:Name="ProfileList" ItemsSource="{Binding FilteredProfiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemTemplate><DataTemplate>
