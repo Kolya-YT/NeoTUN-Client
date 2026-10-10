@@ -199,6 +199,25 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
             }
         }
 
+        // libbox may initialize remote rule-sets immediately after this callback is
+        // registered. Android delivers onAvailable asynchronously, which can leave
+        // sing-box without a selected physical interface during its first DNS/HTTPS
+        // request ("dial UDP connection: no available network interface"). Publish
+        // the current physical network synchronously before starting the monitor.
+        val initialNetwork = bestPhysicalNetwork()
+        if (initialNetwork != null) {
+            updateDefaultInterface(listener, initialNetwork)
+            NeoTunDiagnostics.log(
+                vpn,
+                "sing-box: initial physical network published before monitor registration"
+            )
+        } else {
+            NeoTunDiagnostics.log(
+                vpn,
+                "sing-box: no physical Internet network available at monitor startup"
+            )
+        }
+
         defaultNetworkCallbacks[listener] = callback
         runCatching {
             val request = NetworkRequest.Builder()
