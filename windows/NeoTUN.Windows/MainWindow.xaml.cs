@@ -23,7 +23,7 @@ public partial class MainWindow : Window
         {
             _vm.IsConnected = running;
             _vm.Status = status;
-            ConnectButton.Content = running ? "⏻  ОТКЛЮЧИТЬ" : "⏻  ПОДКЛЮЧИТЬ";
+            ConnectLabel.Text = running ? "ОТКЛЮЧИТЬ" : "ПОДКЛЮЧИТЬ";
         });
         AddLog("NeoTUN Windows UI initialized; runtime manager loaded.");
         ShowPage("Главная");
@@ -64,7 +64,7 @@ public partial class MainWindow : Window
                 _vm.Status = "Останавливаем сетевой движок…";
                 await _runtime.StopAsync();
                 _vm.IsConnected = false;
-                ConnectButton.Content = "⏻  ПОДКЛЮЧИТЬ";
+                ConnectLabel.Text = "ПОДКЛЮЧИТЬ";
                 return;
             }
 
@@ -80,7 +80,7 @@ public partial class MainWindow : Window
             await _runtime.StartAsync(profile.Uri);
             _vm.IsConnected = true;
             _vm.Status = "Сетевой движок запущен. Проверь доступ к сайтам и UDP-приложениям.";
-            ConnectButton.Content = "⏻  ОТКЛЮЧИТЬ";
+            ConnectLabel.Text = "ОТКЛЮЧИТЬ";
             AddLog(_vm.Status);
         }
         catch (Exception ex)
