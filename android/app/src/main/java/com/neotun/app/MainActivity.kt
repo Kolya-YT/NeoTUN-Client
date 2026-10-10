@@ -976,8 +976,17 @@ class MainActivity : Activity() {
                     toast("Укажите HTTP(S)-ссылку на подписку")
                     return@setPositiveButton
                 }
-                val subscription = subscriptions.save(
-                    NeoTunSubscription(UUID.randomUUID().toString(), name.text.toString().trim().ifBlank { "Подписка" }, source)
+                // Refresh first; SubscriptionStore persists the new subscription only
+                // after the feed has yielded at least one supported profile.
+                val existing = subscriptions.all().firstOrNull {
+                    it.url.trim().trimEnd('/') == source.trimEnd('/')
+                }
+                val subscription = existing?.copy(
+                    name = name.text.toString().trim().ifBlank { existing.name }
+                ) ?: NeoTunSubscription(
+                    UUID.randomUUID().toString(),
+                    name.text.toString().trim().ifBlank { "Подписка" },
+                    source,
                 )
                 refreshSubscription(subscription)
             }.create()
@@ -1034,11 +1043,12 @@ class MainActivity : Activity() {
         }.getOrDefault("Подписка")
 
         val existing = subscriptions.all().firstOrNull { it.url.trim().trimEnd('/') == url.trim().trimEnd('/') }
-        val subscription = subscriptions.save(existing ?: NeoTunSubscription(
+        // Do not persist a new subscription until its contents have been validated.
+        val subscription = existing ?: NeoTunSubscription(
             UUID.randomUUID().toString(),
             name,
-            url
-        ))
+            url,
+        )
 
         toast("Импорт подписки: $name…")
         Thread {
