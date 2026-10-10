@@ -6,23 +6,28 @@
     android:viewportHeight="108">
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#8C78FF"
-        android:strokeWidth="4"
+        android:strokeColor="#6F42FF"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
-        android:pathData="M18,57 C18,35 34,19 54,19 C70,19 84,30 89,45" />
+        android:pathData="M20,56 C20,36 35,21 54,21 C70,21 83,31 88,45" />
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#56D9C0"
-        android:strokeWidth="4"
+        android:strokeColor="#247CFF"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
-        android:pathData="M90,53 C90,75 74,89 54,89 C38,89 24,78 19,63" />
+        android:pathData="M88,55 C88,74 73,87 54,87 C38,87 25,77 20,63" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#4B36A8"
+        android:strokeWidth="1"
+        android:pathData="M20,56 C20,36 35,21 54,21 C70,21 83,31 88,45" />
     <path
         android:fillColor="#F8F7FF"
-        android:pathData="M29,75 L29,34 C29,29 35,27 39,31 L69,62 L69,34 C69,28 79,28 79,34 L79,75 C79,80 73,81 69,77 L39,46 L39,75 C39,81 29,81 29,75 Z" />
+        android:pathData="M27,73 L27,35 C27,28 35,25 40,31 L68,59 L68,35 C68,28 79,28 79,35 L79,73 C79,80 71,82 66,77 L38,49 L38,73 C38,82 27,82 27,73 Z" />
     <path
-        android:fillColor="#8C78FF"
-        android:pathData="M89,41 C91.21,41 93,42.79 93,45 C93,47.21 91.21,49 89,49 C86.79,49 85,47.21 85,45 C85,42.79 86.79,41 89,41 Z" />
+        android:fillColor="#9B82FF"
+        android:pathData="M88,40 C91.31,40 94,42.69 94,46 C94,49.31 91.31,52 88,52 C84.69,52 82,49.31 82,46 C82,42.69 84.69,40 88,40 Z" />
     <path
-        android:fillColor="#56D9C0"
-        android:pathData="M19,59 C21.21,59 23,60.79 23,63 C23,65.21 21.21,67 19,67 C16.79,67 15,65.21 15,63 C15,60.79 16.79,59 19,59 Z" />
+        android:fillColor="#32D6C5"
+        android:pathData="M20,57 C23.31,57 26,59.69 26,63 C26,66.31 23.31,69 20,69 C16.69,69 14,66.31 14,63 C14,59.69 16.69,57 20,57 Z" />
 </vector>
