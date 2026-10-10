@@ -38,28 +38,6 @@ jobs:
       - name: Publish self-contained Windows application
         run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-
-      - name: Build Rust core for Windows
-        run: cargo build --release --target x86_64-pc-windows-msvc -p neotun-core
-
-      - name: Stage native runtime library
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $binary = "target/x86_64-pc-windows-msvc/release/neotun_core.dll"
-          if (!(Test-Path $binary)) { throw "Expected native library not found: $binary" }
-          Copy-Item $binary "dist/NeoTUN-Windows/neotun_core.dll"
-
       - name: Verify Windows distribution
         shell: pwsh
         run: |
