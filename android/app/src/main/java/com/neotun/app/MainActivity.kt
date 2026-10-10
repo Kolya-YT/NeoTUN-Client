@@ -785,7 +785,7 @@ class MainActivity : Activity() {
             .getOrDefault("unknown")
         if (detectedEngine == "unknown" || detectedEngine.isBlank()) {
             NeoTunDiagnostics.log(this, "Engine detection failed for protocol=" +
-                activeProfile.uri.substringBefore("://").lowercase())
+                profile.uri.substringBefore("://").lowercase())
             getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
                 .putString(NeoTunVpnService.KEY_ERROR, "Не удалось определить ядро для этого профиля.")
                 .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
@@ -849,7 +849,7 @@ class MainActivity : Activity() {
             }
             if (rawConfig.isBlank()) {
                 NeoTunDiagnostics.error(this, "Core returned an empty config for protocol=" +
-                    profile.uri.substringBefore("://").lowercase())
+                    activeProfile.uri.substringBefore("://").lowercase())
                 prefs.edit()
                     .putString(NeoTunVpnService.KEY_ERROR,
                         "Ядро не смогло разобрать профиль. Откройте «Диагностика» для подробностей.")
