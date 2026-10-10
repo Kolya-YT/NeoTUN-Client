@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using NeoTUN.Windows.Models;
 using NeoTUN.Windows.Services;
 using NeoTUN.Windows.ViewModels;
@@ -83,7 +84,7 @@ public partial class MainWindow : Window
 
     private void ImportButtonState(bool enabled)
     {
-        foreach (var button in FindVisualChildren<Button>(this).Where(b => b.Name == "ImportButton"))
+        foreach (var button in FindVisualChildren<Button>(this).Where(b => b.Name == "ImportProfilesButton"))
             button.IsEnabled = enabled;
     }
 
