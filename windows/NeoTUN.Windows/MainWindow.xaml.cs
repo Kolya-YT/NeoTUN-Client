@@ -10,6 +10,7 @@ namespace NeoTUN.Windows;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
+    private readonly EngineRuntime _runtime = new();
 
     public MainWindow()
     {
@@ -17,7 +18,14 @@ public partial class MainWindow : Window
         DataContext = _vm;
         ProfileList.SelectionChanged += (_, _) => SyncSelectedProfileToEditor();
         SyncSelectedProfileToEditor();
-        AddLog("NeoTUN Windows UI initialized. Network engine is not integrated yet.");
+        _runtime.LogLine += line => Dispatcher.BeginInvoke(() => AddLog(line));
+        _runtime.StateChanged += (running, status) => Dispatcher.BeginInvoke(() =>
+        {
+            _vm.IsConnected = running;
+            _vm.Status = status;
+            ConnectButton.Content = running ? "⏻  ОТКЛЮЧИТЬ" : "⏻  ПОДКЛЮЧИТЬ";
+        });
+        AddLog("NeoTUN Windows UI initialized; runtime manager loaded.");
         ShowPage("Главная");
     }
 
@@ -46,15 +54,50 @@ public partial class MainWindow : Window
     private void LogsNav_Click(object sender, RoutedEventArgs e) => ShowPage("Журнал");
     private void ImportNav_Click(object sender, RoutedEventArgs e) => ShowPage("Импорт");
 
-    private void Connect_Click(object sender, RoutedEventArgs e)
+    private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        // Never claim a real connection until the Windows tunnel/runtime lifecycle
-        // has been integrated and can confirm a successful start.
-        _vm.IsConnected = false;
-        _vm.Status = _vm.SelectedProfile is null
-            ? "Сначала выберите или импортируйте сервер."
-            : "Сервер выбран, но Windows TUN и запуск сетевого движка ещё не интегрированы. Трафик не перенаправляется.";
-        AddLog(_vm.Status);
+        ConnectButton.IsEnabled = false;
+        try
+        {
+            if (_runtime.IsRunning)
+            {
+                _vm.Status = "Останавливаем сетевой движок…";
+                await _runtime.StopAsync();
+                _vm.IsConnected = false;
+                ConnectButton.Content = "⏻  ПОДКЛЮЧИТЬ";
+                return;
+            }
+
+            var profile = _vm.SelectedProfile;
+            if (profile is null)
+            {
+                _vm.Status = "Сначала выберите или импортируйте сервер.";
+                return;
+            }
+
+            _vm.Status = "Проверяем профиль и запускаем сетевой движок…";
+            AddLog(_vm.Status);
+            await _runtime.StartAsync(profile.Uri);
+            _vm.IsConnected = true;
+            _vm.Status = "Сетевой движок запущен. Проверь доступ к сайтам и UDP-приложениям.";
+            ConnectButton.Content = "⏻  ОТКЛЮЧИТЬ";
+            AddLog(_vm.Status);
+        }
+        catch (Exception ex)
+        {
+            _vm.IsConnected = false;
+            _vm.Status = ex.Message;
+            ConnectButton.Content = "⏻  ПОДКЛЮЧИТЬ";
+            AddLog("Connection failed: " + ex);
+            MessageBox.Show(ex.Message, "NeoTUN — ошибка подключения", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally { ConnectButton.IsEnabled = true; }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _runtime.Dispose();
+        base.OnClosed(e);
     }
 
     private async void ImportProfiles_Click(object sender, RoutedEventArgs e)
