@@ -27,6 +27,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public string SelectedEndpoint => SelectedProfile?.Endpoint ?? "Сервер не выбран";
+    public string SelectedProfileName => SelectedProfile?.Name ?? "Сервер не выбран";
+    public string SelectedProfileUri => SelectedProfile?.Uri ?? "";
+    public string SelectedProfileProtocol => SelectedProfile?.Protocol ?? "—";
     public string Status { get => _status; set { _status = value; OnPropertyChanged(); } }
     public string ActivePage { get => _activePage; set { _activePage = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsHomePage)); OnPropertyChanged(nameof(IsServersPage)); } }
     public bool IsHomePage => ActivePage == "Главная";
@@ -57,6 +60,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _store.Save(Profiles);
         RefreshFilter();
         if (SelectedProfile is null) SelectedProfile = Profiles.FirstOrDefault();
+        else OnPropertyChanged(nameof(SelectedProfile));
         Notice = added > 0 ? $"Импортировано серверов: {added}" : "Новых серверов не найдено.";
     }
 
