@@ -78,7 +78,7 @@
                 <Button x:Name="ConnectButton" Width="164" Height="164" Padding="12" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandBlueBrush}" BorderThickness="4" Click="Connect_Click">
                   <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock Text="⏻" FontSize="56" HorizontalAlignment="Center"/>
-                    <TextBlock Text="ПОДКЛЮЧИТЬ" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="ConnectLabel" Text="ПОДКЛЮЧИТЬ" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center"/>
                   </StackPanel>
                 </Button>
                 <TextBlock Text="Трафик появится после интеграции сетевого движка" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource TextMutedBrush}" Width="230" Margin="0,20,0,0"/>
