@@ -52,6 +52,16 @@ Update both token maps and this document when visual tokens change. Platform-spe
 - Hide controls whose runtime behavior is not implemented; a decorative control is a bug, not a placeholder.
 
 
+## Android quick access
+- Provide a compact home-screen widget with the current connection state and a single tap action.
+- Provide a Quick Settings tile for quick connect/disconnect; delegate to the main activity so VPN permission and profile validation are preserved.
+- Keep widget and tile status derived from the same persisted connection state as the main screen. Do not create a separate tunnel lifecycle.
+
+## Motion
+- Screen changes use a short fade and vertical settle; buttons use a subtle press scale.
+- Motion should communicate state and touch feedback, not delay connecting or hide errors.
+- Avoid continuous decorative animation that wastes battery or competes with live traffic values.
+
 ## Android layout rules
 - Keep the home brand header compact; do not use a large marketing slogan above the connection state.
 - The primary connect/disconnect action is the visual focal point and must remain reachable on narrow screens.
