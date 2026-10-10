@@ -56,19 +56,45 @@ public partial class MainWindow : Window
         AddLog(_vm.Status);
     }
 
-    private void ImportProfiles_Click(object sender, RoutedEventArgs e)
+    private async void ImportProfiles_Click(object sender, RoutedEventArgs e)
     {
-        var parsed = SubscriptionImporter.Parse(ImportEditor.Text);
-        if (parsed.Count == 0)
+        ImportButtonState(false);
+        try
         {
-            _vm.Notice = "Поддерживаемые ссылки не найдены. Проверьте формат или содержимое подписки.";
+            var parsed = await SubscriptionImporter.ImportAsync(ImportEditor.Text);
+            if (parsed.Count == 0)
+            {
+                _vm.Notice = "Поддерживаемые ссылки не найдены. Проверьте ссылку или содержимое подписки.";
+                AddLog(_vm.Notice);
+                return;
+            }
+            _vm.AddProfiles(parsed);
+            ImportEditor.Clear();
+            ShowPage("Серверы");
             AddLog(_vm.Notice);
-            return;
         }
-        _vm.AddProfiles(parsed);
-        ImportEditor.Clear();
-        ShowPage("Серверы");
-        AddLog(_vm.Notice);
+        catch (Exception ex)
+        {
+            _vm.Notice = "Ошибка импорта: " + ex.Message;
+            AddLog(_vm.Notice);
+        }
+        finally { ImportButtonState(true); }
+    }
+
+    private void ImportButtonState(bool enabled)
+    {
+        foreach (var button in FindVisualChildren<Button>(this).Where(b => b.Name == "ImportButton"))
+            button.IsEnabled = enabled;
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T matched) yield return matched;
+            foreach (var descendant in FindVisualChildren<T>(child)) yield return descendant;
+        }
     }
 
     private void PasteImport_Click(object sender, RoutedEventArgs e)
