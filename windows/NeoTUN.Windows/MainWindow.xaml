@@ -165,7 +165,7 @@
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
                 <StackPanel>
                   <TextBlock Text="Режим обработки соединений" FontSize="19" FontWeight="Bold"/>
-                  <TextBlock Text="Настройки маршрутов и DNS для профиля NeoTUN. Списки сохраняются отдельно от ссылки сервера." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,14"/>
+                  <TextBlock Text="Настройки маршрутов и DNS для профиля NeoTUN. Списки сохраняются отдельно от ссылки сервера и применяются при следующем подключении." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,14"/>
                   <CheckBox x:Name="GlobalProxyToggle" Content="Направлять соединения через выбранный профиль по умолчанию" IsChecked="True" Margin="0,0,0,12"/>
                   <TextBlock Text="Порядок правил" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                   <ComboBox x:Name="RouteOrderSelector" SelectedIndex="0" MinHeight="38">
@@ -182,7 +182,9 @@
                   <TextBlock Text="Удалённый DNS" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                   <TextBox x:Name="RemoteDnsInput" Text="https://8.8.8.8/dns-query" Margin="0,0,0,12"/>
                   <TextBlock Text="Домашний DNS" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
-                  <TextBox x:Name="DomesticDnsInput" Text="https://77.88.8.8/dns-query"/>
+                  <TextBox x:Name="DomesticDnsInput" Text="https://77.88.8.8/dns-query" Margin="0,0,0,12"/>
+                  <TextBlock Text="Домены для домашнего DNS" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                  <TextBox x:Name="DomesticDnsDomainsEditor" Text="ru&#10;su&#10;рф" MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                 </StackPanel>
               </Border>
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
