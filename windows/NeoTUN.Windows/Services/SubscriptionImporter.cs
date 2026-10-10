@@ -8,12 +8,15 @@ public static class SubscriptionImporter
     private static readonly string[] SupportedSchemes =
         ["vless://", "vmess://", "trojan://", "hysteria2://", "hy2://", "tuic://", "ss://"];
 
+    private static readonly string[] SupportedSchemeNames =
+        ["vless", "vmess", "trojan", "hysteria2", "hy2", "tuic", "ss"];
+
     public static IReadOnlyList<ServerProfile> Parse(string input, string source = "import")
     {
         var text = input.Trim();
         if (text.Length == 0) return Array.Empty<ServerProfile>();
 
-        var candidates = SplitLines(text);
+        // A URL is fetched explicitly by the caller; do not treat a subscription URL as Base64.\n        if (System.Uri.TryCreate(text, UriKind.Absolute, out var remote) &&\n            (remote.Scheme == "https" || remote.Scheme == "http"))\n            return Array.Empty<ServerProfile>();\n\n        var candidates = SplitLines(text);
         if (candidates.Count == 1 && !LooksLikeShareUri(candidates[0]))
         {
             try
