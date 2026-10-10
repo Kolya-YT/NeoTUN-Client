@@ -72,6 +72,17 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
             .setSession("NeoTUN")
             .setMtu(options.mtu)
 
+        val excludedApps = vpn.getSharedPreferences("neotun_ui", android.content.Context.MODE_PRIVATE)
+            .getStringSet("excluded_apps", emptySet()).orEmpty()
+        excludedApps.asSequence().filter { it.isNotBlank() && it != vpn.packageName }.forEach { packageName ->
+            runCatching { builder.addDisallowedApplication(packageName) }
+                .onFailure { NeoTunDiagnostics.log(vpn, "sing-box: cannot exclude package $packageName: ${it.message}") }
+        }
+        if (excludedApps.isNotEmpty()) {
+            NeoTunDiagnostics.log(vpn, "sing-box: app exclusions applied=" +
+                excludedApps.count { it.isNotBlank() && it != vpn.packageName })
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             builder.setMetered(false)
         }
