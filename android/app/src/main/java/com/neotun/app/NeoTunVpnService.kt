@@ -55,7 +55,20 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         // startOrReloadService on Android's main thread: it can block long enough
         // to trigger an ANR and freeze the entire app UI.
         NeoTunDiagnostics.log(this, "sing-box: starting foreground service")
-        startForegroundNotification()
+        try {
+            // Promote the VPN service before doing any native initialization or
+            // remote rule-set I/O. Android 14+ can terminate a VPN service that
+            // does not enter foreground mode promptly.
+            startForegroundNotification()
+        } catch (error: Throwable) {
+            starting = false
+            NeoTunDiagnostics.error(this, "sing-box: failed to enter foreground", error)
+            stopWithError(
+                "Не удалось запустить службу sing-box: " +
+                    (error.message ?: error.javaClass.simpleName ?: "ошибка уведомления")
+            )
+            return START_NOT_STICKY
+        }
         Thread({
             try {
                 if (generation != startupGeneration) return@Thread
@@ -151,6 +164,11 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     override fun serviceStop() {
+        // libbox can request a stop from inside startOrReloadService while the
+        // startup thread is still unwinding. Invalidate its generation first so
+        // it cannot later overwrite this failure with KEY_RUNNING=true.
+        startupGeneration++
+        starting = false
         val wasRunning = running
         NeoTunDiagnostics.log(this, "sing-box: libbox requested serviceStop; running=" + wasRunning)
         val message = if (wasRunning) "sing-box остановил соединение" else
@@ -183,6 +201,9 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     override fun connectSSHAgent(): Int = -1
 
     private fun stopWithError(message: String) {
+        // Cancel any in-flight native startup before publishing the error state.
+        startupGeneration++
+        starting = false
         NeoTunDiagnostics.error(this, "sing-box stopped: " + message)
         running = false
         getSharedPreferences(PREFS, MODE_PRIVATE)

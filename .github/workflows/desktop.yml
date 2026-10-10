@@ -190,13 +190,13 @@ jobs:
           fail_on_unmatched_files: true
           make_latest: false
           generate_release_notes: false
-          token: ${{ secrets.NEOTUN_RELEASE_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - name: Publish Windows installer to the version release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.NEOTUN_RELEASE_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
           $versionLine = Select-String -Path "android/app/build.gradle.kts" -Pattern 'versionName = "([^"]+)"' | Select-Object -First 1
@@ -234,4 +234,4 @@ jobs:
           fail_on_unmatched_files: true
           make_latest: false
           generate_release_notes: false
-          token: ${{ secrets.NEOTUN_RELEASE_TOKEN || github.token }}
+          token: ${{ github.token }}

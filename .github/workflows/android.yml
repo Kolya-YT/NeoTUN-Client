@@ -161,7 +161,7 @@ jobs:
       - name: Publish Android APKs to GitHub Release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          GH_TOKEN: ${{ secrets.NEOTUN_RELEASE_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
