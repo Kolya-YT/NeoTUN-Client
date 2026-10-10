@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "fix/**"]
     tags: ["v*"]
   workflow_dispatch:
 
