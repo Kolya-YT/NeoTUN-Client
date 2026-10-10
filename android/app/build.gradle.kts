@@ -30,8 +30,8 @@ android {
         applicationId = "com.neotun.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 82
-        versionName = "0.8.22"
+        versionCode = 83
+        versionName = "0.8.23"
     }
 
     signingConfigs {
@@ -64,4 +64,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.10.0")
     implementation("com.github.singbox-android:libbox:1.14.1")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }
