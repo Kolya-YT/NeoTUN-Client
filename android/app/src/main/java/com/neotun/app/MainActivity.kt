@@ -651,6 +651,18 @@ class MainActivity : Activity() {
             if (prefs.getBoolean("hysteria_auto_bandwidth", true)) "Включена · BBR" else "Выключена · параметры профиля",
             "По умолчанию убирает заданные в ссылке лимиты up/down и использует адаптивный BBR. Применяется после переподключения."
         ) { toggleSetting("hysteria_auto_bandwidth", "Автонастройка скорости Hysteria 2") { renderSettings() } })
+        val pingMode = getSharedPreferences(UI_PREFS, MODE_PRIVATE).getString("ping_mode", "tcp") ?: "tcp"
+        val pingModeLabel = when (pingMode) {
+            "proxy_get" -> "Через прокси · GET"
+            "proxy_head" -> "Через прокси · HEAD"
+            "icmp" -> "ICMP"
+            else -> "TCP"
+        }
+        connection.addView(settingsRow(
+            "📶 Способ проверки пинга",
+            pingModeLabel,
+            "Выберите метод измерения задержки сервера"
+        ) { showPingModeSettings() })
         content.addView(connection, margins(bottom = 12))
 
         val subscriptionsSection = settingsSection("СЕРВЕРЫ И ПОДПИСКИ")
@@ -749,6 +761,25 @@ class MainActivity : Activity() {
         row.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER),
             LinearLayout.LayoutParams(dp(22), dp(42)))
         return row
+    }
+
+    private fun showPingModeSettings() {
+        val labels = arrayOf("Через прокси GET", "Через прокси HEAD", "TCP", "ICMP")
+        val keys = arrayOf("proxy_get", "proxy_head", "tcp", "icmp")
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val selected = keys.indexOf(prefs.getString("ping_mode", "tcp")).coerceAtLeast(0)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Способ проверки пинга")
+            .setSingleChoiceItems(labels, selected) { dialog, which ->
+                prefs.edit().putString("ping_mode", keys[which]).apply()
+                dialog.dismiss()
+                toast("Метод пинга: " + labels[which])
+                renderSettings()
+            }
+            .setNegativeButton("Отмена", null)
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun toggleSetting(key: String, label: String, after: () -> Unit) {
@@ -1650,56 +1681,55 @@ class MainActivity : Activity() {
         dialog.show()
 
         Thread {
+            val pingMode = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+                .getString("ping_mode", "tcp") ?: "tcp"
             val pingResult = runCatching {
-                val convertedRaw = NeoTunXrayBridge.nativeInvoke(
-                    org.json.JSONObject()
-                        .put("apiVersion", 3)
-                        .put("method", "convertShareLinksToXrayJson")
-                        .put("payload", org.json.JSONObject().put("text", profile.uri))
-                        .toString()
-                )
-                val converted = org.json.JSONObject(convertedRaw)
-                if (!converted.optBoolean("success", false)) {
-                    error(converted.optString("error", "Не удалось разобрать профиль"))
-                }
-                val data = converted.optJSONObject("data")
-                    ?: error("Xray parser не вернул конфигурацию")
-                val outbounds = data.optJSONArray("outbounds")
-                    ?: error("Xray parser не вернул outbound")
-                val pingRaw = NeoTunXrayBridge.nativeInvoke(
-                    org.json.JSONObject()
-                        .put("apiVersion", 3)
-                        .put("method", "pingBatch")
-                        .put(
-                            "payload",
+                when (pingMode) {
+                    "tcp" -> {
+                        val startedAt = android.os.SystemClock.elapsedRealtime()
+                        java.net.Socket().use { socket ->
+                            socket.connect(java.net.InetSocketAddress(profile.address, profile.port), 5000)
+                        }
+                        android.os.SystemClock.elapsedRealtime() - startedAt
+                    }
+                    "icmp" -> {
+                        val startedAt = android.os.SystemClock.elapsedRealtime()
+                        if (!java.net.InetAddress.getByName(profile.address).isReachable(5000)) {
+                            error("ICMP недоступен или заблокирован сетью")
+                        }
+                        android.os.SystemClock.elapsedRealtime() - startedAt
+                    }
+                    else -> {
+                        val convertedRaw = NeoTunXrayBridge.nativeInvoke(
                             org.json.JSONObject()
-                                .put(
-                                    "configs",
-                                    org.json.JSONArray().put(
-                                        org.json.JSONObject().put(
-                                            "xrayJson",
-                                            org.json.JSONObject().put("outbounds", outbounds).toString()
-                                        )
-                                    )
-                                )
-                                .put("timeout", 5)
-                                .put("url", "https://cp.cloudflare.com/")
+                                .put("apiVersion", 3)
+                                .put("method", "convertShareLinksToXrayJson")
+                                .put("payload", org.json.JSONObject().put("text", profile.uri))
+                                .toString()
                         )
-                        .toString()
-                )
-                val ping = org.json.JSONObject(pingRaw)
-                if (!ping.optBoolean("success", false)) {
-                    error(ping.optString("error", "Ping не выполнен"))
+                        val converted = org.json.JSONObject(convertedRaw)
+                        if (!converted.optBoolean("success", false)) error(converted.optString("error", "Не удалось разобрать профиль"))
+                        val outbounds = converted.optJSONObject("data")?.optJSONArray("outbounds")
+                            ?: error("Xray parser не вернул outbound")
+                        val payload = org.json.JSONObject()
+                            .put("configs", org.json.JSONArray().put(org.json.JSONObject().put(
+                                "xrayJson", org.json.JSONObject().put("outbounds", outbounds).toString()
+                            )))
+                            .put("timeout", 5)
+                            .put("url", "https://cp.cloudflare.com/")
+                            .put("method", if (pingMode == "proxy_head") "HEAD" else "GET")
+                        val pingRaw = NeoTunXrayBridge.nativeInvoke(
+                            org.json.JSONObject().put("apiVersion", 3).put("method", "pingBatch")
+                                .put("payload", payload).toString()
+                        )
+                        val ping = org.json.JSONObject(pingRaw)
+                        if (!ping.optBoolean("success", false)) error(ping.optString("error", "Ping не выполнен"))
+                        val item = ping.optJSONObject("data")?.optJSONArray("results")?.optJSONObject(0)
+                            ?: error("Пустой результат ping")
+                        if (!item.optBoolean("success", false)) error(item.optString("error", "Сервер недоступен"))
+                        item.optLong("delay", -1L)
+                    }
                 }
-                val item = ping.optJSONObject("data")
-                    ?.optJSONArray("results")
-                    ?.optJSONObject(0)
-                    ?: error("Пустой результат ping")
-                if (!item.optBoolean("success", false)) {
-                    error(item.optString("error", "Сервер недоступен"))
-                }
-                item.optLong("delay", -1L)
-            }.getOrElse { -1L }
 
             runOnUiThread {
                 pingInProgress.remove(profile.id)
