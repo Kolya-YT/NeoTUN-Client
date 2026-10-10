@@ -93,7 +93,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _store.Save(Profiles);
         RefreshFilter();
         SelectedProfile = Profiles.FirstOrDefault(profile => profile.Uri == oldSelectedUri)
-            ?? SelectedProfile
             ?? Profiles.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedProfile));
         return incoming.Count;
