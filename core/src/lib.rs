@@ -791,11 +791,13 @@ mod tests {
         assert_eq!(profile.name.as_deref(), Some("My Server"));
         assert_eq!(profile.params.get("security").map(String::as_str), Some("tls"));
         assert_eq!(profile.params.get("path").map(String::as_str), Some("/neo"));
-        let config = profile.to_sing_box_json().unwrap();
-        assert!(config.contains("\"type\": \"vless\""));
-        assert!(config.contains("\"type\": \"tun\""));
-        assert!(config.contains("\"action\": \"hijack-dns\""));
-        assert!(config.contains("example.com"));
+        assert_eq!(profile.engine(), "xray");
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        assert_eq!(runtime["engine"], "xray");
+        assert_eq!(runtime["xray_config"]["outbounds"][0]["protocol"], "vless");
+        assert_eq!(runtime["xray_config"]["outbounds"][0]["settings"]["vnext"][0]["address"], "example.com");
+        assert_eq!(runtime["sing_box_config"]["inbounds"][0]["type"], "tun");
     }
 
     #[test]
