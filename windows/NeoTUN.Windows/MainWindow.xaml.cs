@@ -1,6 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
+using Microsoft.Win32;
 using NeoTUN.Windows.Models;
 using NeoTUN.Windows.Services;
 using NeoTUN.Windows.ViewModels;
@@ -16,6 +20,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        LoadUiSettings();
+        LoadRoutingSettings();
+        DataDirectoryLabel.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoTUN");
         ProfileList.SelectionChanged += (_, _) => SyncSelectedProfileToEditor();
         SyncSelectedProfileToEditor();
         _runtime.LogLine += line => Dispatcher.BeginInvoke(() => AddLog(line));
@@ -187,18 +194,273 @@ public partial class MainWindow : Window
         SyncSelectedProfileToEditor();
     }
 
-    private void LoadRouting_Click(object sender, RoutedEventArgs e)
+    private string DataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoTUN");
+    private string RoutingSettingsPath => Path.Combine(DataDirectory, "routing-settings.json");
+    private string UiSettingsPath => Path.Combine(DataDirectory, "ui-settings.json");
+    private string RuntimeLogPath => Path.Combine(DataDirectory, "windows-runtime.log");
+
+    private sealed record RoutingSettings(
+        bool GlobalProxy, int RouteOrder, string RemoteDns, string DomesticDns,
+        string BlockSites, string BlockIp, string ProxySites, string ProxyIp,
+        string DirectSites, string DirectIp);
+
+    private sealed record UiSettings(string Theme);
+
+    private void LoadRoutingSettings()
     {
         try
         {
-            var json = System.Text.Json.JsonDocument.Parse(RoutingEditor.Text);
-            _vm.Notice = "JSON синтаксически корректен. Применение к системному трафику ещё не реализовано.";
-            AddLog("Routing JSON parsed.");
+            if (!File.Exists(RoutingSettingsPath)) return;
+            var settings = JsonSerializer.Deserialize<RoutingSettings>(File.ReadAllText(RoutingSettingsPath));
+            if (settings is null) return;
+            GlobalProxyToggle.IsChecked = settings.GlobalProxy;
+            RouteOrderSelector.SelectedIndex = Math.Clamp(settings.RouteOrder, 0, 2);
+            RemoteDnsInput.Text = settings.RemoteDns;
+            DomesticDnsInput.Text = settings.DomesticDns;
+            BlockSitesEditor.Text = settings.BlockSites;
+            BlockIpEditor.Text = settings.BlockIp;
+            ProxySitesEditor.Text = settings.ProxySites;
+            ProxyIpEditor.Text = settings.ProxyIp;
+            DirectSitesEditor.Text = settings.DirectSites;
+            DirectIpEditor.Text = settings.DirectIp;
+            RoutingSummary.Text = "Загружено из локального файла маршрутов.";
         }
-        catch (System.Text.Json.JsonException ex) { _vm.Notice = "Ошибка JSON: " + ex.Message; }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            RoutingSummary.Text = "Не удалось прочитать файл маршрутов: " + ex.Message;
+        }
     }
 
-    private void CopyRouting_Click(object sender, RoutedEventArgs e) => Clipboard.SetText(RoutingEditor.Text);
+    private void SaveRouting_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ValidateDns(RemoteDnsInput.Text, "Удалённый DNS") ||
+            !ValidateDns(DomesticDnsInput.Text, "Домашний DNS"))
+            return;
+
+        var settings = new RoutingSettings(
+            GlobalProxyToggle.IsChecked == true,
+            Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
+            RemoteDnsInput.Text.Trim(),
+            DomesticDnsInput.Text.Trim(),
+            NormalizeLines(BlockSitesEditor.Text),
+            NormalizeLines(BlockIpEditor.Text),
+            NormalizeLines(ProxySitesEditor.Text),
+            NormalizeLines(ProxyIpEditor.Text),
+            NormalizeLines(DirectSitesEditor.Text),
+            NormalizeLines(DirectIpEditor.Text));
+
+        try
+        {
+            Directory.CreateDirectory(DataDirectory);
+            File.WriteAllText(RoutingSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            RoutingSummary.Text = "Маршруты сохранены локально. Важно: текущий сетевой движок ещё не применяет эти пользовательские списки к системному трафику.";
+            _vm.Notice = "Настройки маршрутизации сохранены.";
+            AddLog("Routing preferences saved to " + RoutingSettingsPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            RoutingSummary.Text = "Не удалось сохранить маршруты: " + ex.Message;
+        }
+    }
+
+    private void LoadRouting_Click(object sender, RoutedEventArgs e)
+    {
+        if (!File.Exists(RoutingSettingsPath))
+        {
+            RoutingSummary.Text = "Файл маршрутов ещё не создан. Сначала сохраните настройки.";
+            return;
+        }
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(RoutingSettingsPath));
+            LoadRoutingSettings();
+            RoutingSummary.Text = "Файл маршрутов — корректный JSON; настройки загружены.";
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            RoutingSummary.Text = "Ошибка файла маршрутов: " + ex.Message;
+        }
+    }
+
+    private void CopyRouting_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = new RoutingSettings(
+                GlobalProxyToggle.IsChecked == true,
+                Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
+                RemoteDnsInput.Text.Trim(), DomesticDnsInput.Text.Trim(),
+                NormalizeLines(BlockSitesEditor.Text), NormalizeLines(BlockIpEditor.Text),
+                NormalizeLines(ProxySitesEditor.Text), NormalizeLines(ProxyIpEditor.Text),
+                NormalizeLines(DirectSitesEditor.Text), NormalizeLines(DirectIpEditor.Text));
+            Clipboard.SetText(JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            RoutingSummary.Text = "JSON настроек маршрутизации скопирован в буфер обмена.";
+        }
+        catch (Exception ex) { RoutingSummary.Text = "Не удалось сформировать JSON: " + ex.Message; }
+    }
+
+    private void ResetRouting_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Сбросить поля маршрутизации? Сохранённый файл не будет удалён до нового сохранения.",
+                "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        GlobalProxyToggle.IsChecked = true;
+        RouteOrderSelector.SelectedIndex = 0;
+        RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
+        DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
+        BlockSitesEditor.Clear(); BlockIpEditor.Clear();
+        ProxySitesEditor.Clear(); ProxyIpEditor.Clear();
+        DirectSitesEditor.Clear(); DirectIpEditor.Clear();
+        RoutingSummary.Text = "Поля сброшены. Нажмите «Сохранить маршруты», чтобы записать новые значения.";
+    }
+
+    private bool ValidateDns(string value, string label)
+    {
+        value = value.Trim();
+        if (value.Length == 0) return true;
+        if (value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(value, UriKind.Absolute, out var endpoint) && !string.IsNullOrWhiteSpace(endpoint.Host)) return true;
+        }
+        else if (System.Net.IPAddress.TryParse(value, out _)) return true;
+
+        MessageBox.Show($"{label}: укажите корректный IP-адрес или HTTPS URL.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+        return false;
+    }
+
+    private static string NormalizeLines(string value) => string.Join(Environment.NewLine,
+        value.Replace("\r", "").Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => !line.StartsWith("#", StringComparison.Ordinal))
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+    private void LoadUiSettings()
+    {
+        try
+        {
+            var saved = File.Exists(UiSettingsPath)
+                ? JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(UiSettingsPath))
+                : null;
+            var theme = saved?.Theme ?? "dark";
+            ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
+            LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
+            ApplyTheme(theme);
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            SettingsSummary.Text = "Не удалось загрузить настройки интерфейса: " + ex.Message;
+        }
+    }
+
+    private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized || ThemeSelector.SelectedIndex < 0) return;
+        var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
+        ApplyTheme(theme);
+        try
+        {
+            Directory.CreateDirectory(DataDirectory);
+            File.WriteAllText(UiSettingsPath, JsonSerializer.Serialize(new UiSettings(theme), new JsonSerializerOptions { WriteIndented = true }));
+            SettingsSummary.Text = "Тема применена и сохранена.";
+        }
+        catch (Exception ex) { SettingsSummary.Text = "Тема применена, но не сохранена: " + ex.Message; }
+    }
+
+    private void ApplyTheme(string theme)
+    {
+        var colors = theme switch
+        {
+            "light" => new Dictionary<string, string> {
+                ["BackgroundBrush"]="#F4F5FA", ["NavigationBrush"]="#FFFFFF", ["SurfaceBrush"]="#FFFFFF",
+                ["RaisedSurfaceBrush"]="#E9EBF5", ["InputSurfaceBrush"]="#F0F1F8", ["BorderBrushNeo"]="#D9DCEC",
+                ["BrandVioletBrush"]="#6850E8", ["BrandBlueBrush"]="#455BE8", ["AccentSurfaceBrush"]="#EAE6FF",
+                ["TextPrimaryBrush"]="#191A28", ["TextSecondaryBrush"]="#50566B", ["TextMutedBrush"]="#747B91",
+                ["SuccessBrush"]="#147B55", ["SuccessSurfaceBrush"]="#DDF6EA", ["DangerBrush"]="#AD3151", ["DangerSurfaceBrush"]="#FFE8EE" },
+            "oled" => new Dictionary<string, string> {
+                ["BackgroundBrush"]="#000000", ["NavigationBrush"]="#050509", ["SurfaceBrush"]="#09090F",
+                ["RaisedSurfaceBrush"]="#11111B", ["InputSurfaceBrush"]="#05050A", ["BorderBrushNeo"]="#242435",
+                ["BrandVioletBrush"]="#8068FF", ["BrandBlueBrush"]="#5B68F2", ["AccentSurfaceBrush"]="#171327",
+                ["TextPrimaryBrush"]="#F7F8FF", ["TextSecondaryBrush"]="#B1B8CD", ["TextMutedBrush"]="#858EA8",
+                ["SuccessBrush"]="#65E7B0", ["SuccessSurfaceBrush"]="#09251D", ["DangerBrush"]="#FFB5C3", ["DangerSurfaceBrush"]="#26101A" },
+            _ => new Dictionary<string, string> {
+                ["BackgroundBrush"]="#070910", ["NavigationBrush"]="#0C0F19", ["SurfaceBrush"]="#121521",
+                ["RaisedSurfaceBrush"]="#1C2033", ["InputSurfaceBrush"]="#0D111D", ["BorderBrushNeo"]="#2A2E44",
+                ["BrandVioletBrush"]="#8769FF", ["BrandBlueBrush"]="#5B5BF1", ["AccentSurfaceBrush"]="#23203B",
+                ["TextPrimaryBrush"]="#FFFFFF", ["TextSecondaryBrush"]="#A5ABC2", ["TextMutedBrush"]="#8F96AD",
+                ["SuccessBrush"]="#5FE6A6", ["SuccessSurfaceBrush"]="#12372E", ["DangerBrush"]="#FFB1C0", ["DangerSurfaceBrush"]="#311B27" }
+        };
+
+        foreach (var item in colors)
+            if (Application.Current.Resources[item.Key] is SolidColorBrush brush &&
+                ColorConverter.ConvertFromString(item.Value) is Color color)
+                brush.Color = color;
+    }
+
+    private bool IsLaunchWithWindowsEnabled()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
+            return key?.GetValue("NeoTUN") is string;
+        }
+        catch { return false; }
+    }
+
+    private void LaunchWithWindows_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized || LaunchWithWindowsToggle.IsChecked is null) return;
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+            if (key is null) throw new InvalidOperationException("Не удалось открыть раздел автозапуска.");
+            if (LaunchWithWindowsToggle.IsChecked == true)
+                key.SetValue("NeoTUN", $"\\\"{System.Reflection.Assembly.GetEntryAssembly()?.Location ?? Process.GetCurrentProcess().MainModule?.FileName}\\\"");
+            else key.DeleteValue("NeoTUN", false);
+            SettingsSummary.Text = LaunchWithWindowsToggle.IsChecked == true
+                ? "Автозапуск включён для текущего пользователя."
+                : "Автозапуск отключён.";
+        }
+        catch (Exception ex)
+        {
+            SettingsSummary.Text = "Не удалось изменить автозапуск: " + ex.Message;
+            LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
+        }
+    }
+
+    private void OpenDataFolder_Click(object sender, RoutedEventArgs e) => OpenPath(DataDirectory);
+    private void OpenLog_Click(object sender, RoutedEventArgs e) => OpenPath(RuntimeLogPath);
+
+    private void OpenPath(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            else
+            {
+                Directory.CreateDirectory(Directory.Exists(path) ? path : Path.GetDirectoryName(path)!);
+                Process.Start(new ProcessStartInfo(Directory.Exists(path) ? path : Path.GetDirectoryName(path)!) { UseShellExecute = true });
+            }
+        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var diagnostics = new System.Text.StringBuilder()
+                .AppendLine("NeoTUN Windows diagnostics")
+                .AppendLine("Version: " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version)
+                .AppendLine("OS: " + Environment.OSVersion)
+                .AppendLine("Data directory: " + DataDirectory)
+                .AppendLine("Selected profile: " + (_vm.SelectedProfile?.Name ?? "none"))
+                .AppendLine("Runtime is running: " + _runtime.IsRunning);
+            if (File.Exists(RuntimeLogPath))
+                diagnostics.AppendLine().AppendLine("Runtime log:").AppendLine(File.ReadAllText(RuntimeLogPath));
+            Clipboard.SetText(diagnostics.ToString());
+            SettingsSummary.Text = "Диагностика скопирована в буфер обмена. Проверьте её перед отправкой — журнал может содержать технические адреса.";
+        }
+        catch (Exception ex) { SettingsSummary.Text = "Не удалось собрать диагностику: " + ex.Message; }
+    }
 
     private static string FormatBytes(long bytes)
     {
