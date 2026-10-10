@@ -18,6 +18,7 @@ class RoutingSettingsActivity : Activity() {
     private val store by lazy { RoutingProfileStore(this) }
     private var profileJson = JSONObject()
     private var profileName = "Маршрутизация"
+    private lateinit var profileNameInput: EditText
     private lateinit var globalProxy: Switch
     private lateinit var remoteDns: EditText
     private lateinit var domesticDns: EditText
@@ -33,9 +34,10 @@ class RoutingSettingsActivity : Activity() {
         window.statusBarColor = NeoTunDesign.BACKGROUND
         window.navigationBarColor = NeoTunDesign.BACKGROUND
         window.decorView.systemUiVisibility = 0
-        val active = store.active() ?: store.all().firstOrNull()
+        val createNew = intent.getBooleanExtra(EXTRA_NEW_PROFILE, false)
+        val active = if (createNew) null else (store.active() ?: store.all().firstOrNull())
         profileJson = JSONObject(active?.json?.toString() ?: "{}")
-        profileName = profileJson.optString("Name").ifBlank { "Мой профиль" }
+        profileName = if (createNew) "Новый профиль" else profileJson.optString("Name").ifBlank { "Мой профиль" }
         orderValue = profileJson.optString("RouteOrder", "block-proxy-direct")
         if (active == null) {
             profileJson.put("Name", profileName)
@@ -64,7 +66,17 @@ class RoutingSettingsActivity : Activity() {
         titleStack.addView(text("Маршрутизация", 22, NeoTunDesign.TEXT_PRIMARY, true))
         titleStack.addView(text(profileName, 12, NeoTunDesign.TEXT_SECONDARY), params(top = 3))
         header.addView(titleStack, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(10) })
-        body.addView(header, params(bottom = 20))
+        body.addView(header, params(bottom = 14))
+
+        body.addView(sectionTitle("ПРОФИЛЬ"))
+        val nameCard = card()
+        profileNameInput = inputField(profileName, "Название профиля").apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            maxLines = 1
+        }
+        nameCard.addView(text("Название", 13, NeoTunDesign.TEXT_SECONDARY, true))
+        nameCard.addView(profileNameInput, params(top = 6))
+        body.addView(nameCard, params(bottom = 18))
 
         body.addView(sectionTitle("ПОВЕДЕНИЕ СОЕДИНЕНИЯ"))
         val proxyCard = card()
@@ -263,6 +275,12 @@ class RoutingSettingsActivity : Activity() {
             Toast.makeText(this, "Для геобаз разрешены только HTTPS URL", Toast.LENGTH_LONG).show()
             return
         }
+        profileName = profileNameInput.text.toString().trim()
+        if (profileName.isBlank()) {
+            profileNameInput.error = "Введите название профиля"
+            profileNameInput.requestFocus()
+            return
+        }
         profileJson.put("Name", profileName)
             .put("GlobalProxy", globalProxy.isChecked.toString())
             .put("RouteOrder", orderValue)
@@ -411,4 +429,8 @@ class RoutingSettingsActivity : Activity() {
         }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        const val EXTRA_NEW_PROFILE = "neotun.routing.new_profile"
+    }
 }
