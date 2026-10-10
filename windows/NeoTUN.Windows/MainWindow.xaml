@@ -88,13 +88,13 @@
           <Grid Grid.Row="1" Margin="0,16,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,8,0">
-              <StackPanel><TextBlock Text="СКОРОСТЬ" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Нет активного туннеля" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
+              <StackPanel><TextBlock Text="СКОРОСТЬ" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock x:Name="HomeSpeedText" Text="0 B/s" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Входящий ↓ / исходящий ↑" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
             </Border>
             <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="4,0">
-              <StackPanel><TextBlock Text="ПОЛУЧЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Ожидание статистики" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
+              <StackPanel><TextBlock Text="ПОЛУЧЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock x:Name="HomeReceivedText" Text="0 B" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="За текущий сеанс" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
             </Border>
             <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="8,0,0,0">
-              <StackPanel><TextBlock Text="ОТПРАВЛЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Ожидание статистики" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
+              <StackPanel><TextBlock Text="ОТПРАВЛЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock x:Name="HomeSentText" Text="0 B" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="За текущий сеанс" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
             </Border>
           </Grid>
         </Grid>
