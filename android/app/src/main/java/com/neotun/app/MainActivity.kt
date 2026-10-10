@@ -79,13 +79,6 @@ class MainActivity : Activity() {
         handler.post(poll)
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (::content.isInitialized && screen == Screen.SETTINGS) {
-            renderSettings()
-        }
-    }
-
     private fun buildShell() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1636,7 +1629,12 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (screen == Screen.HOME) renderHome()
+        if (!::content.isInitialized) return
+        when (screen) {
+            Screen.HOME -> renderHome()
+            Screen.SETTINGS -> renderSettings()
+            Screen.PROFILES -> Unit
+        }
     }
 
     override fun onDestroy() {
