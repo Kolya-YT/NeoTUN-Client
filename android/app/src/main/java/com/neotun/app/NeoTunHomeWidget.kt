@@ -9,8 +9,8 @@ import android.content.Intent
 import android.widget.RemoteViews
 
 /**
- * Compact launcher widget. It delegates connection changes to MainActivity so
- * Android VPN consent and the normal profile validation flow remain intact.
+ * Compact launcher widget. Tap toggles the tunnel through an invisible handler
+ * activity; the main NeoTUN screen is not opened.
  */
 class NeoTunHomeWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
@@ -41,9 +41,8 @@ class NeoTunHomeWidget : AppWidgetProvider() {
                 if (running) android.graphics.Color.rgb(116, 226, 177)
                 else android.graphics.Color.rgb(174, 177, 196)
             )
-            val intent = Intent(context, MainActivity::class.java)
-                .setAction(MainActivity.ACTION_WIDGET_TOGGLE)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val intent = Intent(context, NeoTunWidgetToggleActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             val pending = PendingIntent.getActivity(
                 context, 7100 + id, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
