@@ -6,6 +6,8 @@ on:
     paths:
       - "windows/**"
       - "core/**"
+      - "android/**"
+      - "xraybridge/**"
       - ".github/workflows/desktop.yml"
       - "DESIGN_SYSTEM.md"
   workflow_dispatch:
