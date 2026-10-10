@@ -22,3 +22,5 @@
 dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release
 dotnet run --project windows/NeoTUN.Windows/NeoTUN.Windows.csproj
 ```
+
+Проверка сборки выполняется GitHub Actions на Windows runner; подключение и передача трафика пока не заявляются как реализованные.
