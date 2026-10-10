@@ -1358,18 +1358,69 @@ class MainActivity : Activity() {
         val options = arrayOf(
             "Настройки подписки",
             "Просмотреть конфигурации серверов",
-            "Обновить сейчас"
+            "Поделиться ссылкой подписки",
+            "Скопировать URL",
+            "Обновить сейчас",
+            "Удалить подписку"
         )
         val dialog = AlertDialog.Builder(this).setTitle(subscription.name)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> editSubscription(subscription)
                     1 -> showSubscriptionConfigs(subscription)
-                    2 -> refreshSubscription(subscription)
+                    2 -> shareText("Подписка NeoTUN: ${subscription.name}", subscription.url)
+                    3 -> copyText("URL подписки", subscription.url, "URL подписки скопирован")
+                    4 -> refreshSubscription(subscription)
+                    5 -> confirmDeleteSubscription(subscription)
                 }
             }.create()
         dialog.setOnShowListener { styleDialog(dialog) }
         dialog.show()
+    }
+
+    private fun confirmDeleteSubscription(subscription: NeoTunSubscription) {
+        val ownedCount = store.all().count { it.sourceSubscriptionId == subscription.id }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Удалить подписку?")
+            .setMessage(
+                "Подписка «${subscription.name}» будет удалена. " +
+                    if (ownedCount > 0) "Также удалить связанные серверы ($ownedCount)?" else "Связанных серверов нет."
+            )
+            .setNegativeButton("Отмена", null)
+            .setNeutralButton(if (ownedCount > 0) "Только подписку" else "Удалить") { _, _ ->
+                subscriptions.delete(subscription.id)
+                renderProfiles()
+                toast("Подписка удалена")
+            }
+            .apply {
+                if (ownedCount > 0) setPositiveButton("Удалить всё") { _, _ ->
+                    store.saveAll(store.all().filterNot { it.sourceSubscriptionId == subscription.id })
+                    subscriptions.delete(subscription.id)
+                    if (selectedProfileId() !in store.all().map { it.id }) {
+                        getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().remove(SELECTED).apply()
+                    }
+                    renderProfiles()
+                    toast("Подписка и связанные серверы удалены")
+                }
+            }
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun copyText(label: String, value: String, message: String) {
+        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+        toast(message)
+    }
+
+    private fun shareText(title: String, value: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, value)
+        }
+        startActivity(Intent.createChooser(intent, title))
     }
 
     private fun editSubscription(subscription: NeoTunSubscription) {
@@ -1663,24 +1714,24 @@ class MainActivity : Activity() {
 
     private fun profileActions(p: NeoTunProfile) {
         val options = arrayOf(
+            "Подключиться к серверу",
             "Настройки сервера",
             "Просмотреть конфигурацию",
             "Скопировать ссылку",
+            "Поделиться ссылкой",
             "Переименовать",
             "Удалить"
         )
         val dialog = AlertDialog.Builder(this).setTitle(p.name)
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> editProfile(p)
-                    1 -> showProfileConfig(p)
-                    2 -> {
-                        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NeoTUN profile", p.uri))
-                        toast("Ссылка скопирована")
-                    }
-                    3 -> rename(p)
-                    4 -> confirmDelete(p)
+                    0 -> selectProfile(p)
+                    1 -> editProfile(p)
+                    2 -> showProfileConfig(p)
+                    3 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
+                    4 -> shareText("NeoTUN · ${p.name}", p.uri)
+                    5 -> rename(p)
+                    6 -> confirmDelete(p)
                 }
             }.create()
         dialog.setOnShowListener { styleDialog(dialog) }
