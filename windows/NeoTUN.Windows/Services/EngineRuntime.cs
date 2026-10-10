@@ -255,6 +255,11 @@ internal sealed class EngineRuntime : IDisposable
             var blockIps = ReadLines("BlockIp").Where(IsIpOrCidr).ToArray();
             var proxyIps = ReadLines("ProxyIp").Where(IsIpOrCidr).ToArray();
             var directIps = ReadLines("DirectIp").Where(IsIpOrCidr).ToArray();
+            var processExclusions = ReadLines("ProcessExclusions")
+                .Where(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                    name == Path.GetFileName(name) && !name.Contains('/') && !name.Contains((char)92) && !name.Contains(':'))
+                .ToArray();
+            route["find_process"] = processExclusions.Length > 0;
 
             var groups = new Dictionary<string, (string[] Domains, string[] Ips)>
             {
@@ -270,6 +275,8 @@ internal sealed class EngineRuntime : IDisposable
             };
             var mergedRules = new JsonArray();
             foreach (var rule in priorityRules) mergedRules.Add(rule);
+            var exclusionRule = MakeRule("process_name", processExclusions, "direct");
+            if (exclusionRule is not null) mergedRules.Add(exclusionRule);
             foreach (var tag in order)
             {
                 var group = groups[tag];
@@ -284,7 +291,7 @@ internal sealed class EngineRuntime : IDisposable
             ApplyDnsPreferences(singBoxRoot, ReadString("RemoteDns", ""), ReadString("DomesticDns", ""),
                 ReadLines("DomesticDnsDomains"));
 
-            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}.");
+            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, processExclusions={processExclusions.Length}.");
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or FormatException)
         {
