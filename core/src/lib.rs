@@ -431,7 +431,7 @@ impl Profile {
             },
             _ => return Err("Протокол не поддерживается".into())
         };
-        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"rules":[{"action":"hijack-dns"}],"auto_detect_interface":true,"final":"proxy"}});
+        let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"rules":[{"protocol":"dns","action":"hijack-dns"}],"auto_detect_interface":true,"final":"proxy"}});
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
     }
 
@@ -512,7 +512,7 @@ impl Profile {
                     "final": "system",
                     "strategy": "prefer_ipv4"
                 },
-                "route": { "auto_detect_interface": true, "final": "proxy", "rules": [{ "action": "hijack-dns" }] }
+                "route": { "auto_detect_interface": true, "final": "proxy", "rules": [{ "protocol": "dns", "action": "hijack-dns" }] }
             });
             return Ok(serde_json::json!({ "engine": "xray", "sing_box_config": sing_box, "xray_config": xray }).to_string());
         }
@@ -635,7 +635,7 @@ impl Profile {
                 {"type": "block", "tag": "block"}
             ],
             "route": {
-                "rules": [{ "action": "hijack-dns" }],
+                "rules": [{ "protocol": "dns", "action": "hijack-dns" }],
                 "auto_detect_interface": true,
                 "final": "proxy"
             }
@@ -826,6 +826,7 @@ mod tests {
         assert_eq!(runtime["sing_box_config"]["dns"]["final"], "system");
         assert_eq!(runtime["sing_box_config"]["dns"]["strategy"], "prefer_ipv4");
         assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["action"], "hijack-dns");
+        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["protocol"], "dns");
     }
 
     #[test]
@@ -843,6 +844,10 @@ mod tests {
         assert_eq!(
             runtime["sing_box_config"]["route"]["rules"][0]["action"],
             "hijack-dns"
+        );
+        assert_eq!(
+            runtime["sing_box_config"]["route"]["rules"][0]["protocol"],
+            "dns"
         );
     }
 
