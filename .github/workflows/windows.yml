@@ -31,13 +31,17 @@ jobs:
       - name: Build Windows app
         run: dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release
       - name: Publish self-contained Windows x64 app
-        run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/NeoTUN-Windows
+        run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:AssemblyName=NeoTUN-Windows-x64 -o dist/NeoTUN-Windows
       - name: Prepare standalone EXE and ZIP
         shell: pwsh
         run: |
-          $exe = "dist/NeoTUN-Windows/NeoTUN.Windows.exe"
-          if (!(Test-Path $exe)) { throw "Published EXE not found: $exe" }
-          Copy-Item $exe "dist/NeoTUN-Windows-x64.exe"
+          $exe = "dist/NeoTUN-Windows/NeoTUN-Windows-x64.exe"
+          if (!(Test-Path $exe)) {
+            Write-Host "Published files:"
+            Get-ChildItem "dist/NeoTUN-Windows" | Select-Object Name, Length
+            throw "Published EXE not found: $exe"
+          }
+          Copy-Item $exe "dist/NeoTUN-Windows-x64.exe" -Force
           Compress-Archive -Path dist/NeoTUN-Windows/* -DestinationPath dist/NeoTUN-Windows-x64.zip -Force
           Get-Item dist/NeoTUN-Windows-x64.exe, dist/NeoTUN-Windows-x64.zip | Select-Object Name, Length
       - name: Upload Windows build artifact
@@ -60,7 +64,7 @@ jobs:
 
             - `NeoTUN-Windows-x64.exe`: standalone self-contained executable.
             - `NeoTUN-Windows-x64.zip`: complete portable package.
-            
+
             Note: profile import and subscription refresh are available; network connection engine is still under development.
           files: |
             dist/NeoTUN-Windows-x64.exe
