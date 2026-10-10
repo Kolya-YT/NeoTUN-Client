@@ -93,28 +93,48 @@ object NeoTunGeoData {
             if (!connection.url.toString().startsWith("https://", true)) {
                 error("$label: переход на URL без HTTPS запрещён")
             }
-            if (connection.contentLengthLong > MAX_BYTES) error("$label: файл слишком большой")
+            val expectedBytes = connection.contentLengthLong
+            if (expectedBytes > MAX_BYTES) error("$label: файл слишком большой")
 
             temporary.delete()
+            var downloadedBytes = 0L
             connection.inputStream.use { input ->
                 FileOutputStream(temporary).use { output ->
                     val buffer = ByteArray(32 * 1024)
-                    var total = 0L
                     while (true) {
                         val count = input.read(buffer)
                         if (count < 0) break
-                        total += count
-                        if (total > MAX_BYTES) error("$label: превышен лимит размера")
+                        downloadedBytes += count
+                        if (downloadedBytes > MAX_BYTES) error("$label: превышен лимит размера")
                         output.write(buffer, 0, count)
                     }
                     output.fd.sync()
-                    if (total < 1024L) error("$label: загруженный файл слишком мал")
+                    if (downloadedBytes < 1024L) error("$label: загруженный файл слишком мал")
                 }
             }
-            if (target.exists() && !target.delete()) error("$label: не удалось заменить старый файл")
-            if (!temporary.renameTo(target)) {
-                temporary.copyTo(target, overwrite = true)
-                temporary.delete()
+            if (expectedBytes >= 0L && downloadedBytes != expectedBytes) {
+                error("$label: загрузка неполная ($downloadedBytes из $expectedBytes байт)")
+            }
+            // Replace only after the temporary file has passed basic integrity checks.
+            // Keep a backup so a failed rename/copy cannot destroy the last usable database.
+            val backup = File(target.parentFile, target.name + ".previous")
+            backup.delete()
+            if (target.isFile && !target.renameTo(backup)) {
+                error("$label: не удалось сохранить предыдущую геобазу")
+            }
+            try {
+                if (!temporary.renameTo(target)) {
+                    temporary.copyTo(target, overwrite = false)
+                    temporary.delete()
+                }
+                if (!target.isFile || target.length() != downloadedBytes) {
+                    error("$label: проверка размера после сохранения не пройдена")
+                }
+                backup.delete()
+            } catch (t: Throwable) {
+                target.delete()
+                if (backup.isFile) backup.renameTo(target)
+                throw t
             }
             target.setLastModified(System.currentTimeMillis())
             NeoTunDiagnostics.log(context, "$label: сохранено ${target.length()} байт")
