@@ -1,0 +1,44 @@
+# NeoTUN Client — Shared Design System
+
+This file is the source of truth for Android, Windows, and future iOS clients. Native layout can adapt to the device; visual identity and semantic meaning must stay consistent.
+
+## Palette
+- Background: #070910
+- Navigation: #0C0F19
+- Surface: #121521
+- Raised surface: #1C2033
+- Input surface: #0D111D
+- Border: #2A2E44
+- Primary brand violet: #8769FF
+- Brand blue: #5B5BF1
+- Accent surface: #23203B
+- Primary text: #FFFFFF
+- Secondary text: #A5ABC2
+- Muted text: #8F96AD
+- Connected/success: #5FE6A6 on #12372E
+- Error/destructive: #FFB1C0 on #311B27
+
+## Typography
+- Brand/title: 23–28sp/px, bold.
+- Section headings: 17–18sp/px, semibold.
+- Body and buttons: 13–15sp/px.
+- Metadata: 9–11sp/px; uppercase sparingly.
+
+## Geometry
+- Base spacing: 8 units; common gaps 8, 12, 16, 18, 24.
+- Card radius: 18–25 units; controls: 12–17 units.
+- Prefer layered surfaces and subtle borders over heavy shadows.
+- Disconnected primary action uses violet-to-blue; connected uses green.
+- Phone layouts stack vertically; desktop layouts may use columns. No overflow or clipped primary actions.
+
+## Shared information architecture
+1. Home / connection status / selected server
+2. Live traffic statistics: received, sent, speed
+3. Server profiles and subscriptions
+4. Routing profiles and settings
+5. Diagnostics/logs and app updates
+
+## Implementation
+Android tokens: `android/app/src/main/java/com/neotun/app/NeoTunDesign.kt`.
+Windows token map: `windows/NeoTUN.Windows/App.xaml`.
+Update both token maps and this document when visual tokens change. Platform-specific controls are fine, but don't invent platform-specific colors, labels, or status meanings.
