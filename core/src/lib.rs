@@ -799,7 +799,7 @@ mod tests {
         ).unwrap();
 
         assert_eq!(profile.protocol, "hysteria2");
-        let config = profile.to_generic_sing_box_json().unwrap();
+        let config = profile.to_generic_sing_box_json().unwrap().replace(' ', "").replace('\n', "");
         assert!(config.contains("\"type\":\"hysteria2\""));
         assert!(!config.contains("\"network\":\"udp\""));
         assert!(config.contains("\"action\":\"hijack-dns\""));
@@ -810,7 +810,7 @@ mod tests {
         let hopping = Profile::from_share_uri(
             "hy2://secret@example.com:443,5000-6000/?sni=example.com&mportHopInt=30&up=50&down=100"
         ).unwrap();
-        let hopping_config = hopping.to_generic_sing_box_json().unwrap();
+        let hopping_config = hopping.to_generic_sing_box_json().unwrap().replace(' ', "").replace('\n', "");
         assert!(hopping_config.contains("\"server_ports\":[\"443\",\"5000:6000\"]"));
         assert!(!hopping_config.contains("\"server_port\":443"));
         assert!(hopping_config.contains("\"hop_interval\":\"30s\""));
@@ -820,7 +820,7 @@ mod tests {
         let pinned = Profile::from_share_uri(
             "hy2://secret@example.com:443?sni=example.com&insecure=1&pcs=abc123"
         ).unwrap();
-        let pinned_config = pinned.to_generic_sing_box_json().unwrap();
+        let pinned_config = pinned.to_generic_sing_box_json().unwrap().replace(' ', "").replace('\n', "");
         assert!(pinned_config.contains("\"certificate_public_key_sha256\":[\"abc123\"]"));
     }
 
