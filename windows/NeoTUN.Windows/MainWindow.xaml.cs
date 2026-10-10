@@ -257,7 +257,7 @@ public partial class MainWindow : Window
     private sealed record RoutingSettings(
         bool GlobalProxy, bool Ipv6Enabled, int Mtu, int RouteOrder, string RemoteDns, string DomesticDns, string DomesticDnsDomains,
         string BlockSites, string BlockIp, string ProxySites, string ProxyIp,
-        string DirectSites, string DirectIp);
+        string DirectSites, string DirectIp, string ProcessExclusions);
 
     private sealed record UiSettings(string Theme);
 
@@ -281,6 +281,7 @@ public partial class MainWindow : Window
             ProxyIpEditor.Text = settings.ProxyIp;
             DirectSitesEditor.Text = settings.DirectSites;
             DirectIpEditor.Text = settings.DirectIp;
+            ProcessExclusionsEditor.Text = settings.ProcessExclusions;
             RoutingSummary.Text = "Загружено из локального файла маршрутов.";
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
@@ -301,6 +302,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        var processExclusions = NormalizeLines(ProcessExclusionsEditor.Text);
+        var invalidProcessName = processExclusions.FirstOrDefault(name =>
+            !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+            name != Path.GetFileName(name) || name.Contains('/') || name.Contains((char)92) || name.Contains(':'));
+        if (invalidProcessName is not null)
+        {
+            MessageBox.Show("Имя процесса «" + invalidProcessName + "» некорректно. Укажите только имя файла .exe, без пути.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var settings = new RoutingSettings(
             GlobalProxyToggle.IsChecked == true,
             Ipv6Toggle.IsChecked == true,
@@ -314,7 +325,8 @@ public partial class MainWindow : Window
             NormalizeLines(ProxySitesEditor.Text),
             NormalizeLines(ProxyIpEditor.Text),
             NormalizeLines(DirectSitesEditor.Text),
-            NormalizeLines(DirectIpEditor.Text));
+            NormalizeLines(DirectIpEditor.Text),
+            processExclusions);
 
         try
         {
@@ -363,7 +375,8 @@ public partial class MainWindow : Window
                 RemoteDnsInput.Text.Trim(), DomesticDnsInput.Text.Trim(), NormalizeLines(DomesticDnsDomainsEditor.Text),
                 NormalizeLines(BlockSitesEditor.Text), NormalizeLines(BlockIpEditor.Text),
                 NormalizeLines(ProxySitesEditor.Text), NormalizeLines(ProxyIpEditor.Text),
-                NormalizeLines(DirectSitesEditor.Text), NormalizeLines(DirectIpEditor.Text));
+                NormalizeLines(DirectSitesEditor.Text), NormalizeLines(DirectIpEditor.Text),
+                NormalizeLines(ProcessExclusionsEditor.Text));
             Clipboard.SetText(JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
             RoutingSummary.Text = "JSON настроек маршрутизации скопирован в буфер обмена.";
         }
@@ -384,6 +397,7 @@ public partial class MainWindow : Window
         BlockSitesEditor.Clear(); BlockIpEditor.Clear();
         ProxySitesEditor.Clear(); ProxyIpEditor.Clear();
         DirectSitesEditor.Clear(); DirectIpEditor.Clear();
+        ProcessExclusionsEditor.Clear();
         RoutingSummary.Text = "Поля сброшены. Нажмите «Сохранить маршруты», чтобы записать новые значения.";
     }
 
