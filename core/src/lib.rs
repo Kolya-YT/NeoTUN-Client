@@ -3,6 +3,8 @@ use jni::sys::jstring;
 use jni::JNIEnv;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoreInfo {
@@ -430,6 +432,47 @@ impl Profile {
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
     }
 
+    pub fn to_xray_json(&self) -> Result<String, String> {
+        if self.protocol != "vless" { return Err("Xray adapter currently supports VLESS profiles only".into()); }
+        let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
+        let network = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
+        if network != "xhttp" { return Err("Xray runtime is selected only for VLESS XHTTP".into()); }
+        let security = self.params.get("security").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "none".into());
+        let server_name = self.params.get("sni").or_else(|| self.params.get("host")).cloned().unwrap_or_else(|| self.address.clone());
+        let mut stream = serde_json::json!({ "network": "xhttp", "security": security });
+        if security == "tls" {
+            stream["tlsSettings"] = serde_json::json!({ "serverName": server_name });
+            if let Some(alpn) = self.params.get("alpn") { stream["tlsSettings"]["alpn"] = serde_json::json!(alpn.split(',').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>()); }
+            if self.params.get("allowInsecure").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false) { stream["tlsSettings"]["allowInsecure"] = serde_json::json!(true); }
+        } else if security == "reality" {
+            stream["realitySettings"] = serde_json::json!({ "serverName": server_name, "publicKey": self.params.get("pbk").cloned().unwrap_or_default(), "shortId": self.params.get("sid").cloned().unwrap_or_default(), "fingerprint": self.params.get("fp").cloned().unwrap_or_else(|| "chrome".into()) });
+        }
+        let mut xhttp = serde_json::json!({ "path": self.params.get("path").cloned().unwrap_or_else(|| "/".into()) });
+        if let Some(host) = self.params.get("host").filter(|v| !v.trim().is_empty()) { xhttp["host"] = serde_json::json!(host); }
+        if let Some(mode) = self.params.get("mode").filter(|v| !v.trim().is_empty()) { xhttp["mode"] = serde_json::json!(mode); }
+        stream["xhttpSettings"] = xhttp;
+        Ok(serde_json::json!({
+            "log": { "loglevel": "warning" },
+            "inbounds": [{ "tag": "socks-in", "listen": "127.0.0.1", "port": 10808, "protocol": "socks", "settings": { "auth": "noauth", "udp": true } }],
+            "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": self.address, "port": self.port, "users": [{ "id": uuid, "encryption": "none", "flow": self.params.get("flow").cloned().unwrap_or_default() }] }] }, "streamSettings": stream }, { "tag": "direct", "protocol": "freedom" }]
+        }).to_string())
+    }
+
+    pub fn to_windows_runtime_json(&self) -> Result<String, String> {
+        if self.engine() == "xray" {
+            let xray = serde_json::from_str::<serde_json::Value>(&self.to_xray_json()?).map_err(|e| e.to_string())?;
+            let sing_box = serde_json::json!({
+                "log": { "level": "info" },
+                "inbounds": [{ "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true }],
+                "outbounds": [{ "type": "socks", "tag": "proxy", "server": "127.0.0.1", "server_port": 10808, "version": "5" }, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
+                "route": { "auto_detect_interface": true, "final": "proxy", "rules": [{ "action": "hijack-dns" }] }
+            });
+            return Ok(serde_json::json!({ "engine": "xray", "sing_box_config": sing_box, "xray_config": xray }).to_string());
+        }
+        let sing_box = serde_json::from_str::<serde_json::Value>(&self.to_generic_sing_box_json()?).map_err(|e| e.to_string())?;
+        Ok(serde_json::json!({ "engine": "sing-box", "sing_box_config": sing_box }).to_string())
+    }
+
     pub fn to_sing_box_json(&self) -> Result<String, String> {
         if self.protocol != "vless" {
             return Err("Пока реализована генерация sing-box только для VLESS".into());
@@ -630,7 +673,7 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 
 impl Profile {
     pub fn engine(&self) -> &'static str {
-        if self.protocol == "vless" {
+        if self.protocol == "vless" && self.params.get("type").map(|v| v.eq_ignore_ascii_case("xhttp")).unwrap_or(false) {
             "xray"
         } else {
             "sing-box"
@@ -649,6 +692,27 @@ pub fn supported_protocols() -> Vec<CoreInfo> {
         CoreInfo { name: "WireGuard", version: "next", protocol: "wireguard" },
         CoreInfo { name: "AmneziaWG", version: "next", protocol: "amneziawg" },
     ]
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn neotun_windows_runtime_json(uri: *const c_char) -> *mut c_char {
+    if uri.is_null() { return std::ptr::null_mut(); }
+    let result = std::panic::catch_unwind(|| {
+        let value = CStr::from_ptr(uri).to_str().map_err(|e| e.to_string())?;
+        let profile = Profile::from_share_uri(value)?;
+        profile.to_windows_runtime_json()
+    });
+    let value = match result {
+        Ok(Ok(json)) => json,
+        Ok(Err(error)) => serde_json::json!({ "error": error }).to_string(),
+        Err(_) => serde_json::json!({ "error": "Native core failed while generating runtime configuration" }).to_string(),
+    };
+    CString::new(value).map(CString::into_raw).unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn neotun_free_string(value: *mut c_char) {
+    if !value.is_null() { drop(CString::from_raw(value)); }
 }
 
 #[cfg(test)]
