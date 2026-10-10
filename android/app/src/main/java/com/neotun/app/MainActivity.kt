@@ -1748,6 +1748,7 @@ class MainActivity : Activity() {
             "Подключиться к серверу",
             "Настройки сервера",
             "Просмотреть конфигурацию",
+            "Возможности ядра",
             "Скопировать ссылку",
             "Поделиться ссылкой",
             "Показать QR-код",
@@ -1760,13 +1761,46 @@ class MainActivity : Activity() {
                     0 -> selectProfile(p)
                     1 -> editProfile(p)
                     2 -> showProfileConfig(p)
-                    3 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
-                    4 -> shareText("NeoTUN · ${p.name}", p.uri)
-                    5 -> showProfileQr(p)
-                    6 -> rename(p)
-                    7 -> confirmDelete(p)
+                    3 -> showEngineCapabilities(p)
+                    4 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
+                    5 -> shareText("NeoTUN · ${p.name}", p.uri)
+                    6 -> showProfileQr(p)
+                    7 -> rename(p)
+                    8 -> confirmDelete(p)
                 }
             }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun showEngineCapabilities(profile: NeoTunProfile) {
+        val capabilities = NeoTunEngineCapabilityRegistry.forProfile(profile)
+        val rows = listOf(
+            "Ядро" to capabilities.engineName,
+            "Протокол" to capabilities.protocol,
+            "TUN-подключение" to if (capabilities.supportsTun) "Поддерживается" else "Не подтверждено",
+            "Общие DNS-настройки" to if (capabilities.supportsDnsSettings) "Доступны" else "Недоступны",
+            "Профили маршрутизации" to if (capabilities.supportsRoutingProfiles) "Поддерживаются адаптером" else "Не подтверждены",
+            "MTU" to if (capabilities.supportsMtu) "Доступен в общих настройках" else "Не подтверждён",
+            "Исключения приложений" to if (capabilities.supportsAppExclusions) "Доступны" else "Пока не представлены в настройках",
+        )
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), dp(8))
+        }
+        rows.forEach { (label, value) ->
+            box.addView(txt(label, 11f, NeoTunDesign.TEXT_MUTED), margins(top = 8, bottom = 2))
+            box.addView(txt(value, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
+        }
+        capabilities.notes.forEach { note ->
+            box.addView(txt("• $note", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 10))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Возможности · ${profile.name}")
+            .setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Настройки соединения") { _, _ -> showScreen(Screen.SETTINGS) }
+            .setNegativeButton("Закрыть", null)
+            .create()
         dialog.setOnShowListener { styleDialog(dialog) }
         dialog.show()
     }
