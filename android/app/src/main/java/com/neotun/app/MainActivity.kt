@@ -79,6 +79,13 @@ class MainActivity : Activity() {
         handler.post(poll)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::content.isInitialized && screen == Screen.SETTINGS) {
+            renderSettings()
+        }
+    }
+
     private fun buildShell() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -547,55 +554,86 @@ class MainActivity : Activity() {
 
     private fun renderSettings() {
         content.removeAllViews()
-        addBackHeader("Настройки", "Только параметры, которые реально влияют на NeoTUN")
+        addBackHeader("Настройки", "Управление соединением, маршрутами и приложением")
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val activeRouting = routingStore.active()
+        val routeState = when {
+            !routingStore.enabled() -> "Выключена"
+            activeRouting != null -> activeRouting.name
+            else -> "Не настроена"
+        }
 
         val connection = settingsSection("СОЕДИНЕНИЕ")
-        connection.addView(settingsRow("🧭 Маршрутизация",
-            routingStore.active()?.name ?: if (routingStore.enabled()) "Не выбрана" else "Выключена",
-            "Правила Proxy / Direct / Block, совместимые с INCY",
+        connection.addView(settingsRow(
+            "🧭 Правила маршрутизации",
+            if (activeRouting == null) "Настроить" else activeRouting.name,
+            "Домены, IP/CIDR, Proxy / Direct / Block, DNS и Geo-базы"
+        ) { openRoutingEditor() })
+        connection.addView(settingsRow(
+            "📚 Профили маршрутизации",
+            routeState,
+            "Выбрать профиль, импортировать JSON/INCY или включить маршрутизацию"
         ) { showRoutingSettings() })
-        connection.addView(settingsRow("🌐 DNS",
+        connection.addView(settingsRow(
+            "🌐 DNS",
             prefs.getString("dns_mode", "Автоматический") ?: "Автоматический",
-            "Системный DNS или выбранный сервер") { showDnsSettings() })
-        connection.addView(settingsRow("🔌 MTU",
+            "Резолвер для соединения; применяется при переподключении"
+        ) { showDnsSettings() })
+        connection.addView(settingsRow(
+            "🔌 MTU",
             prefs.getInt("mtu", 1500).toString(),
-            "Применяется при следующем подключении") { showMtuSettings() })
-        connection.addView(settingsRow("📡 IPv6",
+            "Размер пакета TUN, допустимый диапазон 1280–1500"
+        ) { showMtuSettings() })
+        connection.addView(settingsRow(
+            "📡 IPv6",
             if (prefs.getBoolean("ipv6_enabled", false)) "Включён" else "Выключен",
-            "Добавляет IPv6-адрес и маршрут в TUN") {
-            toggleSetting("ipv6_enabled", "IPv6") { renderSettings() }
-        })
-        content.addView(connection, margins(bottom = 10))
+            "Добавляет IPv6-адрес и маршрут по умолчанию в TUN"
+        ) { toggleSetting("ipv6_enabled", "IPv6") { renderSettings() } })
+        content.addView(connection, margins(bottom = 12))
 
-        val subscriptionsSection = settingsSection("ПОДПИСКИ")
-        subscriptionsSection.addView(settingsRow("🔄 Автообновление",
+        val subscriptionsSection = settingsSection("СЕРВЕРЫ И ПОДПИСКИ")
+        subscriptionsSection.addView(settingsRow(
+            "🔄 Автообновление подписок",
             if (prefs.getBoolean("subscriptions_auto_update", true)) "Включено" else "Выключено",
-            "Проверять подписки при запуске, не чаще раза в 12 часов") {
-            toggleSetting("subscriptions_auto_update", "Автообновление") { renderSettings() }
-        })
-        subscriptionsSection.addView(settingsRow("🗂️ Серверы и подписки",
-            store.all().size.toString() + " / " + subscriptions.all().size,
-            "Выбор, удаление и обновление") { showScreen(Screen.PROFILES) })
-        content.addView(subscriptionsSection, margins(bottom = 10))
+            "Проверка при запуске, не чаще одного раза в 12 часов"
+        ) { toggleSetting("subscriptions_auto_update", "Автообновление подписок") { renderSettings() } })
+        subscriptionsSection.addView(settingsRow(
+            "🗂️ Серверы и подписки",
+            "${store.all().size} / ${subscriptions.all().size}",
+            "Профили, подписки, обновление и удаление"
+        ) { showScreen(Screen.PROFILES) })
+        content.addView(subscriptionsSection, margins(bottom = 12))
 
-        val tools = settingsSection("СЕРВИС")
-        tools.addView(settingsRow("🧪 Диагностика", "Открыть",
-            "Последние ошибки TUN, DNS и движка") { diagnostics() })
-        tools.addView(settingsRow("⬆️ Обновление", "Проверить",
-            "Проверка новой версии приложения") { checkUpdates() })
-        tools.addView(settingsRow("♻️ Сброс настроек", "",
-            "Профили и подписки останутся на месте") { confirmResetSettings() })
-        content.addView(tools, margins(bottom = 10))
+        val tools = settingsSection("ДИАГНОСТИКА И ОБНОВЛЕНИЯ")
+        tools.addView(settingsRow(
+            "🧪 Диагностика соединения", "Открыть",
+            "Журнал запуска, DNS, TUN и ошибок движка"
+        ) { diagnostics() })
+        tools.addView(settingsRow(
+            "⬆️ Обновление NeoTUN", "Проверить",
+            "Проверить доступность новой версии приложения"
+        ) { checkUpdates() })
+        tools.addView(settingsRow(
+            "♻️ Сбросить настройки", "",
+            "Вернуть значения по умолчанию; серверы и подписки сохранятся"
+        ) { confirmResetSettings() })
+        content.addView(tools, margins(bottom = 12))
 
-        val about = card()
-        about.addView(txt("NeoTUN", 19f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        val appVersion = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "unknown"
-        about.addView(txt("Версия " + appVersion + " • Core " + NeoTunCore.nativeVersion(), 12f, Color.rgb(135, 140, 157)),
-            margins(top = 5))
+        val about = card().apply {
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = rounded(NeoTunDesign.SURFACE, 17, NeoTunDesign.BORDER, 1)
+        }
+        about.addView(txt("NeoTUN", 18f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
+        val appVersion = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull() ?: "unknown"
         about.addView(txt(
-            "Настройки применяются при следующем подключении, если это требуется выбранному движку.",
-            11f, Color.rgb(105, 110, 128)
+            "Версия $appVersion • Core ${NeoTunCore.nativeVersion()}",
+            12f, NeoTunDesign.TEXT_SECONDARY
+        ), margins(top = 5))
+        about.addView(txt(
+            "DNS, MTU и IPv6 применяются при следующем подключении. Правила маршрутизации сохраняются в выбранный профиль и используются при построении конфигурации движка.",
+            11f, NeoTunDesign.TEXT_MUTED
         ), margins(top = 8))
         content.addView(about, margins(bottom = 18))
     }
@@ -917,30 +955,39 @@ class MainActivity : Activity() {
         }, 500L)
     }
 
+    private fun openRoutingEditor() {
+        startActivity(Intent(this, RoutingSettingsActivity::class.java))
+    }
+
     private fun showRoutingSettings() {
         val profiles = routingStore.all()
-        val labels = profiles.map { it.name }.toMutableList()
-        labels += listOf("Импортировать профиль", if (routingStore.enabled()) "Выключить маршрутизацию" else "Включить маршрутизацию")
-        AlertDialog.Builder(this)
-            .setTitle("Маршрутизация")
+        val labels = profiles.map { "✓  ${it.name}" }.toMutableList()
+        val importIndex = labels.size
+        labels += "＋  Импортировать профиль"
+        val toggleIndex = labels.size
+        labels += if (routingStore.enabled()) "⏻  Выключить маршрутизацию" else "⏻  Включить маршрутизацию"
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Профили маршрутизации")
             .setItems(labels.toTypedArray()) { _, index ->
                 when {
                     index < profiles.size -> {
                         routingStore.select(profiles[index].id)
                         routingStore.setEnabled(true)
-                        toast("Активен профиль: ${profiles[index].name}")
+                        toast("Активен профиль: ${profiles[index].name}. Переподключитесь для применения.")
                         renderSettings()
                     }
-                    index == profiles.size -> {
+                    index == importIndex -> {
                         val input = EditText(this).apply {
                             hint = "JSON или incy://routing/onadd/BASE64"
                             minLines = 4
                             gravity = Gravity.TOP
                             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                            setTextColor(NeoTunDesign.TEXT_PRIMARY)
+                            setHintTextColor(NeoTunDesign.TEXT_MUTED)
                         }
-                        val dialog = AlertDialog.Builder(this)
-                            .setTitle("Импорт маршрутизации")
-                            .setMessage("Вставьте JSON-профиль или ссылку INCY/Happ. Профили с одинаковым Name обновляются.")
+                        val importDialog = AlertDialog.Builder(this)
+                            .setTitle("Импорт профиля")
+                            .setMessage("Вставьте JSON-профиль или ссылку INCY/Happ. Импорт не удаляет остальные профили.")
                             .setView(input)
                             .setNegativeButton("Отмена", null)
                             .setPositiveButton("Импортировать") { _, _ ->
@@ -956,21 +1003,23 @@ class MainActivity : Activity() {
                                     } else {
                                         val saved = routingStore.save(json, activate = true)
                                         routingStore.setEnabled(true)
-                                        toast("Профиль «${saved.name}» активирован")
+                                        toast("Профиль «${saved.name}» импортирован")
                                         renderSettings()
                                     }
                                 }
                             }.create()
-                        dialog.setOnShowListener { styleDialog(dialog) }
-                        dialog.show()
+                        importDialog.setOnShowListener { styleDialog(importDialog) }
+                        importDialog.show()
                     }
-                    else -> {
+                    index == toggleIndex -> {
                         routingStore.setEnabled(!routingStore.enabled())
                         toast(if (routingStore.enabled()) "Маршрутизация включена" else "Маршрутизация выключена")
                         renderSettings()
                     }
                 }
-            }.show()
+            }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun showImportMenu() {
