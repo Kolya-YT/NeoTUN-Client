@@ -4,6 +4,8 @@ using System.Windows.Media;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Net.Http;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using NeoTUN.Windows.Models;
 using NeoTUN.Windows.Services;
@@ -15,14 +17,19 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
     private readonly EngineRuntime _runtime = new();
+    private bool _loadingUiSettings;
+    private readonly Dictionary<DependencyObject, double> _fontBaselines = new();
 
     public MainWindow()
     {
         InitializeComponent();
         DataContext = _vm;
-        LoadUiSettings();
+        _loadingUiSettings = true;
+        try { LoadUiSettings(); }
+        finally { _loadingUiSettings = false; }
         LoadRoutingSettings();
-        DataDirectoryLabel.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoTUN");
+        DataDirectoryLabel.Text = DataDirectory;
+        AppVersionLabel.Text = "Установлена версия " + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "неизвестно");
         ProfileList.SelectionChanged += (_, _) => SyncSelectedProfileToEditor();
         SyncSelectedProfileToEditor();
         _runtime.LogLine += line => Dispatcher.BeginInvoke(() => AddLog(line));
@@ -40,6 +47,7 @@ public partial class MainWindow : Window
         });
         AddLog("NeoTUN Windows UI initialized; runtime manager loaded.");
         ShowPage("Главная");
+        Loaded += async (_, _) => await AutoRefreshSubscriptionsOnStartupAsync();
     }
 
     private void ShowPage(string page)
@@ -51,6 +59,27 @@ public partial class MainWindow : Window
         RoutingPage.Visibility = page == "Маршрутизация" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = page == "Настройки" ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == "Журнал" ? Visibility.Visible : Visibility.Collapsed;
+
+        var active = page switch
+        {
+            "Главная" => HomePage,
+            "Серверы" => ServersPage,
+            "Импорт" => ImportPage,
+            "Маршрутизация" => RoutingPage,
+            "Настройки" => SettingsPage,
+            "Журнал" => LogsPage,
+            _ => HomePage
+        };
+        active.Opacity = 1;
+        active.BeginAnimation(UIElement.OpacityProperty, null);
+        if (IsLoaded && UiAnimationsToggle?.IsChecked == true)
+        {
+            active.Opacity = 0;
+            active.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+        }
+        if (IsLoaded && FontScaleSelector is not null) ApplyFontScale();
     }
 
     private void SyncSelectedProfileToEditor()
