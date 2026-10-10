@@ -72,7 +72,48 @@ class NeoTunXrayVpnService : VpnService() {
                         starting = false
                     } catch (t: Throwable) {
                         NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", t)
-                        stopWithError(t.message ?: "Не удалось запустить Xray")
+                        if (isGeoDataIntegrityError(t)) {
+                            NeoTunDiagnostics.log(this, "Обнаружена ошибка чтения GeoIP/GeoSite. Обновляю геобазы и повторяю запуск один раз.")
+                            Thread({
+                                try {
+                                    val refreshed = NeoTunGeoData.ensure(
+                                        this,
+                                        geoDir,
+                                        routing?.json,
+                                        forceRefresh = true,
+                                    )
+                                    NeoTunDiagnostics.log(this, "GeoData после обновления: geoip=" +
+                                        refreshed.geoIpBytes + " bytes, geosite=" + refreshed.geoSiteBytes)
+                                    mainHandler.post {
+                                        if (destroyed || !starting) return@post
+                                        try {
+                                            startXray(uri, geoDir.absolutePath)
+                                            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                                                .edit()
+                                                .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
+                                                .remove(NeoTunVpnService.KEY_ERROR)
+                                                .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
+                                                .apply()
+                                            running = true
+                                            starting = false
+                                        } catch (retryError: Throwable) {
+                                            NeoTunDiagnostics.error(this, "Повторный запуск Xray после обновления GeoData не удался", retryError)
+                                            stopWithError(retryError.message ?: "Xray не запустился после обновления геобаз")
+                                        }
+                                    }
+                                } catch (refreshError: Throwable) {
+                                    NeoTunDiagnostics.error(this, "Не удалось обновить повреждённые геобазы", refreshError)
+                                    mainHandler.post {
+                                        if (!destroyed) stopWithError(
+                                            "Ошибка GeoIP/GeoSite. Обновление не удалось: " +
+                                                (refreshError.message ?: "проверьте URL геобаз и интернет")
+                                        )
+                                    }
+                                }
+                            }, "NeoTUN-GeoData-Retry").start()
+                        } else {
+                            stopWithError(t.message ?: "Не удалось запустить Xray")
+                        }
                     }
                 }
             } catch (t: Throwable) {
@@ -82,6 +123,16 @@ class NeoTunXrayVpnService : VpnService() {
         }, "NeoTUN-GeoData").start()
 
         return START_NOT_STICKY
+    }
+
+    private fun isGeoDataIntegrityError(error: Throwable): Boolean {
+        val message = generateSequence(error) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return (message.contains("geoip.dat") || message.contains("geosite.dat")) &&
+            (message.contains("eof") || message.contains("failed to check code") ||
+                message.contains("invalid field rule"))
     }
 
     private fun startXray(uri: String, geoDataPath: String) {
