@@ -147,8 +147,8 @@ NEOTUN_KEY_PASSWORD
 
 ## Текущая версия
 
-- Android: **0.7.0**
-- `versionCode`: **50**
+- Android: **0.7.1**
+- `versionCode`: **51**
 - Rust Core: **0.2.4**
 - Движки: sing-box 1.14.1 и Xray
 - Статус: активная разработка
@@ -164,7 +164,15 @@ NEOTUN_KEY_PASSWORD
 **Отключение VPN (0.6.8):** команда остановки передаётся активному движку без немедленного вызова `stopService`, который мог прервать обработку команды. Оба сервиса удаляют foreground-уведомление и сбрасывают состояние при остановке.
 
 
-**Единый интерфейс и маршрутизация (0.7.0):** редактор маршрутизации приведён к общим токенам `NeoTunDesign`; правила BLOCK/PROXY/DIRECT, глобальный прокси, порядок групп и DNS сохраняются в активном профиле. Пользовательские DNS endpoint-ы применяются в конфигурации sing-box; домашний DNS включается только для явно заданного списка `DomesticDNSDomains`. GeoSite/GeoIP можно принудительно обновить из редактора; загрузка идёт в фоне, а при ошибке старые файлы сохраняются.
+**Единый интерфейс и маршрутизация (0.7.1):** редактор маршрутизации приведён к общим токенам `NeoTunDesign`; правила BLOCK/PROXY/DIRECT, глобальный прокси, порядок групп и DNS сохраняются в активном профиле. Пользовательские DNS endpoint-ы применяются в конфигурации sing-box; домашний DNS включается только для явно заданного списка `DomesticDNSDomains`. GeoSite/GeoIP можно принудительно обновить из редактора; загрузка идёт в фоне, а при ошибке старые файлы сохраняются.
 
 
-- Android: **0.7.0** — унифицированный редактор маршрутизации, рабочее обновление GeoSite/GeoIP и применение DNS-параметров активного профиля.
+- Android: **0.7.1** — унифицированный редактор маршрутизации, рабочее обновление GeoSite/GeoIP и применение DNS-параметров активного профиля.
+
+
+### UI refresh 0.7.1
+
+- Home screen redesigned around a compact brand header, a circular primary connect/disconnect control, compact live traffic metrics, and a smaller selected-server card.
+- Bottom navigation is now a compact floating-style capsule with a clear selected state and reduced vertical footprint.
+- Screen headings and spacing are scaled down to avoid oversized titles and wasted vertical space on narrow phones.
+- This is a visual layout change; runtime behavior still needs verification on a real Android device.

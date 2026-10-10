@@ -1661,23 +1661,24 @@ class MainActivity : Activity() {
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(dp(4), dp(5), dp(4), dp(4))
-                background = rounded(if (selected) Color.rgb(37, 34, 68) else Color.TRANSPARENT, 15,
-                    if (selected) Color.rgb(60, 54, 103) else null, if (selected) 1 else 0)
+                setPadding(dp(if (selected) 14 else 8), dp(7), dp(if (selected) 14 else 8), dp(7))
+                background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else Color.TRANSPARENT, 18,
+                    if (selected) Color.rgb(69, 59, 113) else null, if (selected) 1 else 0)
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 22f,
-                if (selected) Color.rgb(180, 165, 255) else Color.rgb(112, 120, 145),
+            item.addView(txt(pair.first, 19f,
+                if (selected) Color.rgb(190, 178, 255) else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER))
-            item.addView(txt(pair.second, 10f,
-                if (selected) NeoTunDesign.TEXT_PRIMARY else Color.rgb(112, 120, 145),
-                if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 3))
-            nav.addView(item, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                setMargins(dp(4), 0, dp(4), 0)
+            if (selected) {
+                item.addView(txt(pair.second, 11f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER),
+                    LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(7) })
+            }
+            nav.addView(item, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                setMargins(dp(3), 0, dp(3), 0)
             })
         }
     }
@@ -1685,11 +1686,11 @@ class MainActivity : Activity() {
     private fun header(title: String, subtitle: String) {
         content.addView(txt(
             title,
-            if (resources.displayMetrics.widthPixels < dp(360)) 26f else 30f,
+            if (resources.displayMetrics.widthPixels < dp(360)) 22f else 25f,
             NeoTunDesign.TEXT_PRIMARY,
             Typeface.BOLD
         ))
-        content.addView(txt(subtitle, 14f, Color.rgb(145, 149, 162)).apply {
+        content.addView(txt(subtitle, 12f, NeoTunDesign.TEXT_SECONDARY).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 5, bottom = 18))

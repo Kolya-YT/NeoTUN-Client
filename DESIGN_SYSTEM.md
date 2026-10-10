@@ -50,3 +50,11 @@ Update both token maps and this document when visual tokens change. Platform-spe
 - GeoSite/GeoIP refresh runs off the main thread, validates HTTPS sources, and preserves the last working files if a download fails.
 - DNS split routing is opt-in: the domestic DNS is only selected for the profile's explicit `DomesticDNSDomains` list. Do not invent a domain list or silently rewrite imported profiles.
 - Hide controls whose runtime behavior is not implemented; a decorative control is a bug, not a placeholder.
+
+
+## Android layout rules
+- Keep the home brand header compact; do not use a large marketing slogan above the connection state.
+- The primary connect/disconnect action is the visual focal point and must remain reachable on narrow screens.
+- Use compact, equal-height navigation targets; show the selected label and keep inactive items visually quiet.
+- Server names and endpoint summaries are single-line ellipsized; never let long names expand cards horizontally.
+- Keep typography and spacing consistent with the shared palette; avoid oversized page titles and stacked decorative cards.
