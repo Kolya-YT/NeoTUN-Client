@@ -1823,18 +1823,18 @@ class MainActivity : Activity() {
             return
         }
         if (isRunning()) {
-            toast("Для проверки отключите текущее соединение")
+            toast("Отключите соединение, чтобы проверить сервер")
             return
         }
         if (!pingInProgress.add(profile.id)) return
         pingResults[profile.id] = "…"
         if (screen == Screen.PROFILES) renderProfiles()
 
-        // Ping runs silently in the background; the row itself shows progress/result.
+        // Ping runs in the background. Progress and result are shown inline in the server row.
         Thread {
             val pingMode = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
                 .getString("ping_mode", "tcp") ?: "tcp"
-            val pingResult = runCatching {
+            val result = runCatching {
                 when (pingMode) {
                     "tcp" -> {
                         val startedAt = android.os.SystemClock.elapsedRealtime()
@@ -1859,7 +1859,9 @@ class MainActivity : Activity() {
                                 .toString()
                         )
                         val converted = org.json.JSONObject(convertedRaw)
-                        if (!converted.optBoolean("success", false)) error(converted.optString("error", "Не удалось разобрать профиль"))
+                        if (!converted.optBoolean("success", false)) {
+                            error(converted.optString("error", "Не удалось разобрать профиль"))
+                        }
                         val outbounds = converted.optJSONObject("data")?.optJSONArray("outbounds")
                             ?: error("Xray parser не вернул outbound")
                         val payload = org.json.JSONObject()
@@ -1874,20 +1876,26 @@ class MainActivity : Activity() {
                                 .put("payload", payload).toString()
                         )
                         val ping = org.json.JSONObject(pingRaw)
-                        if (!ping.optBoolean("success", false)) error(ping.optString("error", "Ping не выполнен"))
+                        if (!ping.optBoolean("success", false)) {
+                            error(ping.optString("error", "Ping не выполнен"))
+                        }
                         val item = ping.optJSONObject("data")?.optJSONArray("results")?.optJSONObject(0)
                             ?: error("Пустой результат ping")
-                        if (!item.optBoolean("success", false)) error(item.optString("error", "Сервер недоступен"))
+                        if (!item.optBoolean("success", false)) {
+                            error(item.optString("error", "Сервер недоступен"))
+                        }
                         item.optLong("delay", -1L)
                     }
                 }
+            }.getOrElse { error ->
+                NeoTunDiagnostics.log(this, "Проверка сервера ${profile.name}: ${error.message ?: error.javaClass.simpleName}")
+                -1L
+            }
 
             runOnUiThread {
                 pingInProgress.remove(profile.id)
-                pingResults[profile.id] = if (pingResult >= 0L) "${pingResult}мс" else "Ошибка"
+                pingResults[profile.id] = if (result >= 0L) "${result}мс" else "Ошибка"
                 if (screen == Screen.PROFILES) renderProfiles()
-                // Keep the result inline to avoid interrupting the user with modal dialogs/toasts.
-
             }
         }.start()
     }
