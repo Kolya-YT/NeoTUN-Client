@@ -72,6 +72,7 @@ class MainActivity : Activity() {
         subscriptions = SubscriptionStore(this)
         routingStore = RoutingProfileStore(this)
         migrateLegacyProfile()
+        refreshStoredProfileEngines()
         if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("subscriptions_auto_update", true)) {
             refreshDueSubscriptions()
         }
@@ -777,10 +778,32 @@ class MainActivity : Activity() {
     }
 
     private fun connect(profile: NeoTunProfile, skipGeoWarning: Boolean = false) {
+        // Engine choice is derived from the URI by the native core. Older app
+        // versions persisted VLESS as sing-box, so never trust the cached engine
+        // field when starting a connection.
+        val detectedEngine = runCatching { NeoTunCore.nativeShareEngine(activeProfile.uri) }
+            .getOrDefault("unknown")
+        if (detectedEngine == "unknown" || detectedEngine.isBlank()) {
+            NeoTunDiagnostics.log(this, "Engine detection failed for protocol=" +
+                profile.uri.substringBefore("://").lowercase())
+            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
+                .putString(NeoTunVpnService.KEY_ERROR, "Не удалось определить ядро для этого профиля.")
+                .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+                .apply()
+            renderHome()
+            return
+        }
+        val activeProfile = profile.copy(engine = detectedEngine)
+        if (activeProfile.engine != profile.engine) {
+            store.save(activeProfile)
+            NeoTunDiagnostics.log(this, "Profile engine refreshed: " +
+                profile.uri.substringBefore("://").lowercase() + " -> " + activeProfile.engine)
+        }
+
         // Happ/INCY geosite/geoip tokens point to Xray .dat geodata. sing-box
         // cannot consume those tokens as plain domains, so don't silently let
         // the user connect with part of their routing policy missing.
-        if (profile.engine != NeoTunVpnService.ENGINE_XRAY && !skipGeoWarning) {
+        if (activeProfile.engine != NeoTunVpnService.ENGINE_XRAY && !skipGeoWarning) {
             val unsupportedGeo = RoutingProfileStore(this).active()
                 ?.let { NeoTunRoutingAdapter.unsupportedSingBoxGeoTokens(it) }
                 .orEmpty()
@@ -795,7 +818,7 @@ class MainActivity : Activity() {
                             "\n\nПодключиться всё равно?"
                     )
                     .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Продолжить") { _, _ -> connect(profile, skipGeoWarning = true) }
+                    .setPositiveButton("Продолжить") { _, _ -> connect(activeProfile, skipGeoWarning = true) }
                     .show()
                 return
             }
@@ -2025,6 +2048,27 @@ class MainActivity : Activity() {
             transport?.takeIf { it.isNotBlank() },
             security?.takeIf { it.isNotBlank() }
         ).distinct().joinToString("  •  ").ifBlank { "Подключение" }
+    }
+
+    /**
+     * Reclassify profiles created by older builds. Engine selection changed for
+     * VLESS transports, and a cached "sing-box" label must not survive an app update.
+     */
+    private fun refreshStoredProfileEngines() {
+        val current = store.all()
+        var changed = false
+        val refreshed = current.map { profile ->
+            val detected = runCatching { NeoTunCore.nativeShareEngine(profile.uri) }
+                .getOrDefault("unknown")
+            if (detected.isNotBlank() && detected != "unknown" && detected != profile.engine) {
+                changed = true
+                profile.copy(engine = detected)
+            } else profile
+        }
+        if (changed) {
+            store.saveAll(refreshed)
+            NeoTunDiagnostics.log(this, "Updated cached engines for stored profiles")
+        }
     }
 
     private fun migrateLegacyProfile() {
