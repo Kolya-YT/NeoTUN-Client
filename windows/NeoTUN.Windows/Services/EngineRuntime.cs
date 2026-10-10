@@ -208,11 +208,11 @@ internal sealed class EngineRuntime : IDisposable
                         {
                             var address = addressNode?.GetValue<string>();
                             if (!string.IsNullOrWhiteSpace(address) &&
-                                (ipv6Enabled || !address.Contains(':', StringComparison.Ordinal)))
+                                (ipv6Enabled || !address.Contains(':')))
                                 newAddresses.Add(address);
                         }
                     }
-                    if (ipv6Enabled && !newAddresses.Any(a => (a?.GetValue<string>() ?? "").Contains(':', StringComparison.Ordinal)))
+                    if (ipv6Enabled && !newAddresses.Any(a => (a?.GetValue<string>() ?? "").Contains(':')))
                         newAddresses.Add("fdfe:dcba:9876::1/126");
                     inbound["address"] = newAddresses;
                 }
