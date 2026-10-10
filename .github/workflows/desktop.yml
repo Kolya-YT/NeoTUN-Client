@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   windows:
-    name: Windows x64
+    name: Windows x64 native core (experimental)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
       - name: Build Rust core for Windows
         run: cargo build --release --target x86_64-pc-windows-msvc -p neotun-core
 
-      - name: Package Windows core
+      - name: Package Windows native core
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -45,11 +45,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item $binary "dist/neotun_core.dll"
           @"
-          NeoTUN Windows native core (x64)
+          NeoTUN Windows native core (x64) — experimental
 
-          This artifact contains the Rust profile parsing/configuration core only.
-          It is not a complete Windows GUI client and does not include a Windows
-          tunnel service or Xray/sing-box runtime integration.
+          This is only the Rust parsing/configuration library.
+          It is NOT a complete Windows client: no desktop UI, TUN adapter,
+          Windows service, or integrated Xray/sing-box runtime is included.
           "@ | Set-Content -Encoding utf8 "dist/README-Windows.txt"
           Get-ChildItem dist | Format-Table Name, Length
 
@@ -58,4 +58,3 @@ jobs:
         with:
           name: NeoTUN-Windows-Core-x64
           path: dist/*
-
