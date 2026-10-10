@@ -28,11 +28,18 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             return START_NOT_STICKY
         }
         if (!running) {
+            NeoTunDiagnostics.clear(this)
+            NeoTunDiagnostics.log(this, "sing-box: onStartCommand; Android SDK=" + Build.VERSION.SDK_INT)
             runCatching {
+                NeoTunDiagnostics.log(this, "sing-box: starting foreground service")
                 startForegroundNotification()
+                NeoTunDiagnostics.log(this, "sing-box: creating Android platform adapter")
                 platform = NeoTunPlatform(this)
+                NeoTunDiagnostics.log(this, "sing-box: constructing libbox CommandServer")
                 commandServer = CommandServer(this, platform)
+                NeoTunDiagnostics.log(this, "sing-box: starting libbox CommandServer")
                 commandServer.start()
+                NeoTunDiagnostics.log(this, "sing-box: CommandServer started")
 
                 val config = intent?.getStringExtra(EXTRA_CONFIG)
                     ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CONFIG, null)
@@ -44,8 +51,19 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                     throw IllegalArgumentException("Некорректная конфигурация sing-box")
                 }
 
-                android.util.Log.i("NeoTUN", "Starting sing-box; config bytes=" + normalizedConfig.length)
+                val configSummary = runCatching {
+                    val json = org.json.JSONObject(normalizedConfig)
+                    val outbounds = json.optJSONArray("outbounds")
+                    val firstOutbound = outbounds?.optJSONObject(0)
+                    "inbounds=" + (json.optJSONArray("inbounds")?.length() ?: 0) +
+                        ", outbounds=" + (outbounds?.length() ?: 0) +
+                        ", firstOutbound=" + (firstOutbound?.optString("type") ?: "unknown")
+                }.getOrDefault("config summary unavailable")
+                NeoTunDiagnostics.log(this, "sing-box: config accepted; chars=" +
+                    normalizedConfig.length + "; " + configSummary)
+                NeoTunDiagnostics.log(this, "sing-box: calling startOrReloadService")
                 commandServer.startOrReloadService(normalizedConfig, OverrideOptions())
+                NeoTunDiagnostics.log(this, "sing-box: startOrReloadService returned successfully")
                 getSharedPreferences(PREFS, MODE_PRIVATE)
                     .edit()
                     .putString(KEY_CONFIG, config)
@@ -53,8 +71,9 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                     .putBoolean(KEY_RUNNING, true)
                     .apply()
                 running = true
+                NeoTunDiagnostics.log(this, "sing-box: startup completed")
             }.onFailure { error ->
-                android.util.Log.e("NeoTUN", "sing-box startup failed", error)
+                NeoTunDiagnostics.error(this, "sing-box startup failed", error)
                 stopWithError(error.message ?: error.javaClass.simpleName ?: "Не удалось запустить sing-box")
             }
         }
@@ -65,6 +84,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         super.onBind(intent) ?: error("VPN binder unavailable")
 
     override fun onDestroy() {
+        NeoTunDiagnostics.log(this, "sing-box: service onDestroy; running=" + running)
         stopServiceInternal()
         super.onDestroy()
     }
@@ -87,11 +107,14 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     override fun setSystemProxyEnabled(isEnabled: Boolean) = Unit
     override fun triggerNativeCrash() = Unit
     override fun writeDebugMessage(message: String?) {
-        android.util.Log.d("NeoTUN", message ?: "")
+        val line = message ?: return
+        android.util.Log.d("NeoTUN", line)
+        NeoTunDiagnostics.log(this, "libbox: " + line)
     }
     override fun connectSSHAgent(): Int = -1
 
     private fun stopWithError(message: String) {
+        NeoTunDiagnostics.error(this, "sing-box stopped: " + message)
         running = false
         getSharedPreferences(PREFS, MODE_PRIVATE)
             .edit()
