@@ -863,7 +863,7 @@ class MainActivity : Activity() {
             .mapNotNull { resolve ->
                 val appInfo = resolve.activityInfo?.applicationInfo ?: return@mapNotNull null
                 val packageName = appInfo.packageName
-                if (packageName == packageName || packageName == this.packageName) null
+                if (packageName == this.packageName) null
                 else packageName to (resolve.loadLabel(packageManager)?.toString() ?: packageName)
             }
             .distinctBy { it.first }
