@@ -55,7 +55,11 @@ internal sealed class EngineRuntime : IDisposable
         var wintunPath = Path.Combine(_runtimeDirectory, "wintun.dll");
         if (!File.Exists(wintunPath))
             throw new FileNotFoundException("Не найден runtime/wintun.dll. Переустанови NeoTUN через актуальный установщик Windows.", wintunPath);
+        if (new FileInfo(wintunPath).Length < 64 * 1024)
+            throw new InvalidDataException($"runtime/wintun.dll выглядит неполным ({new FileInfo(wintunPath).Length} bytes). Переустанови приложение.");
 
+        WriteLog($"Runtime paths: app={AppContext.BaseDirectory}; runtime={_runtimeDirectory}; wintun={wintunPath}; wintunBytes={new FileInfo(wintunPath).Length}");
+        WriteLog($"Runtime files: sing-box={new FileInfo(singBoxPath).Length} bytes; xray={(File.Exists(xrayPath) ? new FileInfo(xrayPath).Length : 0)} bytes");
         var runtime = NativeCore.BuildRuntimeConfig(shareUri);
         var singBoxConfigPath = Path.Combine(_dataDirectory, "sing-box-runtime.json");
         var apiPort = GetAvailableLoopbackPort();
@@ -80,6 +84,7 @@ internal sealed class EngineRuntime : IDisposable
         if (runtime.Engine == "xray")
         {
             if (runtime.XrayJson is null) throw new InvalidOperationException("Для этого профиля не сформирована конфигурация Xray.");
+            WriteLog("Selected Xray + sing-box TUN bridge; validating Xray before starting TUN.");
             if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
             var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
             await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
@@ -132,8 +137,8 @@ internal sealed class EngineRuntime : IDisposable
             TrafficUpdated?.Invoke(upload, download, totalUpload, totalDownload);
         };
         _trafficMonitor.Start();
-        StateChanged?.Invoke(true, "Сетевой движок запущен. Проверяй доступ к TCP/UDP и DNS.");
-        WriteLog("Runtime started; engine=" + runtime.Engine);
+        StateChanged?.Invoke(true, "Движки запущены; проверяем стабильность TUN и доступность трафика…");
+        WriteLog("Runtime processes started; engine=" + runtime.Engine + "; TUN startup is provisional until the process remains alive.");
     }
 
     public async Task StopAsync()
