@@ -504,9 +504,20 @@ impl Profile {
                 "server_name": self.params.get("sni").or_else(|| self.params.get("host")).cloned()
             });
         } else if security == "reality" {
+            // sing-box requires uTLS to be explicitly enabled for Reality outbounds.
+            // The fingerprint comes from the share URI (?fp=); Chrome is the
+            // interoperable default when providers omit it.
+            let fingerprint = self.params.get("fp")
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+                .unwrap_or_else(|| "chrome".to_string());
             vless["tls"] = serde_json::json!({
                 "enabled": true,
                 "server_name": self.params.get("sni").or_else(|| self.params.get("host")).cloned(),
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": fingerprint
+                },
                 "reality": {
                     "enabled": true,
                     "public_key": self.params.get("pbk").cloned().unwrap_or_default(),
