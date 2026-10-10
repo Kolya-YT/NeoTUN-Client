@@ -68,9 +68,9 @@
                 <TextBlock Text="Выбранный сервер" Foreground="{StaticResource TextMutedBrush}" Margin="0,30,0,8"/>
                 <Border Background="{StaticResource InputSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="14">
                   <StackPanel>
-                    <TextBlock Text="{Binding SelectedProfile.Name, TargetNullValue=Сервер не выбран}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding SelectedProfileName}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{Binding SelectedEndpoint}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
-                    <TextBlock Text="{Binding SelectedProfile.Protocol, TargetNullValue=—}" Foreground="{StaticResource BrandVioletBrush}" FontSize="11" Margin="0,8,0,0"/>
+                    <TextBlock Text="{Binding SelectedProfileProtocol}" Foreground="{StaticResource BrandVioletBrush}" FontSize="11" Margin="0,8,0,0"/>
                   </StackPanel>
                 </Border>
               </StackPanel>
@@ -129,9 +129,9 @@
               <StackPanel>
                 <TextBlock Text="Параметры сервера" FontSize="18" FontWeight="SemiBold"/>
                 <TextBlock Text="Название" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,18,0,6"/>
-                <TextBox x:Name="ProfileName" Text="{Binding SelectedProfile.Name, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox x:Name="ProfileName" Text="{Binding SelectedProfileName, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}" />
                 <TextBlock Text="Ссылка подключения" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,16,0,6"/>
-                <TextBox x:Name="ProfileUri" Text="{Binding SelectedProfile.Uri, UpdateSourceTrigger=PropertyChanged}" MinHeight="84" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+                <TextBox x:Name="ProfileUri" Text="{Binding SelectedProfileUri, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}" MinHeight="84" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
                 <TextBlock Text="{Binding SelectedEndpoint}" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
                 <WrapPanel Margin="0,22,0,0">
                   <Button Content="Сохранить" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="SaveProfile_Click" Margin="0,0,8,8"/>
