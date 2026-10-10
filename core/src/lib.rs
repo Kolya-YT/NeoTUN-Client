@@ -507,6 +507,11 @@ impl Profile {
                 "log": { "level": "info" },
                 "inbounds": [{ "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true }],
                 "outbounds": [{ "type": "socks", "tag": "proxy", "server": "127.0.0.1", "server_port": 10808, "version": "5" }, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
+                "dns": {
+                    "servers": [{ "type": "local", "tag": "system" }],
+                    "final": "system",
+                    "strategy": "prefer_ipv4"
+                },
                 "route": { "auto_detect_interface": true, "final": "proxy", "rules": [{ "action": "hijack-dns" }] }
             });
             return Ok(serde_json::json!({ "engine": "xray", "sing_box_config": sing_box, "xray_config": xray }).to_string());
@@ -798,6 +803,13 @@ mod tests {
         assert_eq!(runtime["xray_config"]["outbounds"][0]["protocol"], "vless");
         assert_eq!(runtime["xray_config"]["outbounds"][0]["settings"]["vnext"][0]["address"], "example.com");
         assert_eq!(runtime["sing_box_config"]["inbounds"][0]["type"], "tun");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server"], "127.0.0.1");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server_port"], 10808);
+        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["type"], "local");
+        assert_eq!(runtime["sing_box_config"]["dns"]["final"], "system");
+        assert_eq!(runtime["sing_box_config"]["dns"]["strategy"], "prefer_ipv4");
+        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["action"], "hijack-dns");
     }
 
     #[test]
