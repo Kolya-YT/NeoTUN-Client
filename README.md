@@ -147,7 +147,7 @@ NEOTUN_KEY_PASSWORD
 
 ## Текущая версия
 
-- Android: **0.7.7**
+- Android: **0.7.8**
 - `versionCode`: **56**
 - Rust Core: **0.2.4**
 - Движки Android: sing-box 1.14.1 и Xray
@@ -192,8 +192,11 @@ NEOTUN_KEY_PASSWORD
 **Routing UI (0.7.6):** исправлены системные отступы edge-to-edge для Android 15+, нижняя кнопка сохранения больше не должна уходить под навигационную панель, стрелка выбора порядка групп больше не занимает всю ширину строки; диалоги получили оформление в стиле NeoTUN.
 
 
-### Hysteria2 routing fix (0.7.7)
+### Hysteria2 routing fix (0.7.8)
 
 - Custom profile rules are inserted before sing-box native fallback rules, so an early `route(proxy)` catch-all no longer masks Direct/Block/Proxy decisions.
 - Xray-style `geosite:`/`geoip:` tokens are mapped to sing-box remote binary `.srs` rule-sets where supported; remote rule-set cache is enabled.
 - DNS hijacking on port 53 remains first. Unsupported geodata labels are logged instead of silently being treated as domains.
+
+
+**0.7.8:** sing-box GeoSite/GeoIP rule-sets now use the same RoscomVPN `.srs` data source as the user's Happ profile, including `twitch-ads`, `google-play`, `github`, `youtube`, `telegram`, and GeoIP `direct/whitelist/private`. Android Actions no longer cancels an in-progress build when a newer commit is pushed.

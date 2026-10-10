@@ -192,16 +192,15 @@ object NeoTunRoutingAdapter {
      * Keep this explicit so the UI can warn instead of silently losing policy.
      */
     private val supportedGeositeRuleSets = setOf(
-        "google-play", "google", "github", "youtube", "telegram", "twitch",
-        "category-ads-all", "private", "cn", "geolocation-!cn", "microsoft",
-        "apple", "openai", "netflix", "spotify", "discord", "facebook",
-        "twitter", "instagram", "reddit", "tiktok", "whatsapp", "steam",
-        "epicgames", "games", "category-games", "category-ads", "category-porn",
-        "category-violence", "category-gambling", "category-cryptocurrency",
-        "category-dev", "category-social-media-!cn", "category-communication",
-        "category-media", "category-entertainment", "category-ai-!cn",
-        "category-ai-chat-!cn", "category-scholar-!cn", "category-p2p"
+        "whitelist", "category-ru", "category-geoblock-ru",
+        "apple", "google-play", "google-deepmind", "microsoft", "github",
+        "telegram", "youtube", "twitch", "twitch-ads", "pinterest",
+        "steam", "epic-games", "riot", "escapefromtarkov", "faceit",
+        "category-ads", "win-spy", "private", "torrent",
+        "category-ban-ru", "category-ip-geo-detect"
     )
+
+    private val supportedGeoIpRuleSets = setOf("direct", "whitelist", "private")
 
     private fun geoToken(value: String): Pair<String, String>? {
         val token = value.trim()
@@ -212,7 +211,7 @@ object NeoTunRoutingAdapter {
         if (label.isBlank() || !label.matches(Regex("[a-z0-9_!@.-]+"))) return null
         return when (kind) {
             "geosite" -> if (label in supportedGeositeRuleSets) kind to label else null
-            "geoip" -> if (label in setOf("private", "cn", "ru", "us", "ir", "by", "ua", "kz", "de", "fi", "nl", "se", "fr", "gb", "jp", "kr", "in", "tr", "br", "ca", "au", "pl", "it", "es", "ch", "no", "cz", "at", "il", "sg", "hk", "tw", "id", "th", "vn", "za") || label.matches(Regex("[a-z]{2}"))) kind to label else null
+            "geoip" -> if (label in supportedGeoIpRuleSets) kind to label else null
             else -> null
         }
     }
@@ -221,8 +220,11 @@ object NeoTunRoutingAdapter {
         "neotun-${token.first}-" + token.second.replace(Regex("[^a-z0-9]+"), "-").trim('-')
 
     private fun ruleSetUrl(token: Pair<String, String>): String {
-        val folder = if (token.first == "geosite") "geosite" else "geoip"
-        return "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/$folder/${token.second}.srs"
+        return if (token.first == "geosite") {
+            "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/sing-box/${token.second}.srs"
+        } else {
+            "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geoip/release/sing-box/${token.second}.srs"
+        }
     }
 
     /**
