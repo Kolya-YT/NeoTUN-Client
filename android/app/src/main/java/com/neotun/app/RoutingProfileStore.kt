@@ -191,11 +191,68 @@ object NeoTunRoutingAdapter {
      * they are not valid sing-box domain/IP matchers or sing-box .srs rule sets.
      * Keep this explicit so the UI can warn instead of silently losing policy.
      */
+    private val supportedGeositeRuleSets = setOf(
+        "google-play", "google", "github", "youtube", "telegram", "twitch",
+        "category-ads-all", "private", "cn", "geolocation-!cn", "microsoft",
+        "apple", "openai", "netflix", "spotify", "discord", "facebook",
+        "twitter", "instagram", "reddit", "tiktok", "whatsapp", "steam",
+        "epicgames", "games", "category-games", "category-ads", "category-porn",
+        "category-violence", "category-gambling", "category-cryptocurrency",
+        "category-dev", "category-social-media-!cn", "category-communication",
+        "category-media", "category-entertainment", "category-ai-!cn",
+        "category-ai-chat-!cn", "category-scholar-!cn", "category-p2p"
+    )
+
+    private fun geoToken(value: String): Pair<String, String>? {
+        val token = value.trim()
+        val separator = token.indexOf(':')
+        if (separator <= 0) return null
+        val kind = token.substring(0, separator).lowercase()
+        val label = token.substring(separator + 1).trim().lowercase()
+        if (label.isBlank() || !label.matches(Regex("[a-z0-9_!@.-]+"))) return null
+        return when (kind) {
+            "geosite" -> if (label in supportedGeositeRuleSets) kind to label else null
+            "geoip" -> if (label in setOf("private", "cn", "ru", "us", "ir", "by", "ua", "kz", "de", "fi", "nl", "se", "fr", "gb", "jp", "kr", "in", "tr", "br", "ca", "au", "pl", "it", "es", "ch", "no", "cz", "at", "il", "sg", "hk", "tw", "id", "th", "vn", "za") || label.matches(Regex("[a-z]{2}"))) kind to label else null
+            else -> null
+        }
+    }
+
+    private fun ruleSetTag(token: Pair<String, String>): String =
+        "neotun-${token.first}-" + token.second.replace(Regex("[^a-z0-9]+"), "-").trim('-')
+
+    private fun ruleSetUrl(token: Pair<String, String>): String {
+        val folder = if (token.first == "geosite") "geosite" else "geoip"
+        return "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/$folder/${token.second}.srs"
+    }
+
+    /**
+     * GeoSite/GeoIP .dat files are Xray-specific. sing-box receives equivalent
+     * native binary rule-sets (.srs) from MetaCubeX instead of silently dropping
+     * these matchers or treating them as literal domain names.
+     */
     fun unsupportedSingBoxGeoTokens(profile: NeoTunRoutingProfile): List<String> {
-        val keys = listOf("BlockSites", "DirectSites", "ProxySites")
+        val keys = listOf("BlockSites", "DirectSites", "ProxySites", "BlockIp", "DirectIp", "ProxyIp")
         return keys.flatMap { key -> profile.values(key) }
             .filter { it.startsWith("geosite:", true) || it.startsWith("geoip:", true) }
+            .filter { geoToken(it) == null }
             .distinct()
+    }
+
+    fun singBoxRuleSets(profile: NeoTunRoutingProfile): JSONArray {
+        val tokens = listOf("BlockSites", "DirectSites", "ProxySites", "BlockIp", "DirectIp", "ProxyIp")
+            .flatMap { key -> profile.values(key) }
+            .mapNotNull { geoToken(it) }
+            .distinct()
+        val sets = JSONArray()
+        tokens.forEach { token ->
+            sets.put(JSONObject()
+                .put("type", "remote")
+                .put("tag", ruleSetTag(token))
+                .put("format", "binary")
+                .put("url", ruleSetUrl(token))
+                .put("update_interval", "24h"))
+        }
+        return sets
     }
 
     fun singBoxRules(profile: NeoTunRoutingProfile): JSONArray {
@@ -205,11 +262,11 @@ object NeoTunRoutingAdapter {
             val domains = JSONArray()
             val suffixes = JSONArray()
             val ips = JSONArray()
+            val ruleSets = JSONArray()
             values.forEach { value ->
+                val geo = geoToken(value)
                 when {
-                    // Xray geodata tokens are deliberately not translated into
-                    // ordinary sing-box domains. They need real sing-box rule-set
-                    // data; silently treating them as hostnames would be incorrect.
+                    geo != null -> ruleSets.put(ruleSetTag(geo))
                     value.startsWith("geosite:", true) || value.startsWith("geoip:", true) -> Unit
                     value.startsWith("domain-suffix:", true) ->
                         suffixes.put(value.substringAfter(':'))
@@ -217,7 +274,7 @@ object NeoTunRoutingAdapter {
                         suffixes.put(value.substringAfter(':'))
                     value.startsWith("full:", true) -> domains.put(value.substringAfter(':'))
                     isDomain -> domains.put(value)
-                    value.contains('/') || value.matches(Regex("\\d{1,3}(?:\\.\\d{1,3}){3}")) || value.contains(':') -> ips.put(value)
+                    value.contains('/') || value.matches(Regex("\\d{1,3}(?:\\.\\d{1,3}){3}") ) || value.contains(':') -> ips.put(value)
                     else -> Unit
                 }
             }
@@ -226,6 +283,7 @@ object NeoTunRoutingAdapter {
             if (domains.length() > 0) rule.put("domain", domains)
             if (suffixes.length() > 0) rule.put("domain_suffix", suffixes)
             if (ips.length() > 0) rule.put("ip_cidr", ips)
+            if (ruleSets.length() > 0) rule.put("rule_set", ruleSets)
             if (rule.length() > 1) rules.put(rule)
         }
         routeOrder(profile).forEach { category ->
