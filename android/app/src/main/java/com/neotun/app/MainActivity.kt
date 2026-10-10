@@ -1791,7 +1791,7 @@ class MainActivity : Activity() {
             trafficLastRx = counters.first
             trafficLastTx = counters.second
             trafficLastAt = now
-            return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
+            return TrafficSnapshot(selectedSource, 0L, 0L, 0L, 0L, false)
         }
 
         val elapsedMs = (now - trafficLastAt).coerceAtLeast(1L)

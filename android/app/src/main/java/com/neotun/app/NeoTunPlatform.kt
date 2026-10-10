@@ -63,11 +63,7 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         NeoTunDiagnostics.log(
             vpn,
             "sing-box: openTun requested; mtu=" + options.mtu +
-                "; autoRoute=" + options.autoRoute +
-                "; ipv4Addresses=" + options.inet4Address.len() +
-                "; ipv6Addresses=" + options.inet6Address.len() +
-                "; ipv4Routes=" + options.inet4RouteRange.len() +
-                "; ipv6Routes=" + options.inet6RouteRange.len()
+                "; autoRoute=" + options.autoRoute
         )
         try {
         val builder = vpn.Builder()
