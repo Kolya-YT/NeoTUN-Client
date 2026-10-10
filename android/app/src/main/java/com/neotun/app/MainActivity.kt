@@ -1964,14 +1964,24 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(1), 0, dp(14))
         }
-        row.addView(iconButton("‹", 38) { showScreen(Screen.HOME) },
-            LinearLayout.LayoutParams(dp(48), dp(52)))
+        row.addView(iconButton("‹", 34) { showScreen(Screen.HOME) }.apply {
+            background = rounded(NeoTunDesign.SURFACE, 14, NeoTunDesign.BORDER, 1)
+        }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { setMargins(0, 0, dp(12), 0) })
         val textBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        textBox.addView(txt(title, 24f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        textBox.addView(txt(subtitle, 12f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
+        textBox.addView(txt(title, 23f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        if (subtitle.isNotBlank()) {
+            textBox.addView(txt(subtitle, 11f, NeoTunDesign.TEXT_MUTED).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, margins(top = 3))
+        }
         row.addView(textBox, LinearLayout.LayoutParams(0, -2, 1f))
-        content.addView(row, margins(bottom = 16))
+        content.addView(row)
     }
 
     private fun iconButton(symbol: String, size: Int, action: () -> Unit) = TextView(this).apply {
@@ -2097,17 +2107,11 @@ class MainActivity : Activity() {
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = rounded(NeoTunDesign.SURFACE, 20, NeoTunDesign.BORDER, 1)
-        elevation = dp(1).toFloat()
+        setPadding(dp(15), dp(13), dp(15), dp(13))
+        background = rounded(NeoTunDesign.SURFACE, 18, NeoTunDesign.BORDER, 1)
+        elevation = 0f
+        clipToOutline = true
     }
-
-    private fun rounded(fill: Int, radius: Int, stroke: Int? = null, strokeWidth: Int = 0): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(fill)
-            cornerRadius = dp(radius).toFloat()
-            if (stroke != null && strokeWidth > 0) setStroke(dp(strokeWidth), stroke)
-        }
 
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
         text = label
