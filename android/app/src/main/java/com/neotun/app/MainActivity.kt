@@ -1659,24 +1659,32 @@ class MainActivity : Activity() {
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(if (selected) 10 else 6), dp(7), dp(if (selected) 10 else 6), dp(7))
-                background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else Color.TRANSPARENT, 18,
-                    if (selected) Color.rgb(69, 59, 113) else null, if (selected) 1 else 0)
+                setPadding(dp(3), dp(3), dp(3), dp(3))
+                background = rounded(
+                    if (selected) NeoTunDesign.BRAND_SOFT else Color.TRANSPARENT,
+                    13,
+                    if (selected) Color.rgb(69, 59, 113) else null,
+                    if (selected) 1 else 0
+                )
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 19f,
+            item.addView(txt(
+                pair.first, 19f,
                 if (selected) Color.rgb(190, 178, 255) else NeoTunDesign.TEXT_MUTED,
-                Typeface.BOLD, Gravity.CENTER))
-            if (selected) {
-                item.addView(txt(pair.second, 11f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER),
-                    LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(7) })
-            }
-            nav.addView(item, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
-                setMargins(dp(3), 0, dp(3), 0)
+                Typeface.BOLD, Gravity.CENTER
+            ))
+            item.addView(txt(
+                pair.second, 10f,
+                if (selected) NeoTunDesign.TEXT_PRIMARY else NeoTunDesign.TEXT_MUTED,
+                if (selected) Typeface.BOLD else Typeface.NORMAL,
+                Gravity.CENTER
+            ), margins(top = 1))
+            nav.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
+                setMargins(dp(4), dp(1), dp(4), dp(1))
             })
         }
     }
