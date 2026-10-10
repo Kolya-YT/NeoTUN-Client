@@ -781,21 +781,18 @@ class MainActivity : Activity() {
             inbound.put("dns_address", JSONArray().put("172.19.0.2"))
         }
 
+        // sing-box "local" DNS can resolve to ::1 on some Android 16 devices,
+        // where no DNS listener exists. Use a reachable upstream resolver by default.
         val dnsIp = when {
-            dnsMode.contains("1.1.1.1") -> "1.1.1.1"
             dnsMode.contains("8.8.8.8") -> "8.8.8.8"
             dnsMode.contains("9.9.9.9") -> "9.9.9.9"
-            else -> null
+            else -> "1.1.1.1"
         }
-        val dnsServer = if (dnsIp == null) {
-            JSONObject().put("type", "local").put("tag", "system")
-        } else {
-            JSONObject().put("type", "udp").put("tag", "selected-dns")
-                .put("server", dnsIp).put("server_port", 53)
-        }
+        val dnsServer = JSONObject().put("type", "udp").put("tag", "selected-dns")
+            .put("server", dnsIp).put("server_port", 53)
         root.put("dns", JSONObject()
             .put("servers", JSONArray().put(dnsServer))
-            .put("final", if (dnsIp == null) "system" else "selected-dns")
+            .put("final", "selected-dns")
             .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only"))
 
         val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }

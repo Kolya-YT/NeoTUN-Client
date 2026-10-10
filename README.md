@@ -147,8 +147,8 @@ NEOTUN_KEY_PASSWORD
 
 ## Текущая версия
 
-- Android: **0.6.0**
-- `versionCode`: **40**
+- Android: **0.6.1**
+- `versionCode`: **41**
 - Rust Core: **0.2.4**
 - Движки: sing-box 1.14.1 и Xray
 - Статус: активная разработка
@@ -156,3 +156,6 @@ NEOTUN_KEY_PASSWORD
 ## Лицензия
 
 Условия использования указаны в [LICENSE](LICENSE).
+
+
+**Android DNS fallback (0.6.1):** для sing-box используется явный UDP DNS upstream (по умолчанию 1.1.1.1; можно выбрать Google или Quad9), а не локальный resolver, который на некоторых устройствах Android 16 возвращает `::1:53 connection refused`. Требуется проверить доступность выбранного DNS из сети пользователя.
