@@ -2051,7 +2051,7 @@ class MainActivity : Activity() {
 
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
         text = label
-        textSize = 14f
+        textSize = 14f * fontScaleFactor()
         isAllCaps = false
         setTextColor(NeoTunDesign.TEXT_PRIMARY)
         minHeight = dp(48)
