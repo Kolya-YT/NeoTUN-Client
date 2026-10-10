@@ -250,6 +250,9 @@ impl Profile {
     }
 
     pub fn to_generic_sing_box_json(&self) -> Result<String, String> {
+        if self.protocol == "vless" && self.engine() == "xray" {
+            return Err("VLESS XHTTP uses the Xray runtime and cannot be converted to a sing-box outbound".into());
+        }
         let outbound = match self.protocol.as_str() {
             "vless" => serde_json::from_str::<serde_json::Value>(&self.to_sing_box_json()?).unwrap()["outbounds"][0].clone(),
             "trojan" => {
@@ -757,6 +760,28 @@ mod tests {
         let config = profile.to_sing_box_json().unwrap();
         assert!(config.contains("\"engine\":\"xray\""));
         assert!(config.contains("\"transport\":\"xhttp\""));
+    }
+
+    #[test]
+    fn windows_runtime_selects_sing_box_for_vless_and_xray_for_xhttp() {
+        let standard = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=ws&path=%2F"
+        ).unwrap();
+        assert_eq!(standard.engine(), "sing-box");
+        let standard_runtime: serde_json::Value =
+            serde_json::from_str(&standard.to_windows_runtime_json().unwrap()).unwrap();
+        assert_eq!(standard_runtime["engine"], "sing-box");
+        assert!(standard_runtime["sing_box_config"]["inbounds"][0]["type"] == "tun");
+
+        let xhttp = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xhttp&path=%2F"
+        ).unwrap();
+        assert_eq!(xhttp.engine(), "xray");
+        let xhttp_runtime: serde_json::Value =
+            serde_json::from_str(&xhttp.to_windows_runtime_json().unwrap()).unwrap();
+        assert_eq!(xhttp_runtime["engine"], "xray");
+        assert_eq!(xhttp_runtime["xray_config"]["inbounds"][0]["port"], 10808);
+        assert_eq!(xhttp_runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
     }
 
     #[test]
