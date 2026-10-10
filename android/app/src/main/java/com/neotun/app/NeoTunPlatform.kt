@@ -60,6 +60,16 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
     override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
 
     override fun openTun(options: TunOptions): Int {
+        NeoTunDiagnostics.log(
+            vpn,
+            "sing-box: openTun requested; mtu=" + options.mtu +
+                "; autoRoute=" + options.autoRoute +
+                "; ipv4Addresses=" + options.inet4Address.len() +
+                "; ipv6Addresses=" + options.inet6Address.len() +
+                "; ipv4Routes=" + options.inet4RouteRange.len() +
+                "; ipv6Routes=" + options.inet6RouteRange.len()
+        )
+        try {
         val builder = vpn.Builder()
             .setSession("NeoTUN")
             .setMtu(options.mtu)
@@ -113,7 +123,13 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
             }
         }
 
-        return (builder.establish() ?: error("Не удалось создать TUN")).detachFd()
+        val descriptor = (builder.establish() ?: error("Не удалось создать TUN")).detachFd()
+        NeoTunDiagnostics.log(vpn, "sing-box: openTun established; fd=" + descriptor)
+        return descriptor
+        } catch (t: Throwable) {
+            NeoTunDiagnostics.error(vpn, "sing-box: openTun failed", t)
+            throw t
+        }
     }
 
     override fun findConnectionOwner(

@@ -10,6 +10,8 @@ import android.graphics.drawable.ColorDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.VpnService
+import android.net.TrafficStats
+import android.os.Process
 import android.net.LinkProperties
 import android.os.Bundle
 import android.text.InputType
@@ -1744,21 +1746,46 @@ class MainActivity : Activity() {
 
         // Some Android builds expose the VPN Network but do not allow reading its
         // counters under that interface name. Try the actual TUN interface as fallback.
-        val candidates = (vpnInterfaces + if (isRunning()) findVpnInterfacesFromSysfs() else emptyList())
+        val javaInterfaces = if (isRunning()) runCatching {
+            java.net.NetworkInterface.getNetworkInterfaces()?.toList()
+                ?.map { it.name }
+                ?.filter { it.matches(Regex("(tun|utun|wg|vpn|tap)\\d*")) }
+                .orEmpty()
+        }.getOrDefault(emptyList()) else emptyList()
+        val candidates = (vpnInterfaces +
+            if (isRunning()) findVpnInterfacesFromSysfs() + javaInterfaces else emptyList())
             .distinct()
         val interfaceName = candidates.firstOrNull { readInterfaceCounters(it) != null }
 
-        if (interfaceName.isNullOrBlank()) {
+        // Android 14/15/16 vendors sometimes hide TUN interface counters from
+        // /sys and /proc. In that case, use this app's UID counters as a fallback
+        // so the dashboard still reports real tunnel socket traffic instead of
+        // remaining permanently at 0 B. These are wire bytes, not exact payload bytes.
+        val selectedSource: String?
+        val counters: Pair<Long, Long>?
+        if (!interfaceName.isNullOrBlank()) {
+            selectedSource = interfaceName
+            counters = readInterfaceCounters(interfaceName)
+        } else {
+            val uidRx = TrafficStats.getUidRxBytes(Process.myUid())
+            val uidTx = TrafficStats.getUidTxBytes(Process.myUid())
+            if (isRunning() && uidRx >= 0L && uidTx >= 0L) {
+                selectedSource = "uid:" + Process.myUid()
+                counters = uidRx to uidTx
+            } else {
+                selectedSource = null
+                counters = null
+            }
+        }
+
+        if (selectedSource == null || counters == null) {
             resetTrafficCounters()
             return TrafficSnapshot(null, 0L, 0L, 0L, 0L, false)
         }
-
-        val counters = readInterfaceCounters(interfaceName)
-            ?: return TrafficSnapshot(interfaceName, 0L, 0L, 0L, 0L, false)
         val now = android.os.SystemClock.elapsedRealtime()
 
-        if (trafficInterface != interfaceName || trafficBaseRx < 0L || trafficBaseTx < 0L) {
-            trafficInterface = interfaceName
+        if (trafficInterface != selectedSource || trafficBaseRx < 0L || trafficBaseTx < 0L) {
+            trafficInterface = selectedSource
             trafficBaseRx = counters.first
             trafficBaseTx = counters.second
             trafficLastRx = counters.first
@@ -1775,7 +1802,7 @@ class MainActivity : Activity() {
         trafficLastAt = now
 
         return TrafficSnapshot(
-            interfaceName,
+            selectedSource,
             (counters.first - trafficBaseRx).coerceAtLeast(0L),
             (counters.second - trafficBaseTx).coerceAtLeast(0L),
             rxDelta * 1000L / elapsedMs,
