@@ -1452,7 +1452,7 @@ class MainActivity : Activity() {
         val name = EditText(this).apply {
             setText(subscription.name)
             hint = "Название подписки"
-            singleLine = true
+            isSingleLine = true
         }
         val url = EditText(this).apply {
             setText(subscription.url)
@@ -1770,7 +1770,7 @@ class MainActivity : Activity() {
         val name = EditText(this).apply {
             setText(p.name)
             hint = "Название сервера"
-            singleLine = true
+            isSingleLine = true
         }
         val uri = EditText(this).apply {
             setText(p.uri)
@@ -1915,13 +1915,13 @@ class MainActivity : Activity() {
                     "tcp" -> {
                         val startedAt = android.os.SystemClock.elapsedRealtime()
                         java.net.Socket().use { socket ->
-                            socket.connect(java.net.InetSocketAddress(profile.address, profile.port), 5000)
+                            socket.connect(java.net.InetSocketAddress(profileHost(profile), profilePort(profile)), 5000)
                         }
                         android.os.SystemClock.elapsedRealtime() - startedAt
                     }
                     "icmp" -> {
                         val startedAt = android.os.SystemClock.elapsedRealtime()
-                        if (!java.net.InetAddress.getByName(profile.address).isReachable(5000)) {
+                        if (!java.net.InetAddress.getByName(profileHost(profile)).isReachable(5000)) {
                             error("ICMP недоступен или заблокирован сетью")
                         }
                         android.os.SystemClock.elapsedRealtime() - startedAt
@@ -2381,6 +2381,42 @@ class MainActivity : Activity() {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 2))
+    }
+
+    private fun rounded(
+        color: Int,
+        radius: Int,
+        strokeColor: Int? = null,
+        strokeWidth: Int = 0
+    ): GradientDrawable = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+        if (strokeColor != null && strokeWidth > 0) {
+            setStroke(dp(strokeWidth), strokeColor)
+        }
+    }
+
+    private fun profileHost(profile: NeoTunProfile): String {
+        val raw = profile.uri.trim()
+        val parsed = runCatching { java.net.URI(raw) }.getOrNull()
+        parsed?.host?.takeIf { it.isNotBlank() }?.let { return it }
+        val authority = raw.substringAfter("://", "").substringBefore('/').substringBefore('?')
+            .substringAfterLast('@')
+        return authority.substringBefore(':').trim('[', ']')
+    }
+
+    private fun profilePort(profile: NeoTunProfile): Int {
+        val raw = profile.uri.trim()
+        val parsed = runCatching { java.net.URI(raw) }.getOrNull()
+        if (parsed != null && parsed.port in 1..65535) return parsed.port
+        val authority = raw.substringAfter("://", "").substringBefore('/').substringBefore('?')
+            .substringAfterLast('@')
+        val portText = authority.substringAfterLast(':', "")
+        return portText.toIntOrNull()?.takeIf { it in 1..65535 } ?: when {
+            raw.startsWith("https://", true) -> 443
+            raw.startsWith("http://", true) -> 80
+            else -> 443
+        }
     }
 
     private fun txt(value: String, size: Float, color: Int, style: Int = Typeface.NORMAL, textGravity: Int = android.view.Gravity.NO_GRAVITY) =
