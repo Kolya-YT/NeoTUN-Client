@@ -1,0 +1,61 @@
+name: NeoTUN Desktop Builds
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Build Rust core for Windows
+        run: cargo build --release --target x86_64-pc-windows-msvc -p neotun-core
+
+      - name: Package Windows core
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $binary = "target/x86_64-pc-windows-msvc/release/neotun_core.dll"
+          if (!(Test-Path $binary)) {
+            throw "Expected native library not found: $binary"
+          }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item $binary "dist/neotun_core.dll"
+          @"
+          NeoTUN Windows native core (x64)
+
+          This artifact contains the Rust profile parsing/configuration core only.
+          It is not a complete Windows GUI client and does not include a Windows
+          tunnel service or Xray/sing-box runtime integration.
+          "@ | Set-Content -Encoding utf8 "dist/README-Windows.txt"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeoTUN-Windows-Core-x64
+          path: dist/*
+
