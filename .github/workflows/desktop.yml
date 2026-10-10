@@ -3,6 +3,7 @@ name: NeoTUN Windows Desktop
 on:
   push:
     branches: [main]
+    tags: ["v*"]
     paths:
       - "windows/**"
       - "core/**"
@@ -11,25 +12,40 @@ on:
       - ".github/workflows/desktop.yml"
       - "DESIGN_SYSTEM.md"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Android APK"]
+    types: [completed]
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 concurrency:
-  group: windows-desktop-${{ github.ref }}
+  group: windows-desktop-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   windows:
-    name: Windows x64 desktop app
+    name: Windows x64 desktop app and runtime
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build shared Rust core for Windows
+        run: cargo build --manifest-path core/Cargo.toml --release --target x86_64-pc-windows-msvc
 
       - name: Restore Windows UI
         run: dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj
@@ -40,16 +56,92 @@ jobs:
       - name: Publish self-contained Windows application
         run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
 
-      - name: Verify Windows distribution
+      - name: Download and stage pinned network engines
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $app = "dist/NeoTUN-Windows/NeoTUN.exe"
-          if (!(Test-Path $app)) { throw "Published desktop executable not found: $app" }
-          Get-ChildItem "dist/NeoTUN-Windows" | Format-Table Name, Length
+          $runtime = Join-Path (Get-Location) "dist/NeoTUN-Windows/runtime"
+          New-Item -ItemType Directory -Force -Path $runtime | Out-Null
+          Copy-Item "core/target/x86_64-pc-windows-msvc/release/neotun_core.dll" "dist/NeoTUN-Windows/neotun_core.dll"
 
-      - name: Upload Windows UI
+          $temp = Join-Path $env:RUNNER_TEMP "neotun-engines"
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+
+          $singBoxZip = Join-Path $temp "sing-box.zip"
+          Invoke-WebRequest "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-windows-amd64.zip" -OutFile $singBoxZip
+          Expand-Archive $singBoxZip (Join-Path $temp "sing-box") -Force
+          $singBoxExe = Get-ChildItem (Join-Path $temp "sing-box") -Filter "sing-box.exe" -Recurse | Select-Object -First 1
+          if (!$singBoxExe) { throw "sing-box.exe missing from pinned upstream archive" }
+          Copy-Item $singBoxExe.FullName (Join-Path $runtime "sing-box.exe")
+          Get-ChildItem $singBoxExe.DirectoryName -File | Where-Object { $_.Name -ne "sing-box.exe" } | Copy-Item -Destination $runtime -Force
+
+          $xrayZip = Join-Path $temp "xray.zip"
+          Invoke-WebRequest "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-windows-64.zip" -OutFile $xrayZip
+          Expand-Archive $xrayZip (Join-Path $temp "xray") -Force
+          $xrayExe = Get-ChildItem (Join-Path $temp "xray") -Filter "xray.exe" -Recurse | Select-Object -First 1
+          if (!$xrayExe) { throw "xray.exe missing from pinned upstream archive" }
+          Copy-Item $xrayExe.FullName (Join-Path $runtime "xray.exe")
+          Get-ChildItem $xrayExe.DirectoryName -File | Where-Object { $_.Name -ne "xray.exe" } | Copy-Item -Destination $runtime -Force
+
+          $wintunZip = Join-Path $temp "wintun.zip"
+          Invoke-WebRequest "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile $wintunZip
+          Expand-Archive $wintunZip (Join-Path $temp "wintun") -Force
+          $wintunDll = Get-ChildItem (Join-Path $temp "wintun") -Filter "wintun.dll" -Recurse |
+            Where-Object { $_.FullName -match "[\\/]amd64[\\/]" } | Select-Object -First 1
+          if (!$wintunDll) { throw "amd64 wintun.dll missing from upstream archive" }
+          Copy-Item $wintunDll.FullName (Join-Path $runtime "wintun.dll")
+
+          $required = @("neotun_core.dll", "runtime/sing-box.exe", "runtime/xray.exe", "runtime/wintun.dll")
+          foreach ($file in $required) {
+            if (!(Test-Path (Join-Path "dist/NeoTUN-Windows" $file))) { throw "Required runtime file missing: $file" }
+          }
+          & (Join-Path $runtime "sing-box.exe") version
+          & (Join-Path $runtime "xray.exe") version
+
+      - name: Verify Windows distribution and archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (!(Test-Path "dist/NeoTUN-Windows/NeoTUN.exe")) { throw "Published desktop executable not found" }
+          if (!(Test-Path "dist/NeoTUN-Windows/neotun_core.dll")) { throw "Shared Rust core DLL missing" }
+          Compress-Archive -Path "dist/NeoTUN-Windows/*" -DestinationPath "dist/NeoTUN-Windows-x64.zip" -Force
+          Get-ChildItem "dist/NeoTUN-Windows" -Recurse | Format-Table FullName, Length
+          Get-Item "dist/NeoTUN-Windows-x64.zip" | Format-Table Name, Length
+
+      - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
         with:
           name: NeoTUN-Windows-x64
-          path: dist/NeoTUN-Windows/**
+          path: dist/NeoTUN-Windows-x64.zip
+          retention-days: 30
+
+      - name: Read Android version
+        id: version
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        shell: pwsh
+        run: |
+          $gradle = Get-Content "android/app/build.gradle.kts" -Raw
+          $match = [regex]::Match($gradle, 'versionName\s*=\s*"([^"]+)"')
+          if (!$match.Success) { throw "Android versionName not found" }
+          "version=$($match.Groups[1].Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Attach Windows package to matching Android release
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: NeoTUN v${{ steps.version.outputs.version }}
+          files: dist/NeoTUN-Windows-x64.zip
+          fail_on_unmatched_files: true
+          make_latest: false
+          generate_release_notes: false
+
+      - name: Attach Windows package when a version tag is pushed
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/NeoTUN-Windows-x64.zip
+          fail_on_unmatched_files: true
+          make_latest: false
+          generate_release_notes: false
