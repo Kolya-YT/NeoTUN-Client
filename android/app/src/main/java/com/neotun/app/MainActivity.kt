@@ -742,14 +742,14 @@ class MainActivity : Activity() {
                 ?.let { NeoTunRoutingAdapter.unsupportedSingBoxGeoTokens(it) }
                 .orEmpty()
             if (unsupportedGeo.isNotEmpty()) {
-                val preview = unsupportedGeo.take(8).joinToString("\\n")
-                val remainder = if (unsupportedGeo.size > 8) "\\n… и ещё ${unsupportedGeo.size - 8}" else ""
+                val preview = unsupportedGeo.take(8).joinToString("\n")
+                val remainder = if (unsupportedGeo.size > 8) "\n… и ещё ${unsupportedGeo.size - 8}" else ""
                 AlertDialog.Builder(this)
                     .setTitle("Часть правил маршрутизации не поддерживается")
                     .setMessage(
                         "Активный профиль содержит geosite/geoip правила, которые sing-box пока не может применить из Xray .dat баз. " +
-                            "Если продолжить, эти правила не будут работать:\\n\\n" + preview + remainder +
-                            "\\n\\nПодключиться всё равно?"
+                            "Если продолжить, эти правила не будут работать:\n\n" + preview + remainder +
+                            "\n\nПодключиться всё равно?"
                     )
                     .setNegativeButton("Отмена", null)
                     .setPositiveButton("Продолжить") { _, _ -> connect(profile, skipGeoWarning = true) }
