@@ -12,21 +12,26 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="N"
-        android:textColor="#FFFFFF"
-        android:textSize="25sp"
+        android:textColor="#F8F7FF"
+        android:textSize="27sp"
         android:textStyle="bold"
+        android:letterSpacing="-0.06"
+        android:shadowColor="#995E45FF"
+        android:shadowRadius="10"
+        android:shadowDx="0"
+        android:shadowDy="0"
         android:includeFontPadding="false" />
 
     <TextView
         android:id="@+id/widget_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:text="ВЫКЛ"
-        android:textColor="#AEB1C4"
+        android:textColor="#B7B4D4"
         android:textSize="8sp"
         android:textStyle="bold"
-        android:letterSpacing="0.04"
+        android:letterSpacing="0.06"
         android:includeFontPadding="false"
         android:maxLines="1" />
 </LinearLayout>
