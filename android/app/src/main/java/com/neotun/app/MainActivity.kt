@@ -548,6 +548,13 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+        row.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.99f).scaleY(0.99f).setDuration(70L).start()
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(125L).start()
+            }
+            false
+        }
         val pingColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -688,6 +695,13 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        row.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.995f).scaleY(0.995f).setDuration(65L).start()
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(120L).start()
+            }
+            false
+        }
         if (value.isNotBlank()) {
             row.addView(txt(value, 11.5f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
                 maxLines = 2
@@ -1896,7 +1910,12 @@ class MainActivity : Activity() {
                 )
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { showScreen(target) }
+                setOnClickListener {
+                    animate().scaleX(0.96f).scaleY(0.96f).setDuration(65L).withEndAction {
+                        animate().scaleX(1f).scaleY(1f).setDuration(110L).start()
+                    }.start()
+                    showScreen(target)
+                }
             }
             item.addView(txt(
                 pair.first, 19f,
