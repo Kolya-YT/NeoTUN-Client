@@ -1231,7 +1231,7 @@ class MainActivity : Activity() {
                     routing.has("DirectIp") || routing.has("ProxyIp") || routing.has("BlockIp"))) {
                 val isOnAdd = routingText.contains("://routing/onadd/", true) ||
                     routingText.contains("://autorouting/", true)
-                val shouldActivate = isOnAdd || routingStore.active() == null
+                val shouldActivate = isOnAdd || routingStore.all().isEmpty()
                 val saved = routingStore.save(routing, activate = shouldActivate)
                 if (shouldActivate) routingStore.setEnabled(true)
                 toast(if (shouldActivate) {
