@@ -52,6 +52,8 @@ class MainActivity : Activity() {
     private var homeNetworkState: TextView? = null
     private var homeConnectionCard: LinearLayout? = null
     private var homeErrorText: TextView? = null
+    private val pingResults = mutableMapOf<String, String>()
+    private val pingInProgress = mutableSetOf<String>()
     private val poll = object : Runnable {
         override fun run() {
             if (!isFinishing) {
@@ -538,9 +540,29 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+        val pingColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            minimumWidth = dp(46)
+        }
+        val pingLabel = pingResults[profile.id] ?: "Пинг"
+        pingColumn.addView(txt(pingLabel, 9f,
+            if (pingLabel.endsWith("мс")) Color.rgb(105, 225, 167) else Color.rgb(139, 145, 164),
+            Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
+            LinearLayout.LayoutParams(-1, dp(15)))
+        pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
+            Color.rgb(151, 132, 255), Typeface.BOLD, Gravity.CENTER).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Проверить пинг: ${profile.name}"
+            setOnClickListener { pingSelected(profile) }
+        }, LinearLayout.LayoutParams(-1, dp(27)))
+        row.addView(pingColumn, LinearLayout.LayoutParams(dp(48), dp(42)).apply {
+            setMargins(dp(3), 0, dp(2), 0)
+        })
         row.addView(txt(if (selected) "✓" else "›", if (selected) 18f else 22f,
             if (selected) Color.rgb(103, 222, 160) else Color.rgb(100, 106, 127),
-            Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(25), dp(42)))
+            Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(20), dp(42)))
         row.minimumHeight = dp(if (compact) 50 else 56)
         return row
     }
@@ -1463,13 +1485,16 @@ class MainActivity : Activity() {
             return
         }
         if (isRunning()) {
-            toast("Для ping сначала отключите соединение")
+            toast("Для проверки отключите текущее соединение")
             return
         }
+        if (!pingInProgress.add(profile.id)) return
+        pingResults[profile.id] = "…"
+        if (screen == Screen.PROFILES) renderProfiles()
 
         val dialog = AlertDialog.Builder(this)
             .setTitle("Проверка сервера")
-            .setMessage("Проверяем доступность профиля…")
+            .setMessage("Проверяем доступность ${profile.name}…")
             .setNegativeButton("Отмена", null)
             .create()
         dialog.setOnShowListener { styleDialog(dialog) }
@@ -1528,11 +1553,14 @@ class MainActivity : Activity() {
             }.getOrElse { -1L }
 
             runOnUiThread {
+                pingInProgress.remove(profile.id)
+                pingResults[profile.id] = if (pingResult >= 0L) "${pingResult}мс" else "Ошибка"
                 if (dialog.isShowing) dialog.dismiss()
+                if (screen == Screen.PROFILES) renderProfiles()
                 if (pingResult >= 0L) {
-                    toast("Ping: ${pingResult} мс")
+                    toast("${profile.name}: ${pingResult} мс")
                 } else {
-                    toast("Ping не пройден — проверьте сервер или профиль")
+                    toast("Пинг не пройден: ${profile.name}. Проверьте профиль и доступность сервера.")
                 }
             }
         }.start()
