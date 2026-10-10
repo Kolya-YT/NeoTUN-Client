@@ -469,11 +469,11 @@ class MainActivity : Activity() {
                     else "Ожидает первого обновления", 11f, Color.rgb(133, 139, 158)), margins(top = 4))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
-                    background = rounded(Color.rgb(29, 31, 51), 13)
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 13)
                 }, LinearLayout.LayoutParams(dp(42), dp(42)))
                 subCard.addView(row)
                 if (index < subs.lastIndex) subCard.addView(View(this).apply {
-                    setBackgroundColor(Color.rgb(35, 39, 58))
+                    setBackgroundColor(NeoTunDesign.BORDER)
                 }, LinearLayout.LayoutParams(-1, dp(1)))
             }
             content.addView(subCard, margins(bottom = 14))
@@ -535,12 +535,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(6), dp(5), dp(5), dp(5))
-            background = if (selected) rounded(Color.rgb(29, 30, 49), 13,
-                Color.rgb(73, 66, 119), 1) else ColorDrawable(Color.TRANSPARENT)
+            background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 13,
+                NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
         val iconSize = if (compact) 38 else 42
         val flag = FrameLayout(this).apply {
-            background = rounded(if (selected) Color.rgb(43, 39, 71) else Color.rgb(26, 29, 45), 11)
+            background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED, 11)
         }
         flag.addView(txt(countryFlag(profile.name), if (compact) 21f else 23f,
             NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
