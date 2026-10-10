@@ -125,6 +125,18 @@ class NeoTunXrayVpnService : VpnService() {
             // Keep NeoTUN/Xray process sockets outside its own VPN. The Xray
             // socket controller also calls VpnService.protect() as a second guard.
             .addDisallowedApplication(packageName)
+            .apply {
+                val excludedApps = uiPrefs.getStringSet("excluded_apps", emptySet()).orEmpty()
+                excludedApps.asSequence().filter { it.isNotBlank() && it != packageName }.forEach { excludedPackage ->
+                    runCatching { addDisallowedApplication(excludedPackage) }
+                        .onFailure { NeoTunDiagnostics.log(this@NeoTunXrayVpnService,
+                            "Xray: cannot exclude package $excludedPackage: ${it.message}") }
+                }
+                if (excludedApps.isNotEmpty()) {
+                    NeoTunDiagnostics.log(this@NeoTunXrayVpnService,
+                        "Xray: app exclusions requested=" + excludedApps.size)
+                }
+            }
             .addAddress("172.19.0.1", 30)
             .apply {
                 if (ipv6) {
