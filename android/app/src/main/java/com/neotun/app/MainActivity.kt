@@ -314,7 +314,7 @@ class MainActivity : Activity() {
         }
         sectionTitle.addView(txt("Выбранный сервер", 16f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        sectionTitle.addView(txt("Все серверы  ›", 11f, Color.rgb(174, 161, 255), Typeface.BOLD).apply {
+        sectionTitle.addView(txt("Все серверы  ›", 11f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD).apply {
             setOnClickListener { showScreen(Screen.PROFILES) }
         })
         content.addView(sectionTitle, margins(bottom = 9))
@@ -352,7 +352,7 @@ class MainActivity : Activity() {
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
-            serverInfo.addView(txt(maskUri(selected.uri), 10.5f, Color.rgb(139, 146, 168)).apply {
+            serverInfo.addView(txt(maskUri(selected.uri), 10.5f, NeoTunDesign.TEXT_MUTED).apply {
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, margins(top = 4))
@@ -454,11 +454,11 @@ class MainActivity : Activity() {
                     else "Ожидает первого обновления", 11f, Color.rgb(133, 139, 158)), margins(top = 4))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
-                    background = rounded(Color.rgb(29, 31, 51), 13)
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 13, NeoTunDesign.BORDER, 1)
                 }, LinearLayout.LayoutParams(dp(42), dp(42)))
                 subCard.addView(row)
                 if (index < subs.lastIndex) subCard.addView(View(this).apply {
-                    setBackgroundColor(Color.rgb(35, 39, 58))
+                    setBackgroundColor(NeoTunDesign.BORDER)
                 }, LinearLayout.LayoutParams(-1, dp(1)))
             }
             content.addView(subCard, margins(bottom = 14))
@@ -468,7 +468,7 @@ class MainActivity : Activity() {
             val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(26), dp(20), dp(26)) }
             empty.addView(txt("Пока пусто", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
             empty.addView(txt("Добавьте ссылку на сервер или подписку. NeoTUN сам распознает формат и создаст профиль.",
-                13f, Color.rgb(139, 145, 164), Gravity.CENTER).apply { maxLines = 4 },
+                13f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER).apply { maxLines = 4 },
                 margins(top = 8, bottom = 16))
             empty.addView(button("＋  Добавить подключение") { showImportMenu() })
             content.addView(empty)
@@ -520,12 +520,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(6), dp(5), dp(5), dp(5))
-            background = if (selected) rounded(Color.rgb(29, 30, 49), 13,
-                Color.rgb(73, 66, 119), 1) else ColorDrawable(Color.TRANSPARENT)
+            background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 13,
+                NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
         val iconSize = if (compact) 38 else 42
         val flag = FrameLayout(this).apply {
-            background = rounded(if (selected) Color.rgb(43, 39, 71) else Color.rgb(26, 29, 45), 11)
+            background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED, 11)
         }
         flag.addView(txt(countryFlag(profile.name), if (compact) 21f else 23f,
             NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
@@ -662,7 +662,7 @@ class MainActivity : Activity() {
 
 
     private fun settingsSection(title: String): LinearLayout {
-        val section = card().apply { setPadding(dp(14), dp(10), dp(14), dp(8)) }
+        val section = card().apply { setPadding(dp(14), dp(12), dp(14), dp(8)) }
         section.addView(txt(title, 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
             margins(start = 2, bottom = 2))
         return section
@@ -681,18 +681,18 @@ class MainActivity : Activity() {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        texts.addView(txt(summary, 11f, Color.rgb(124, 129, 147)).apply {
+        texts.addView(txt(summary, 11f, NeoTunDesign.TEXT_MUTED).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
         if (value.isNotBlank()) {
-            row.addView(txt(value, 11.5f, Color.rgb(174, 161, 255), Typeface.BOLD, Gravity.END).apply {
+            row.addView(txt(value, 11.5f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(dp(112), -2))
         }
-        row.addView(txt("›", 23f, Color.rgb(94, 99, 117), Gravity.CENTER),
+        row.addView(txt("›", 23f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER),
             LinearLayout.LayoutParams(dp(28), dp(42)))
         return row
     }
@@ -1916,7 +1916,7 @@ class MainActivity : Activity() {
     private fun header(title: String, subtitle: String) {
         content.addView(txt(
             title,
-            if (resources.displayMetrics.widthPixels < dp(360)) 22f else 25f,
+            if (resources.displayMetrics.widthPixels < dp(360)) 22f else 24f,
             NeoTunDesign.TEXT_PRIMARY,
             Typeface.BOLD
         ))
