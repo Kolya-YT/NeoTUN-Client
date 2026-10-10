@@ -371,6 +371,7 @@ public partial class MainWindow : Window
             DirectSitesEditor.Text = settings.DirectSites;
             DirectIpEditor.Text = settings.DirectIp;
             ProcessExclusionsEditor.Text = settings.ProcessExclusions;
+            ProcessExclusionsEditor.Text = settings.ProcessExclusions;
             RoutingSummary.Text = "Загружено из локального файла маршрутов.";
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
@@ -416,7 +417,7 @@ public partial class MainWindow : Window
             NormalizeLines(ProxyIpEditor.Text),
             NormalizeLines(DirectSitesEditor.Text),
             NormalizeLines(DirectIpEditor.Text),
-            processExclusions);
+            NormalizeLines(ProcessExclusionsEditor.Text));
 
         try
         {
@@ -486,7 +487,7 @@ public partial class MainWindow : Window
         DomesticDnsDomainsEditor.Text = "ru" + Environment.NewLine + "su" + Environment.NewLine + "рф";
         BlockSitesEditor.Clear(); BlockIpEditor.Clear();
         ProxySitesEditor.Clear(); ProxyIpEditor.Clear();
-        DirectSitesEditor.Clear(); DirectIpEditor.Clear();
+        DirectSitesEditor.Clear(); DirectIpEditor.Clear(); ProcessExclusionsEditor.Clear();
         ProcessExclusionsEditor.Clear();
         RoutingSummary.Text = "Поля сброшены. Нажмите «Сохранить маршруты», чтобы записать новые значения.";
     }
