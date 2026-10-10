@@ -83,26 +83,22 @@ internal sealed class EngineRuntime : IDisposable
             singBoxRoot.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
             new UTF8Encoding(false), cancellationToken);
 
-        if (runtime.Engine == "xray")
-        {
-            if (runtime.XrayJson is null) throw new InvalidOperationException("Для этого профиля не сформирована конфигурация Xray.");
-            WriteLog("Selected Xray + sing-box TUN bridge; validating Xray before starting TUN.");
-            if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
-            var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
-            await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
-            await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
-            _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
-            xrayStarted = true;
-            await Task.Delay(650, cancellationToken);
-            if (_xray.HasExited)
-            {
-                var exit = _xray.ExitCode;
-                throw new InvalidOperationException($"Xray завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
-            }
-        }
-
         try
         {
+            if (runtime.Engine == "xray")
+            {
+                if (runtime.XrayJson is null) throw new InvalidOperationException("Для этого профиля не сформирована конфигурация Xray.");
+                WriteLog("Selected Xray + sing-box TUN bridge; validating Xray before starting TUN.");
+                if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
+                var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
+                await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
+                await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
+                _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
+                xrayStarted = true;
+                await WaitForSocks5Async(IPAddress.Loopback, 10808, TimeSpan.FromSeconds(8), cancellationToken);
+                WriteLog("Xray SOCKS5 listener is accepting no-auth handshakes on 127.0.0.1:10808.");
+            }
+
             await ValidateAsync(singBoxPath, cancellationToken, "check", "-c", singBoxConfigPath);
             _singBox = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
             singBoxStarted = true;
@@ -119,7 +115,6 @@ internal sealed class EngineRuntime : IDisposable
             if (xrayStarted) await StopXrayAsync();
             throw;
         }
-
         _totalUpload = 0;
         _totalDownload = 0;
         _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
@@ -153,6 +148,58 @@ internal sealed class EngineRuntime : IDisposable
         await StopXrayAsync();
         StateChanged?.Invoke(false, "Отключено");
         WriteLog("Runtime stopped");
+    }
+
+    private async Task WaitForSocks5Async(
+        IPAddress address,
+        int port,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        Exception? lastError = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_xray is null || _xray.HasExited)
+            {
+                var exitCode = _xray is null ? -1 : SafeExitCode(_xray);
+                throw new InvalidOperationException($"Xray завершился до готовности SOCKS5 (код {exitCode}). Проверь журнал NeoTUN.");
+            }
+
+            using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            attempt.CancelAfter(TimeSpan.FromMilliseconds(600));
+            try
+            {
+                using var client = new TcpClient();
+                await client.ConnectAsync(address, port, attempt.Token);
+                await using var stream = client.GetStream();
+                var greeting = new byte[] { 0x05, 0x01, 0x00 };
+                await stream.WriteAsync(greeting, attempt.Token);
+
+                var response = new byte[2];
+                await stream.ReadExactlyAsync(response, attempt.Token);
+                if (response[0] == 0x05 && response[1] == 0x00)
+                    return;
+
+                lastError = new InvalidDataException(
+                    $"SOCKS5 returned unexpected greeting: {response[0]:X2} {response[1]:X2}.");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or InvalidDataException)
+            {
+                lastError = ex;
+            }
+
+            await Task.Delay(150, cancellationToken);
+        }
+
+        throw new TimeoutException(
+            $"Xray не открыл рабочий SOCKS5 на {address}:{port} за {timeout.TotalSeconds:0} с. Последняя ошибка: {lastError?.Message ?? "нет ответа"}");
     }
 
     private async Task ValidateAsync(string executable, CancellationToken cancellationToken, params string[] values)
