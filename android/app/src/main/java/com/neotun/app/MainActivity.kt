@@ -21,6 +21,9 @@ import android.widget.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.integration.android.IntentIntegrator
+import com.google.zxing.qrcode.QRCodeWriter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -1333,7 +1336,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle("Импорт").setItems(items) { _, which ->
             when (which) {
                 0 -> importClipboard()
-                1 -> toast("QR-сканер добавим следующим этапом")
+                1 -> scanQrCode()
                 2 -> addProfileDialog()
                 3 -> importJsonDialog()
             }
@@ -1747,6 +1750,7 @@ class MainActivity : Activity() {
             "Просмотреть конфигурацию",
             "Скопировать ссылку",
             "Поделиться ссылкой",
+            "Показать QR-код",
             "Переименовать",
             "Удалить"
         )
@@ -1758,8 +1762,9 @@ class MainActivity : Activity() {
                     2 -> showProfileConfig(p)
                     3 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
                     4 -> shareText("NeoTUN · ${p.name}", p.uri)
-                    5 -> rename(p)
-                    6 -> confirmDelete(p)
+                    5 -> showProfileQr(p)
+                    6 -> rename(p)
+                    7 -> confirmDelete(p)
                 }
             }.create()
         dialog.setOnShowListener { styleDialog(dialog) }
@@ -2191,6 +2196,69 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_VPN && resultCode == RESULT_OK) startVpnFromPrefs()
+        if (requestCode == IntentIntegrator.REQUEST_CODE) {
+            val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+            val scanned = result?.contents?.trim().orEmpty()
+            if (scanned.isNotBlank()) {
+                importText(scanned)
+            } else if (result != null) {
+                toast("QR-код не распознан")
+            }
+        }
+    }
+
+    private fun scanQrCode() {
+        runCatching {
+            IntentIntegrator(this)
+                .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+                .setPrompt("Наведите камеру на QR-код ссылки или конфигурации")
+                .setBeepEnabled(false)
+                .setOrientationLocked(false)
+                .initiateScan()
+        }.onFailure {
+            toast("Не удалось запустить сканер QR-кодов")
+            NeoTunDiagnostics.log(this, "QR scanner launch failed: ${it.message}")
+        }
+    }
+
+    private fun showProfileQr(profile: NeoTunProfile) {
+        val bitmap = runCatching {
+            val matrix = QRCodeWriter().encode(profile.uri, BarcodeFormat.QR_CODE, 720, 720)
+            android.graphics.Bitmap.createBitmap(720, 720, android.graphics.Bitmap.Config.ARGB_8888).also { image ->
+                for (y in 0 until 720) for (x in 0 until 720) {
+                    image.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+                }
+            }
+        }.getOrElse {
+            toast("Не удалось создать QR-код: ссылка слишком длинная или некорректная")
+            return
+        }
+        val image = ImageView(this).apply {
+            setImageBitmap(bitmap)
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            contentDescription = "QR-код профиля ${profile.name}"
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(image, LinearLayout.LayoutParams(-1, dp(300)))
+            addView(txt(profile.name, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER),
+                LinearLayout.LayoutParams(-1, -2))
+            addView(txt("Отсканируйте код в другом клиенте NeoTUN или совместимом приложении",
+                11f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER).apply {
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+            }, LinearLayout.LayoutParams(-1, -2))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("QR-код профиля")
+            .setView(box)
+            .setNegativeButton("Закрыть", null)
+            .setNeutralButton("Поделиться ссылкой") { _, _ -> shareText("NeoTUN · ${profile.name}", profile.uri) }
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun addBackHeader(title: String, subtitle: String) {
