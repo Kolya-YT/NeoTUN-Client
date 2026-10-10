@@ -674,6 +674,51 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdatesButton.IsEnabled = false;
+        UpdateSummary.Text = "Проверяем последнюю опубликованную версию…";
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("NeoTUN-Windows/0.1");
+            using var response = await client.GetAsync("https://api.github.com/repos/Kolya-YT/NeoTUN-Client/releases/latest");
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var tag = document.RootElement.TryGetProperty("tag_name", out var tagValue) ? tagValue.GetString() ?? "" : "";
+            var releaseUrl = document.RootElement.TryGetProperty("html_url", out var urlValue) ? urlValue.GetString() ?? "https://github.com/Kolya-YT/NeoTUN-Client/releases" : "https://github.com/Kolya-YT/NeoTUN-Client/releases";
+            var numericVersion = System.Text.RegularExpressions.Regex.Match(tag, @"\d+(\.\d+){1,3}").Value;
+            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0);
+            if (!Version.TryParse(numericVersion, out var latest))
+            {
+                UpdateSummary.Text = "Последний релиз найден (" + tag + "), но его версию не удалось распознать. Откройте страницу релизов для проверки.";
+                if (MessageBox.Show("Открыть страницу релизов NeoTUN?", "NeoTUN — обновления", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                    Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
+                return;
+            }
+
+            if (latest > current)
+            {
+                UpdateSummary.Text = "Доступно обновление: " + tag;
+                if (MessageBox.Show("Установлена версия " + current + ". Доступна версия " + tag + ".\n\nОткрыть загрузку релиза?", "NeoTUN — обновления", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                    Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
+            }
+            else
+            {
+                UpdateSummary.Text = "Установлена актуальная версия (" + current + ").";
+            }
+            AddLog("Update check: current=" + current + ", latest=" + tag + ".");
+        }
+        catch (Exception ex)
+        {
+            UpdateSummary.Text = "Не удалось проверить обновления: " + ex.Message;
+            AddLog("Update check failed: " + ex.Message);
+        }
+        finally
+        {
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
     private void OpenDataFolder_Click(object sender, RoutedEventArgs e) => OpenPath(DataDirectory);
     private void OpenLog_Click(object sender, RoutedEventArgs e) => OpenPath(RuntimeLogPath);
 
