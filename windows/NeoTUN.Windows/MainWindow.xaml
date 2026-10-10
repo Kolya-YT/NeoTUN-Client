@@ -176,11 +176,11 @@
           <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="820" HorizontalAlignment="Left">
             <StackPanel>
               <TextBlock Text="Настройки" FontSize="20" FontWeight="Bold"/>
-              <TextBlock Text="Параметры сетевого движка станут доступны после интеграции Windows TUN / service. Недоступные настройки не меняют систему незаметно." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,20"/>
+              <TextBlock Text="Подключение использует встроенные sing-box и Xray, Rust-парсер профилей и системный TUN. Windows запросит права администратора для изменения маршрутов." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,20"/>
               <TextBlock Text="Платформа" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
               <TextBlock Text="Windows x64" FontSize="15" Margin="0,5,0,16"/>
               <TextBlock Text="Режим" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-              <TextBlock Text="Пока доступен интерфейс профилей и импорт. Туннель ещё не подключён." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              <TextBlock Text="Первый runtime milestone: sing-box для поддерживаемых профилей и Xray + локальный SOCKS для VLESS XHTTP. Проверяй реальный трафик на устройстве; поддержка всех транспортов и пользовательской маршрутизации ещё не завершена." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
             </StackPanel>
           </Border>
         </Grid>
