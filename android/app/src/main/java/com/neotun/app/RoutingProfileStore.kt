@@ -159,6 +159,32 @@ class RoutingProfileStore(context: Context) {
 
 /** Builds per-engine route rules from the same normalized profile. */
 object NeoTunRoutingAdapter {
+    private val defaultOrder = listOf("block", "direct", "proxy")
+
+    /**
+     * INCY/Happ profiles can specify RouteOrder as a string (for example,
+     * "block-proxy-direct") or an array. Treat it as data, not as a fixed
+     * NeoTUN policy; unknown/duplicate entries are ignored and omitted groups
+     * are appended in the conservative default order.
+     */
+    private fun routeOrder(profile: NeoTunRoutingProfile): List<String> {
+        val raw = profile.json.opt("RouteOrder")
+        val requested = when (raw) {
+            is JSONArray -> (0 until raw.length()).map { raw.optString(it) }
+            is String -> raw.split(Regex("[^A-Za-z]+"))
+            else -> emptyList()
+        }.map { it.trim().lowercase() }
+            .mapNotNull { token ->
+                when (token) {
+                    "block", "reject" -> "block"
+                    "proxy" -> "proxy"
+                    "direct" -> "direct"
+                    else -> null
+                }
+            }.distinct()
+        return requested + defaultOrder.filterNot { it in requested }
+    }
+
     fun singBoxRules(profile: NeoTunRoutingProfile): JSONArray {
         val rules = JSONArray()
         fun add(values: List<String>, isDomain: Boolean, action: String, outbound: String? = null) {
@@ -168,10 +194,13 @@ object NeoTunRoutingAdapter {
             val ips = JSONArray()
             values.forEach { value ->
                 when {
-                    // .dat geodata is handled by the Xray adapter. Do not feed Xray
-                    // geosite/geoip syntax into sing-box domain/ip_cidr fields.
+                    // Xray geodata tokens are deliberately not translated into
+                    // ordinary sing-box domains. They need real sing-box rule-set
+                    // data; silently treating them as hostnames would be incorrect.
                     value.startsWith("geosite:", true) || value.startsWith("geoip:", true) -> Unit
-                    value.startsWith("domain-suffix:", true) || value.startsWith("domain:", true) ->
+                    value.startsWith("domain-suffix:", true) ->
+                        suffixes.put(value.substringAfter(':'))
+                    value.startsWith("domain:", true) ->
                         suffixes.put(value.substringAfter(':'))
                     value.startsWith("full:", true) -> domains.put(value.substringAfter(':'))
                     isDomain -> domains.put(value)
@@ -186,13 +215,22 @@ object NeoTunRoutingAdapter {
             if (ips.length() > 0) rule.put("ip_cidr", ips)
             if (rule.length() > 1) rules.put(rule)
         }
-        add(profile.values("BlockSites"), true, "reject")
-        add(profile.values("BlockIp"), false, "reject")
-        add(profile.values("DirectSites"), true, "route", "direct")
-        add(profile.values("DirectIp"), false, "route", "direct")
-        // Proxy rules are explicit for compatibility; unmatched traffic follows final.
-        add(profile.values("ProxySites"), true, "route", "proxy")
-        add(profile.values("ProxyIp"), false, "route", "proxy")
+        routeOrder(profile).forEach { category ->
+            when (category) {
+                "block" -> {
+                    add(profile.values("BlockSites"), true, "reject")
+                    add(profile.values("BlockIp"), false, "reject")
+                }
+                "direct" -> {
+                    add(profile.values("DirectSites"), true, "route", "direct")
+                    add(profile.values("DirectIp"), false, "route", "direct")
+                }
+                "proxy" -> {
+                    add(profile.values("ProxySites"), true, "route", "proxy")
+                    add(profile.values("ProxyIp"), false, "route", "proxy")
+                }
+            }
+        }
         return rules
     }
 
@@ -201,27 +239,33 @@ object NeoTunRoutingAdapter {
         fun add(values: List<String>, domain: Boolean, outbound: String) {
             if (values.isEmpty()) return
             val rule = JSONObject().put("type", "field").put("outboundTag", outbound)
-            // GeoIP/GeoSite databases are downloaded into the app's private geodata
+            // GeoIP/GeoSite databases are prepared in the app's private geodata
             // directory before Xray starts, and XRAY_LOCATION_ASSET points there.
-            val normalizedDomains = values.map {
-                when {
-                    it.startsWith("domain:", true) ||
-                        it.startsWith("full:", true) ||
-                        it.startsWith("regexp:", true) ||
-                        it.startsWith("geosite:", true) -> it
-                    else -> "domain:" + it
+            if (domain) {
+                val normalizedDomains = values.map { value ->
+                    when {
+                        value.startsWith("domain:", true) ||
+                            value.startsWith("full:", true) ||
+                            value.startsWith("regexp:", true) ||
+                            value.startsWith("geosite:", true) -> value
+                        else -> "domain:" + value
+                    }
                 }
+                if (normalizedDomains.isNotEmpty()) rule.put("domain", JSONArray(normalizedDomains))
+            } else {
+                rule.put("ip", JSONArray(values))
             }
-            if (domain && normalizedDomains.isNotEmpty()) rule.put("domain", JSONArray(normalizedDomains))
-            if (!domain && values.isNotEmpty()) rule.put("ip", JSONArray(values))
             if (rule.length() > 2) rules.put(rule)
         }
-        add(profile.values("BlockSites"), true, "block")
-        add(profile.values("BlockIp"), false, "block")
-        add(profile.values("DirectSites"), true, "direct")
-        add(profile.values("DirectIp"), false, "direct")
-        add(profile.values("ProxySites"), true, "proxy")
-        add(profile.values("ProxyIp"), false, "proxy")
+        routeOrder(profile).forEach { category ->
+            val (sites, ips, outbound) = when (category) {
+                "block" -> Triple("BlockSites", "BlockIp", "block")
+                "direct" -> Triple("DirectSites", "DirectIp", "direct")
+                else -> Triple("ProxySites", "ProxyIp", "proxy")
+            }
+            add(profile.values(sites), true, outbound)
+            add(profile.values(ips), false, outbound)
+        }
         return rules
     }
 }
