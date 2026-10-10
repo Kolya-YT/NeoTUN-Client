@@ -417,12 +417,12 @@ class MainActivity : Activity() {
         homeConnectionButton?.text = if (running) "Отключиться" else "Подключиться"
         homeConnectionButton?.background = GradientDrawable(
             GradientDrawable.Orientation.LEFT_RIGHT,
-            if (running) intArrayOf(Color.rgb(38, 112, 83), Color.rgb(32, 88, 75))
+            if (running) intArrayOf(NeoTunDesign.SUCCESS_SURFACE, NeoTunDesign.SUCCESS_SURFACE)
             else intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
         ).apply { cornerRadius = dp(17).toFloat() }
         homeConnectionLabel?.text = if (running) "ПОДКЛЮЧЕНО" else "ГОТОВО К ПОДКЛЮЧЕНИЮ"
-        homeConnectionLabel?.setTextColor(if (running) NeoTunDesign.SUCCESS else Color.rgb(183, 173, 255))
-        homeStatusDot?.setTextColor(if (running) NeoTunDesign.SUCCESS else Color.rgb(154, 143, 255))
+        homeConnectionLabel?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT)
+        homeStatusDot?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET)
         homeNetworkState?.text = if (running) "●  ONLINE" else "○  OFFLINE"
         homeNetworkState?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED)
         homeConnectionCard?.background = GradientDrawable(
