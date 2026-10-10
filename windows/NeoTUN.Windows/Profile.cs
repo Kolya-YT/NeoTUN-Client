@@ -7,6 +7,7 @@ public sealed class Profile
  public string Uri { get; set; } = "";
  public string Server { get; set; } = "";
  public int? Port { get; set; }
+ public string? SubscriptionUrl { get; set; }
  public string DisplayProtocol => Scheme.ToUpperInvariant();
  public string DisplayEndpoint => Port is > 0 ? $"{Server}:{Port}" : Server;
 }
