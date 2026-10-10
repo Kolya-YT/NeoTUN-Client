@@ -68,17 +68,6 @@ jobs:
           if (!(Test-Path $app)) { throw "Published desktop executable not found: $app" }
           Get-ChildItem "dist/NeoTUN-Windows" | Format-Table Name, Length
 
-      - name: Copy Windows native core
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $binary = "target/x86_64-pc-windows-msvc/release/neotun_core.dll"
-          if (!(Test-Path $binary)) {
-            throw "Expected native library not found: $binary"
-          }
-          New-Item -ItemType Directory -Force -Path "dist/NeoTUN-Windows" | Out-Null
-          # The DLL is staged beside the desktop app after the publish step.
-
       - name: Upload Windows UI
         uses: actions/upload-artifact@v4
         with:
