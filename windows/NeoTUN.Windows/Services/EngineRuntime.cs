@@ -30,7 +30,14 @@ internal sealed class EngineRuntime : IDisposable
     public event Action<long, long, long, long>? TrafficUpdated;
     public bool IsRunning
     {
-        get { lock (_sync) return _singBox is { HasExited: false }; }
+        get
+        {
+            lock (_sync)
+            {
+                if (_singBox is not { HasExited: false }) return false;
+                return _xray is null || _xray is { HasExited: false };
+            }
+        }
     }
 
     public EngineRuntime()
@@ -255,7 +262,8 @@ internal sealed class EngineRuntime : IDisposable
         {
             var exitCode = SafeExitCode(process);
             WriteLog($"{name} exited with code {exitCode}");
-            if (name == "sing-box") StateChanged?.Invoke(false, $"sing-box завершился с кодом {exitCode}. См. журнал.");
+            if (name == "sing-box" || name == "xray")
+                StateChanged?.Invoke(false, $"{name} завершился с кодом {exitCode}. Подключение остановлено; см. журнал.");
         };
         if (!process.Start()) throw new InvalidOperationException("Не удалось запустить " + name);
         process.BeginOutputReadLine();
