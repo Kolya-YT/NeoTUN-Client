@@ -482,30 +482,51 @@ class MainActivity : Activity() {
 
         if (profiles.isEmpty()) {
             val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(26), dp(20), dp(26)) }
-            empty.addView(txt("Пока пусто", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
-            empty.addView(txt("Добавьте ссылку на сервер или подписку. NeoTUN сам распознает формат и создаст профиль.",
+            empty.addView(txt("Пока нет серверов", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
+            empty.addView(txt(
+                if (subs.isEmpty()) "Добавьте отдельный сервер или импортируйте подписку. Они будут показаны в разных разделах."
+                else "Подписки добавлены, но серверы ещё не загружены. Обновите подписку или добавьте отдельный сервер.",
                 13f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER).apply { maxLines = 4 },
                 margins(top = 8, bottom = 16))
-            empty.addView(button("＋  Добавить подключение") { showImportMenu() })
+            empty.addView(button("＋  Добавить сервер или подписку") { showImportMenu() })
             content.addView(empty)
             return
         }
 
-        content.addView(txt("ВСЕ ПОДКЛЮЧЕНИЯ", 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
-            margins(start = 4, bottom = 7))
-        val listCard = card().apply { setPadding(dp(8), dp(6), dp(8), dp(6)) }
-        profiles.forEachIndexed { index, p ->
-            val row = serverRow(p, p.id == selected, compact = false)
-            row.setOnClickListener {
-                setSelectedProfile(p.id)
-                renderProfiles()
+        fun renderProfileGroup(title: String, subtitle: String, groupProfiles: List<NeoTunProfile>) {
+            if (groupProfiles.isEmpty()) return
+            content.addView(txt(title, 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
+                margins(start = 4, bottom = 3, top = 8))
+            content.addView(txt(subtitle, 11f, NeoTunDesign.TEXT_MUTED),
+                margins(start = 4, bottom = 7))
+            val listCard = card().apply { setPadding(dp(8), dp(6), dp(8), dp(6)) }
+            groupProfiles.forEachIndexed { index, profile ->
+                val row = serverRow(profile, profile.id == selected, compact = false)
+                row.setOnClickListener {
+                    setSelectedProfile(profile.id)
+                    renderProfiles()
+                }
+                listCard.addView(row)
+                if (index < groupProfiles.lastIndex) listCard.addView(View(this).apply {
+                    setBackgroundColor(NeoTunDesign.BORDER)
+                }, LinearLayout.LayoutParams(-1, dp(1)))
             }
-            listCard.addView(row)
-            if (index < profiles.lastIndex) listCard.addView(View(this).apply {
-                setBackgroundColor(NeoTunDesign.BORDER)
-            }, LinearLayout.LayoutParams(-1, dp(1)))
+            content.addView(listCard, margins(bottom = 8))
         }
-        content.addView(listCard, margins(bottom = 12))
+
+        val manualProfiles = profiles.filter { it.sourceSubscriptionId.isNullOrBlank() }
+        renderProfileGroup("ОТДЕЛЬНЫЕ СЕРВЕРЫ", "Добавлены вручную или импортированы отдельно · ${manualProfiles.size}", manualProfiles)
+
+        subs.forEach { sub ->
+            val owned = profiles.filter { it.sourceSubscriptionId == sub.id }
+            renderProfileGroup(sub.name.uppercase(), "Серверы из этой подписки · ${owned.size}", owned)
+        }
+        val knownSubscriptionIds = subs.map { it.id }.toSet()
+        val orphanedProfiles = profiles.filter {
+            !it.sourceSubscriptionId.isNullOrBlank() && it.sourceSubscriptionId !in knownSubscriptionIds
+        }
+        renderProfileGroup("ДРУГИЕ СЕРВЕРЫ", "Источник подписки больше не существует · ${orphanedProfiles.size}", orphanedProfiles)
+
         renderProfileBottomActions(profiles.firstOrNull { it.id == selected })
     }
 
