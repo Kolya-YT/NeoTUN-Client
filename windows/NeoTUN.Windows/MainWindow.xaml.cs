@@ -9,14 +9,13 @@ namespace NeoTUN.Windows;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
-    private bool _loadingEditor;
 
     public MainWindow()
     {
         InitializeComponent();
         DataContext = _vm;
-        ProfileList.SelectionChanged += (_, _) => LoadSelectedProfileIntoEditor();
-        LoadSelectedProfileIntoEditor();
+        ProfileList.SelectionChanged += (_, _) => SyncSelectedProfileToEditor();
+        SyncSelectedProfileToEditor();
         AddLog("NeoTUN Windows UI initialized. Network engine is not integrated yet.");
         ShowPage("Главная");
     }
@@ -32,13 +31,11 @@ public partial class MainWindow : Window
         LogsPage.Visibility = page == "Журнал" ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void LoadSelectedProfileIntoEditor()
+    private void SyncSelectedProfileToEditor()
     {
-        if (_vm.SelectedProfile is null) return;
-        _loadingEditor = true;
-        ProfileName.Text = _vm.SelectedProfile.Name;
-        ProfileUri.Text = _vm.SelectedProfile.Uri;
-        _loadingEditor = false;
+        var profile = _vm.SelectedProfile;
+        ProfileName.Text = profile?.Name ?? "";
+        ProfileUri.Text = profile?.Uri ?? "";
     }
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) => ShowPage("Главная");
@@ -98,6 +95,7 @@ public partial class MainWindow : Window
         }
         _vm.SelectedProfile.Name = ProfileName.Text.Trim();
         _vm.SelectedProfile.Uri = uri;
+        _vm.SelectedProfile.UpdatedAt = DateTimeOffset.UtcNow;
         _vm.SaveProfiles();
         _vm.Notice = "Профиль сохранён.";
         ProfileList.Items.Refresh();
@@ -116,7 +114,7 @@ public partial class MainWindow : Window
         if (_vm.SelectedProfile is null) return;
         if (MessageBox.Show("Удалить выбранный профиль?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         _vm.RemoveSelected();
-        LoadSelectedProfileIntoEditor();
+        SyncSelectedProfileToEditor();
     }
 
     private void LoadRouting_Click(object sender, RoutedEventArgs e)
