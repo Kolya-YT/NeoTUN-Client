@@ -124,6 +124,8 @@ internal sealed class EngineRuntime : IDisposable
         }
         _totalUpload = 0;
         _totalDownload = 0;
+        await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), cancellationToken);
+        WriteLog("sing-box control API is responsive; TUN process startup confirmed (internet reachability is not yet proven).");
         _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
         _trafficMonitor.LogLine += WriteLog;
         _trafficMonitor.SampleReceived += (upload, download) =>
@@ -155,6 +157,54 @@ internal sealed class EngineRuntime : IDisposable
         await StopXrayAsync();
         StateChanged?.Invoke(false, "Отключено");
         WriteLog("Runtime stopped");
+    }
+
+    private async Task WaitForClashApiAsync(
+        int port,
+        string secret,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", secret);
+        var endpoint = new Uri($"http://127.0.0.1:{port}/version");
+        var deadline = DateTime.UtcNow + timeout;
+        Exception? lastError = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_singBox is null || _singBox.HasExited)
+            {
+                var exitCode = _singBox is null ? -1 : SafeExitCode(_singBox);
+                throw new InvalidOperationException($"sing-box завершился до готовности API (код {exitCode}).");
+            }
+
+            try
+            {
+                using var response = await client.GetAsync(endpoint, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    WriteLog("sing-box control API readiness check passed.");
+                    return;
+                }
+                lastError = new InvalidOperationException($"Control API returned HTTP {(int)response.StatusCode}.");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                lastError = ex;
+            }
+
+            await Task.Delay(150, cancellationToken);
+        }
+
+        throw new TimeoutException(
+            $"sing-box control API не ответил за {timeout.TotalSeconds:0} с. Последняя ошибка: {lastError?.Message ?? "нет ответа"}");
     }
 
     private async Task WaitForSocks5Async(
