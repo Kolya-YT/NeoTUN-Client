@@ -1,45 +1,67 @@
 # NeoTUN Client
 
-Android-клиент для подключения к серверам VLESS, VMess, Trojan, Hysteria2, TUIC и Shadowsocks. Проект использует Rust для разбора ссылок и подготовки конфигураций, sing-box для поддерживаемых им протоколов и Xray для VLESS-транспортов, которым нужен Xray.
+**NeoTUN** — клиент для Android и Windows, который находится в активной разработке. Репозиторий содержит Android-приложение, общий Rust Core и раннюю Windows Desktop-версию.
 
-> Проект находится в активной разработке. Наличие импорта протокола не означает, что он прошёл проверку реального трафика. Стабильность подтверждается отдельными тестами на устройстве.
+> **Важно:** успешная сборка не равна подтверждённой работе сетевого туннеля. Протоколы и маршрутизацию необходимо проверять на реальном устройстве. Windows-версия особенно экспериментальная: наличие UI, движков в пакете или успешной CI-сборки само по себе не подтверждает полноценную работу TUN, DNS, TCP/UDP и очистку маршрутов.
+
+## Скачать
+
+- **[Последние релизы](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)** — готовые версии и APK, если опубликованы.
+- [Все сборки GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions) — журналы, статусы и доступные CI-артефакты.
+- [Сборка Windows Desktop](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml) — Windows x64.
+- [Сборка Android APK](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml) — APK по архитектурам.
+
+### Android APK
+
+CI собирает отдельные APK для следующих ABI:
+
+| Файл | Архитектура |
+|---|---|
+| `NeoTUN-arm64-v8a.apk` | Большинство современных Android-смартфонов |
+| `NeoTUN-armeabi-v7a.apk` | 32-битные ARM-устройства |
+| `NeoTUN-x86_64.apk` | Android-устройства и эмуляторы x86_64 |
+
+Выбирайте APK по архитектуре устройства. Не устанавливайте APK другой архитектуры, если не уверены в совместимости.
+
+Автоматическая публикация Android-релиза требует настроенных GitHub Actions Secrets для production-подписи. Без постоянного ключа подписи нельзя безопасно обновлять уже установленную production-версию.
+
+### Windows Desktop
+
+Windows workflow собирает WPF-приложение для **Windows x64** и подготавливает архив `NeoTUN-Windows-x64.zip` с приложением и сетевыми компонентами, если все проверки прошли. Артефакт появляется только после успешного завершения workflow.
+
+Последний проверяемый запуск может завершиться ошибкой на этапе сборки или загрузки runtime-компонентов. Смотрите статус и журналы конкретного запуска в [GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml). Не используйте неуспешную сборку как готовый установочный пакет.
 
 ## Возможности Android
 
 - Подключение через Android `VpnService` и TUN.
-- Импорт отдельных ссылок, Base64-списков и HTTP(S)-подписок.
-- Хранение нескольких профилей и обновление подписок.
-- Автоматический выбор сетевого движка для профиля.
-- Статистика входящего и исходящего трафика.
+- Импорт одиночных ссылок, Base64-списков и HTTP(S)-подписок.
+- Несколько профилей серверов и обновление подписок.
+- Выбор сетевого движка для поддерживаемого профиля.
+- Отображение статистики трафика.
 - Настройки DNS, IPv6 и MTU.
-- Диагностический журнал и проверка обновлений приложения.
-- Тёмный интерфейс с адаптацией под экран устройства.
-
-## Маршрутизация
-
-- Импорт профилей JSON и Base64/deeplink формата INCY/Happ.
-- Обработка deeplink-ссылок `incy://routing/...` и `happ://routing/...`.
-- Импорт маршрутизации из HTTP-заголовков `routing` / `autorouting` и deeplink-строк в подписках.
-- Правила доменов и IP/CIDR применяются через адаптеры sing-box и Xray; для `autorouting` предусмотрено обновление источника раз в 24 часа.
-- Поддержка всех geosite/geoip-наборов, преобразование геофайлов для sing-box и профильные DNS-настройки ещё требуют отдельной реализации и проверки.
+- Диагностический журнал, проверка обновлений и тёмный интерфейс.
+- Редактор маршрутизации с правилами доменов и IP/CIDR.
+- Порядок групп BLOCK / PROXY / DIRECT.
+- DNS over HTTPS и список доменов для домашнего DNS.
+- GeoSite/GeoIP rule-set для поддерживаемых правил sing-box и геоданные Xray.
 
 ## Протоколы
 
-| Протокол | Движок | Состояние |
+Импорт ссылки и наличие адаптера не означают, что каждый транспорт проверен end-to-end. Текущее состояние:
+
+| Протокол | Основной движок | Статус |
 |---|---|---|
-| VLESS TCP | Xray | Проверен пользователем |
-| VLESS XHTTP | Xray | Проверен пользователем |
-| VLESS WS / gRPC / HTTP / HTTPUpgrade / SplitHTTP | Xray | Требуется отдельная проверка |
-| VMess | sing-box | Адаптер реализован; end-to-end проверка не завершена |
-| Trojan | sing-box | Адаптер реализован; end-to-end проверка не завершена |
-| Hysteria2 | sing-box | Требуется проверка QUIC/UDP, включая port hopping |
+| VLESS TCP | Xray | Работоспособность проверялась; требуется регрессионная проверка после изменений |
+| VLESS XHTTP | Xray | Реализована поддержка; проверяйте конкретную конфигурацию |
+| VLESS WS / gRPC / HTTP / HTTPUpgrade | Xray | Требуется проверка конкретного транспорта |
+| VMess | sing-box | Адаптер реализован; требуется end-to-end проверка |
+| Trojan | sing-box | Адаптер реализован; требуется end-to-end проверка |
+| Hysteria2 | sing-box | Проверяйте QUIC/UDP, DNS и port hopping |
 | TUIC | sing-box | Требуется проверка QUIC/UDP |
 | Shadowsocks | sing-box | Требуется end-to-end проверка |
-| WireGuard / AmneziaWG | — | Не реализованы |
+| WireGuard / AmneziaWG | — | Не заявлены как реализованные |
 
-## Импорт и подписки
-
-Поддерживаемые схемы ссылок:
+Поддерживаемые схемы импорта:
 
 ```text
 vless://
@@ -51,38 +73,62 @@ tuic://
 ss://
 ```
 
-Подписки могут содержать несколько серверов. Перед сохранением обновление сначала загружает и проверяет содержимое, затем заменяет профили только если найдены поддерживаемые ссылки. Ошибка загрузки или неподдерживаемая подписка не должна стирать ранее сохранённые профили. Новая подписка не сохраняется до успешной проверки и импорта профилей. Профили сопоставляются с исходной подпиской, чтобы не создавать дубликаты. Параметры порт-хоппинга Hysteria2 должны сохраняться при разборе ссылки.
+Подписка может содержать несколько серверов. Обновление должно проверять загруженное содержимое до замены существующих профилей, не удалять рабочие данные при сетевой ошибке и избегать повторного добавления уже известных серверов.
 
-## Сетевой путь
+## Маршрутизация и DNS
+
+Редактор профиля поддерживает:
+
+- **BLOCK** — блокировка доменов и IP/CIDR.
+- **PROXY** — отправка совпавшего трафика через прокси.
+- **DIRECT** — прямое соединение.
+- Глобальный прокси и настраиваемый порядок групп.
+- Ручные списки доменов и IP/CIDR.
+- Импорт JSON и поддерживаемых routing deeplink-профилей INCY/Happ.
+- URL GeoSite/GeoIP и обновление файлов для соответствующего движка.
+- Удалённый DoH и домашний DoH с отдельным списком доменов.
+
+DNS-перехват на порту 53 должен оставаться перед пользовательскими правилами. Для sing-box геоправила используют поддерживаемые бинарные rule-set; неизвестные токены нельзя считать обычными доменными именами. Для Xray используются совместимые GeoSite/GeoIP-данные.
+
+Настройки маршрутизации и DNS применяются при запуске/переподключении туннеля. После изменения профиля отключите и снова подключите клиент.
+
+## Как устроен проект
+
+```text
+NeoTUN-Client/
+├── android/          Android-приложение, UI, TUN и сервисы
+├── core/             Общий Rust Core и разбор профилей
+├── xraybridge/       Сборка/интеграция Xray для Android
+├── windows/          Windows WPF Desktop-клиент
+├── .github/workflows CI-сборки Android и Windows
+└── DESIGN_SYSTEM.md  Общие токены интерфейса
+```
+
+Общий поток Android-подключения:
 
 ```text
 Ссылка / подписка
        ↓
-Rust Core: разбор и конфигурация
+Rust Core: разбор профиля
        ↓
 Xray или sing-box
        ↓
 Android VpnService / TUN
        ↓
-DNS и пользовательский трафик
+DNS и пользовательский TCP/UDP-трафик
 ```
 
-Для sing-box 1.14.x явный `dns_address` на TUN требует правила `hijack-dns` с условием `protocol: dns`. Правило без условия протокола может совпадать и с обычными соединениями, поэтому NeoTUN ограничивает перехват трафика на DNS-порт 53 и сохраняет это правило первым перед пользовательскими правилами. Для Hysteria2 не задаётся поле outbound `network: udp`: оно ограничивало proxy UDP и приводило к ошибке `TCP is not supported by outbound: proxy`, из-за которой обычный интернет-трафик не проходил.
+Windows использует WPF UI и общий Rust Core. Windows TUN, жизненный цикл движков, маршруты и DNS всё ещё требуют полноценной проверки на реальном ПК, включая отключение, повторное подключение, сон/пробуждение и восстановление сетевого состояния.
 
-
-## Интеграция Android TUN
-
-Сетевой адаптер sing-box ориентируется на подход Hiddify: интерфейсы берутся из Android ConnectivityManager с реальными DNS, адресами, шлюзами и типом сети; VPN-интерфейс не передаётся ядру как физический outbound. Для Android 9+ используется поиск лучшей физической сети вместо слепого выбора VPN как default network. При auto_route пустой список IPv4-маршрутов не должен приводить к созданию TUN без маршрута.
-
-## Сборка Android
+## Сборка Android из исходников
 
 ### Требования
 
 - JDK 17
-- Android SDK и Platform 35
-- Rust stable
+- Android SDK Platform 35
 - Android NDK r29
-- `cargo-ndk`
+- Rust stable и `cargo-ndk`
+- Go stable для сборки Xray bridge
 - Gradle 8.10.2
 
 Установите Android-цели Rust:
@@ -94,7 +140,7 @@ rustup target add x86_64-linux-android
 cargo install cargo-ndk --locked
 ```
 
-Сборка Rust Core:
+Соберите Rust Core:
 
 ```bash
 cd core
@@ -106,20 +152,35 @@ cargo ndk \
   build --release
 ```
 
-Сборка release APK для поддерживаемых архитектур:
+Сборка APK также требует подготовленных нативных библиотек Xray bridge. CI выполняет этот шаг автоматически. После подготовки библиотек выполните:
 
 ```bash
-cd ../android
+cd android
 gradle assembleRelease --no-daemon --parallel --build-cache
 ```
 
-Gradle создаёт отдельные APK для `arm64-v8a`, `armeabi-v7a` и `x86_64`. Каждый APK содержит только нативные библиотеки своей архитектуры, поэтому он заметно меньше универсального APK.
+## Сборка Windows из исходников
 
-## GitHub Actions и подпись
+### Требования
 
-Workflow `.github/workflows/android.yml` собирает Rust Core и нативный Xray-модуль, использует кэш Rust/Go/Gradle и публикует отдельные APK для Android ABI. Встроенная проверка обновлений выбирает APK под архитектуру устройства. Публикация требует постоянного production keystore.
+- Windows x64
+- .NET 8 SDK
+- Rust stable с target `x86_64-pc-windows-msvc`
+- Visual Studio Build Tools с C++ workload
 
-Настройте следующие GitHub Actions Secrets:
+```powershell
+rustup target add x86_64-pc-windows-msvc
+cargo test --manifest-path core/Cargo.toml
+cargo build --manifest-path core/Cargo.toml --release --target x86_64-pc-windows-msvc
+dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj
+dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
+```
+
+Этот набор команд собирает UI и Rust Core. Для готового дистрибутива дополнительно требуются сетевые runtime-компоненты, которые подготавливает Windows workflow.
+
+## GitHub Actions и подпись Android
+
+Для production-сборки Android workflow ожидает следующие Secrets:
 
 ```text
 NEOTUN_KEYSTORE_BASE64
@@ -128,90 +189,40 @@ NEOTUN_KEY_ALIAS
 NEOTUN_KEY_PASSWORD
 ```
 
-Не добавляйте keystore и пароли в репозиторий. Для обновления установленного приложения подпись должна совпадать с предыдущей production-версией.
+Не коммитьте keystore, пароли или приватные ключи в репозиторий. При выпуске обновления Android package должен иметь тот же application ID и совместимую подпись, что и установленная версия.
 
-Сборки и артефакты: [GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions). Исходный код: [GitHub](https://github.com/Kolya-YT/NeoTUN-Client).
+Windows workflow публикует архив только после успешной сборки приложения, размещения сетевых компонентов и проверки состава архива. Если шаг падает, скачиваемый дистрибутив не публикуется.
 
 ## Диагностика
 
-Если подключение запускается, но сайты не открываются, проверьте по порядку:
+Если клиент показывает подключение, но интернет не работает:
 
-1. Успешно ли разобрана ссылка и сформирован ли профиль.
-2. Запускается ли выбранный движок без ошибки конфигурации.
-3. Создан ли Android TUN.
-4. Обрабатываются ли DNS-запросы.
-5. Проходит ли реальный TCP- или UDP-трафик.
-6. Работают ли отключение и повторное подключение.
+1. Проверьте, что профиль импортирован и конфигурация движка принята без ошибок.
+2. Убедитесь, что TUN создан и системный значок VPN появился.
+3. Проверьте в журнале DNS: должны быть видны запросы и ответы, а не только попытки подключения.
+4. Убедитесь, что реальные TCP- и UDP-соединения доходят до нужного outbound.
+5. Проверьте сайты и приложения, а не только статус «Подключено».
+6. Нажмите «Отключить» и проверьте, что VPN исчез и трафик восстановился через обычную сеть.
+7. После изменения DNS или правил маршрутизации переподключитесь и повторите проверку.
 
-Диагностический журнал доступен в приложении. Перед публикацией логов удаляйте адреса серверов, идентификаторы и другие чувствительные данные.
+Перед отправкой диагностического журнала удаляйте адреса серверов, UUID, пароли, токены подписок и другие секреты.
 
 ## Текущая версия
 
-- Android: **0.7.8**
-- `versionCode`: **60**
-- Rust Core: **0.2.4**
-- Движки Android: sing-box 1.14.1 и Xray
-- Статус: активная разработка; требуется проверка реального трафика на устройствах
+- **Android:** 0.8.1
+- **Android versionCode:** 61
+- **Android SDK:** minSdk 26, targetSdk 35
+- **sing-box Android dependency:** 1.14.1
+- **Windows:** ранняя WPF Desktop-версия; runtime package проходит отдельную CI-проверку
+- **Статус:** активная разработка; готовность сетевого трафика необходимо подтверждать на реальных устройствах
 
-## Windows Desktop
+## Участие в разработке
 
-Добавлен нативный WPF-интерфейс с той же палитрой из `DESIGN_SYSTEM.md`, навигацией, локальным хранением профилей, поиском, редактированием и импортом одиночных ссылок/Base64/HTTP(S)-подписок.
+Перед отправкой изменений запускайте доступные тесты Rust и проверяйте соответствующий GitHub Actions workflow. Изменения маршрутизации должны сохранять приоритет DNS hijack, не ломать пользовательский порядок правил и не подменять неподдерживаемые геотокены обычными доменами.
 
-**Важно:** текущая Windows-сборка — это GUI milestone, а не готовый сетевой клиент. Windows TUN, service lifecycle, интеграция и запуск Xray/sing-box, реальная статистика и проверка соединения пока не реализованы. Кнопка подключения не заявляет успешный статус и прямо сообщает об этом ограничении.
-
-- Проект: `windows/NeoTUN.Windows`
-- Требуется .NET 8 SDK для сборки из исходников.
-- Windows x64 GUI artifact: [GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/runs/38044323860)
-- Последний Android release: [NeoTUN v0.7.6](https://github.com/Kolya-YT/NeoTUN-Client/releases/tag/v0.7.6)
-
-## Маршрутизация\n\nПорядок групп маршрутизации читается из `RouteOrder` импортированного профиля (строка или массив); значения профиля не зашиваются в приложение. Правила `geosite:`/`geoip:` для Xray передаются движку как геоданные. Для sing-box такие токены не подменяются доменными именами: поддержка реальных sing-box rule-set будет добавлена отдельно.\n\n## Лицензия
-
-Условия использования указаны в [LICENSE](LICENSE).
-
-
-**Android DNS fallback (0.6.1):** для sing-box используется явный UDP DNS upstream (по умолчанию 1.1.1.1; можно выбрать Google или Quad9), а не локальный resolver, который на некоторых устройствах Android 16 возвращает `::1:53 connection refused`. Требуется проверить доступность выбранного DNS из сети пользователя.
-
-
-**Отключение VPN (0.6.8):** команда остановки передаётся активному движку без немедленного вызова `stopService`, который мог прервать обработку команды. Оба сервиса удаляют foreground-уведомление и сбрасывают состояние при остановке.
-
-
-**Единый интерфейс и маршрутизация (0.7.1):** редактор маршрутизации приведён к общим токенам `NeoTunDesign`; правила BLOCK/PROXY/DIRECT, глобальный прокси, порядок групп и DNS сохраняются в активном профиле. Пользовательские DNS endpoint-ы применяются в конфигурации sing-box; домашний DNS включается только для явно заданного списка `DomesticDNSDomains`. GeoSite/GeoIP можно принудительно обновить из редактора; загрузка идёт в фоне, а при ошибке старые файлы сохраняются.
-
-
-- Android: **0.7.1** — унифицированный редактор маршрутизации, рабочее обновление GeoSite/GeoIP и применение DNS-параметров активного профиля.
-
-
-### UI refresh 0.7.1
-
-- Home screen redesigned around a compact brand header, a circular primary connect/disconnect control, compact live traffic metrics, and a smaller selected-server card.
-- Bottom navigation is now a compact floating-style capsule with a clear selected state and reduced vertical footprint.
-- Screen headings and spacing are scaled down to avoid oversized titles and wasted vertical space on narrow phones.
-- This is a visual layout change; runtime behavior still needs verification on a real Android device.
-
-
-**Routing UI (0.7.6):** исправлены системные отступы edge-to-edge для Android 15+, нижняя кнопка сохранения больше не должна уходить под навигационную панель, стрелка выбора порядка групп больше не занимает всю ширину строки; диалоги получили оформление в стиле NeoTUN.
-
-
-### Hysteria2 routing fix (0.7.8)
-
-- Custom profile rules are inserted before sing-box native fallback rules, so an early `route(proxy)` catch-all no longer masks Direct/Block/Proxy decisions.
-- Xray-style `geosite:`/`geoip:` tokens are mapped to sing-box remote binary `.srs` rule-sets where supported; remote rule-set cache is enabled.
-- DNS hijacking on port 53 remains first. Unsupported geodata labels are logged instead of silently being treated as domains.
-
-
-**0.7.8:** sing-box GeoSite/GeoIP rule-sets now use the same RoscomVPN `.srs` data source as the user's Happ profile, including `twitch-ads`, `google-play`, `github`, `youtube`, `telegram`, and GeoIP `direct/whitelist/private`. Android Actions no longer cancels an in-progress build when a newer commit is pushed.
-
-
-**0.8.0:** routing profiles that omit DNS fields now get working remote/domestic DoH defaults (Google 8.8.8.8 and Yandex 77.88.8.8), with `.ru`, `.su`, and `.рф` sent to domestic DNS. DoH TLS server names are set correctly for IP-based resolver URLs.
-
-
-### Исправления маршрутизации 0.8.0
-
-- Загрузки sing-box rule-set направляются через `direct`, чтобы не зависеть от прокси-маршрутизации при запуске туннеля.
-- Исправлено соответствие `geosite:epicgames` и алиаса `geosite:epic-games` фактическому файлу `epicgames.srs`.
-- Список поддерживаемых GeoSite-наборов приведён к опубликованным SRS-файлам проекта; неизвестные токены остаются явно неподдерживаемыми.
-
-
-### 0.8.1
-- Routing editor: constrain the order selector row to a stable height and keep the save action clear of Android system bars/keyboard.
-- Windows CI: locate the built Rust core DLL from Cargo's actual output directory before staging the desktop runtime.
+- [Исходный код](https://github.com/Kolya-YT/NeoTUN-Client)
+- [Последние релизы](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)
+- [Android Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml)
+- [Windows Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml)
+- [Система дизайна](DESIGN_SYSTEM.md)
+- [Лицензия](LICENSE)
