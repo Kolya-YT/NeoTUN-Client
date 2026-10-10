@@ -161,6 +161,61 @@ public partial class MainWindow : Window
 
     private void ClearImport_Click(object sender, RoutedEventArgs e) => ImportEditor.Clear();
 
+    private async void RefreshSubscriptions_Click(object sender, RoutedEventArgs e)
+    {
+        var sources = _vm.Profiles
+            .Select(profile => profile.Source?.Trim() ?? "")
+            .Where(source => Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (sources.Length == 0)
+        {
+            _vm.Notice = "Нет URL-подписок для обновления. Импортируйте HTTPS-ссылку подписки, чтобы обновлять её позже.";
+            AddLog(_vm.Notice);
+            return;
+        }
+
+        RefreshSubscriptionsButton.IsEnabled = false;
+        var refreshedProfiles = 0;
+        var errors = new List<string>();
+        try
+        {
+            foreach (var source in sources)
+            {
+                try
+                {
+                    var imported = await SubscriptionImporter.ImportAsync(source);
+                    if (imported.Count == 0)
+                    {
+                        errors.Add(new Uri(source).Host + ": поддерживаемые профили не найдены; прежние серверы сохранены.");
+                        continue;
+                    }
+
+                    refreshedProfiles += _vm.ReplaceSubscriptionProfiles(source, imported);
+                    AddLog($"Subscription refreshed: {new Uri(source).Host}, profiles={imported.Count}");
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new Uri(source).Host + ": " + ex.Message);
+                    AddLog("Subscription refresh failed: " + source + " — " + ex.Message);
+                }
+            }
+
+            ProfileList.Items.Refresh();
+            SyncSelectedProfileToEditor();
+            _vm.Notice = errors.Count == 0
+                ? $"Обновлено подписок: {sources.Length}. Получено профилей: {refreshedProfiles}."
+                : $"Обновлено подписок: {sources.Length - errors.Count} из {sources.Length}. Профилей: {refreshedProfiles}. Ошибки: " + string.Join(" | ", errors);
+            AddLog(_vm.Notice);
+        }
+        finally
+        {
+            RefreshSubscriptionsButton.IsEnabled = true;
+        }
+    }
+
     private void SaveProfile_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.SelectedProfile is null) return;
