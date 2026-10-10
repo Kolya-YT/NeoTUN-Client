@@ -52,6 +52,9 @@ internal sealed class EngineRuntime : IDisposable
         var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
         var xrayPath = Path.Combine(_runtimeDirectory, "xray.exe");
         if (!File.Exists(singBoxPath)) throw new FileNotFoundException("Не найден sing-box.exe в папке runtime.", singBoxPath);
+        var wintunPath = Path.Combine(_runtimeDirectory, "wintun.dll");
+        if (!File.Exists(wintunPath))
+            throw new FileNotFoundException("Не найден runtime/wintun.dll. Переустанови NeoTUN через актуальный установщик Windows.", wintunPath);
 
         var runtime = NativeCore.BuildRuntimeConfig(shareUri);
         var singBoxConfigPath = Path.Combine(_dataDirectory, "sing-box-runtime.json");
@@ -187,6 +190,11 @@ internal sealed class EngineRuntime : IDisposable
             RedirectStandardError = true,
             WorkingDirectory = Path.GetDirectoryName(executable)!
         };
+        var runtimePath = Path.GetDirectoryName(executable)!;
+        var existingPath = start.Environment.TryGetValue("PATH", out var pathValue) ? pathValue : Environment.GetEnvironmentVariable("PATH");
+        start.Environment["PATH"] = string.IsNullOrWhiteSpace(existingPath)
+            ? runtimePath
+            : runtimePath + Path.PathSeparator + existingPath;
         var process = new Process { StartInfo = start, EnableRaisingEvents = true };
         process.OutputDataReceived += (_, e) => { if (e.Data is not null) WriteLog(name + ": " + e.Data); };
         process.ErrorDataReceived += (_, e) => { if (e.Data is not null) WriteLog(name + ": " + e.Data); };
