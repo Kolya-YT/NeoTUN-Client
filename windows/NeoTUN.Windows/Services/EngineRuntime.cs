@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using System.Text;
@@ -21,6 +22,7 @@ internal sealed class EngineRuntime : IDisposable
     private TrafficMonitor? _trafficMonitor;
     private long _totalUpload;
     private long _totalDownload;
+    private int _stopRequested;
     private readonly string _dataDirectory;
     private readonly string _runtimeDirectory;
     private readonly string _logPath;
@@ -54,6 +56,7 @@ internal sealed class EngineRuntime : IDisposable
         if (!IsAdministrator())
             throw new InvalidOperationException("Для создания системного TUN нужны права администратора. Запусти NeoTUN от имени администратора.");
         if (IsRunning) return;
+        Interlocked.Exchange(ref _stopRequested, 0);
         if (_singBox is not null || _xray is not null) await StopAsync();
 
         var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
@@ -148,6 +151,7 @@ internal sealed class EngineRuntime : IDisposable
 
     public async Task StopAsync()
     {
+        Interlocked.Exchange(ref _stopRequested, 1);
         if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
@@ -312,14 +316,46 @@ internal sealed class EngineRuntime : IDisposable
         {
             var exitCode = SafeExitCode(process);
             WriteLog($"{name} exited with code {exitCode}");
-            if (name == "sing-box" || name == "xray")
-                StateChanged?.Invoke(false, $"{name} завершился с кодом {exitCode}. Подключение остановлено; см. журнал.");
+            if (name != "sing-box" && name != "xray") return;
+
+            // Kill() during a normal disconnect also raises Exited (usually with code -1).
+            // Do not report an intentional stop as a runtime crash.
+            if (Volatile.Read(ref _stopRequested) != 0) return;
+
+            StateChanged?.Invoke(false, $"{name} завершился с кодом {exitCode}. Останавливаем оставшийся движок…");
+            _ = StopAfterUnexpectedExitAsync(name, exitCode);
         };
         if (!process.Start()) throw new InvalidOperationException("Не удалось запустить " + name);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         WriteLog(name + " process started");
         return process;
+    }
+
+    private async Task StopAfterUnexpectedExitAsync(string name, int exitCode)
+    {
+        // Prevent duplicate cleanup if both processes exit nearly simultaneously.
+        if (Interlocked.Exchange(ref _stopRequested, 1) != 0) return;
+        WriteLog($"Unexpected {name} exit ({exitCode}); stopping the remaining runtime processes.");
+        try
+        {
+            if (_trafficMonitor is not null)
+            {
+                await _trafficMonitor.DisposeAsync();
+                _trafficMonitor = null;
+            }
+            await StopSingBoxAsync();
+            await StopXrayAsync();
+        }
+        catch (Exception ex)
+        {
+            WriteLog("Runtime cleanup after unexpected exit failed: " + ex.Message);
+        }
+        finally
+        {
+            StateChanged?.Invoke(false, $"Отключено: {name} завершился с кодом {exitCode}. Проверь журнал.");
+            WriteLog("Runtime cleanup after unexpected exit completed.");
+        }
     }
 
     private async Task StopSingBoxAsync()
