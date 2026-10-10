@@ -2,13 +2,13 @@
 <resources>
     <style name="Theme.NeoTUN" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#7D6CFF</item>
-        <item name="android:navigationBarColor">#0B0B0F</item>
+        <item name="android:colorAccent">#8068FF</item>
+        <item name="android:navigationBarColor">#0D101B</item>
         <item name="android:statusBarColor">#0B0B0F</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">#07080C</item>
+        <item name="android:windowBackground">#080A12</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:navigationBarDividerColor">#0F1016</item>
+        <item name="android:navigationBarDividerColor">#080A12</item>
     </style>
 </resources>
