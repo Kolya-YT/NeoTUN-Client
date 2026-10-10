@@ -160,29 +160,112 @@
           </Border>
         </Grid>
         <Grid x:Name="RoutingPage" Visibility="Collapsed">
-          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="820" HorizontalAlignment="Left">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-              <TextBlock Text="Маршрутизация" FontSize="20" FontWeight="Bold"/>
-              <TextBlock Text="Здесь можно проверить JSON правил. Сейчас правила сохраняются для проверки, но ещё не применяются к системному трафику. Не считайте импорт подтверждением активной маршрутизации." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,18"/>
-              <TextBox x:Name="RoutingEditor" MinHeight="260" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
-              <WrapPanel Margin="0,14,0,0">
-                <Button Content="Загрузить JSON" Click="LoadRouting_Click" Margin="0,0,8,0"/>
-                <Button Content="Скопировать JSON" Click="CopyRouting_Click"/>
-              </WrapPanel>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="Режим обработки соединений" FontSize="19" FontWeight="Bold"/>
+                  <TextBlock Text="Настройки маршрутов и DNS для профиля NeoTUN. Списки сохраняются отдельно от ссылки сервера." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,14"/>
+                  <CheckBox x:Name="GlobalProxyToggle" Content="Направлять соединения через выбранный профиль по умолчанию" IsChecked="True" Margin="0,0,0,12"/>
+                  <TextBlock Text="Порядок правил" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                  <ComboBox x:Name="RouteOrderSelector" SelectedIndex="0" MinHeight="38">
+                    <ComboBoxItem Content="Блокировка → Прокси → Напрямую"/>
+                    <ComboBoxItem Content="Блокировка → Напрямую → Прокси"/>
+                    <ComboBoxItem Content="Прокси → Блокировка → Напрямую"/>
+                  </ComboBox>
+                </StackPanel>
+              </Border>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="DNS over HTTPS" FontSize="18" FontWeight="SemiBold"/>
+                  <TextBlock Text="Укажите IP-адрес или HTTPS DNS endpoint. Оставьте поле пустым, чтобы не задавать отдельный DNS." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,12"/>
+                  <TextBlock Text="Удалённый DNS" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                  <TextBox x:Name="RemoteDnsInput" Text="https://8.8.8.8/dns-query" Margin="0,0,0,12"/>
+                  <TextBlock Text="Домашний DNS" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                  <TextBox x:Name="DomesticDnsInput" Text="https://77.88.8.8/dns-query"/>
+                </StackPanel>
+              </Border>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="Правила доменов и IP/CIDR" FontSize="18" FontWeight="SemiBold"/>
+                  <TextBlock Text="Каждая строка — одно значение. Примеры: example.org или 192.0.2.0/24." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,14"/>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Margin="0,0,7,12">
+                      <TextBlock Text="Блокировать домены" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                      <TextBox x:Name="BlockSitesEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="7,0,0,12">
+                      <TextBlock Text="Блокировать IP/CIDR" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                      <TextBox x:Name="BlockIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Margin="0,0,7,12">
+                      <TextBlock Text="Через прокси — домены" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                      <TextBox x:Name="ProxySitesEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="7,0,0,12">
+                      <TextBlock Text="Через прокси — IP/CIDR" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                      <TextBox x:Name="ProxyIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Margin="0,0,7,0">
+                      <TextBlock Text="Напрямую — домены" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                      <TextBox x:Name="DirectSitesEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="7,0,0,0">
+                      <TextBlock Text="Напрямую — IP/CIDR" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                      <TextBox x:Name="DirectIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    </StackPanel>
+                  </Grid>
+                  <WrapPanel Margin="0,16,0,0">
+                    <Button Content="Сохранить маршруты" Click="SaveRouting_Click" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Margin="0,0,8,8"/>
+                    <Button Content="Проверить JSON-файл" Click="LoadRouting_Click" Margin="0,0,8,8"/>
+                    <Button Content="Экспорт JSON" Click="CopyRouting_Click" Margin="0,0,8,8"/>
+                    <Button Content="Сбросить поля" Click="ResetRouting_Click" Margin="0,0,8,8"/>
+                  </WrapPanel>
+                  <TextBlock x:Name="RoutingSummary" Text="Маршруты ещё не сохранены." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                </StackPanel>
+              </Border>
             </StackPanel>
-          </Border>
+          </ScrollViewer>
         </Grid>
         <Grid x:Name="SettingsPage" Visibility="Collapsed">
-          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="820" HorizontalAlignment="Left">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-              <TextBlock Text="Настройки" FontSize="20" FontWeight="Bold"/>
-              <TextBlock Text="Подключение использует встроенные sing-box и Xray, Rust-парсер профилей и системный TUN. Windows запросит права администратора для изменения маршрутов." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,20"/>
-              <TextBlock Text="Платформа" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-              <TextBlock Text="Windows x64" FontSize="15" Margin="0,5,0,16"/>
-              <TextBlock Text="Режим" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-              <TextBlock Text="Сетевой движок находится в стадии интеграции. Поддерживаемые профили запускаются через sing-box или Xray; до проверки стабильного TUN и реального TCP/UDP-трафика подключение не считается подтверждённым. Пользовательская маршрутизация пока не применяется." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="Внешний вид" FontSize="19" FontWeight="Bold"/>
+                  <TextBlock Text="Цветовая тема приложения" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,10"/>
+                  <ComboBox x:Name="ThemeSelector" SelectedIndex="0" SelectionChanged="ThemeSelector_SelectionChanged" MinHeight="38">
+                    <ComboBoxItem Content="Тёмная"/>
+                    <ComboBoxItem Content="Светлая"/>
+                    <ComboBoxItem Content="OLED — чёрная"/>
+                  </ComboBox>
+                </StackPanel>
+              </Border>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="Запуск приложения" FontSize="19" FontWeight="Bold"/>
+                  <TextBlock Text="NeoTUN можно запускать автоматически при входе в Windows." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,12"/>
+                  <CheckBox x:Name="LaunchWithWindowsToggle" Content="Запускать NeoTUN вместе с Windows" Checked="LaunchWithWindows_Changed" Unchecked="LaunchWithWindows_Changed"/>
+                  <TextBlock Text="Настройка применяется только для текущего пользователя Windows." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                </StackPanel>
+              </Border>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
+                  <TextBlock Text="Диагностика" FontSize="19" FontWeight="Bold"/>
+                  <TextBlock Text="Файлы профилей, маршрутов и журнала хранятся локально в папке NeoTUN в профиле пользователя." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,10"/>
+                  <TextBlock x:Name="DataDirectoryLabel" Text="" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                  <WrapPanel>
+                    <Button Content="Открыть папку данных" Click="OpenDataFolder_Click" Margin="0,0,8,8"/>
+                    <Button Content="Открыть журнал" Click="OpenLog_Click" Margin="0,0,8,8"/>
+                    <Button Content="Скопировать диагностику" Click="CopyDiagnostics_Click" Margin="0,0,8,8"/>
+                  </WrapPanel>
+                  <TextBlock x:Name="SettingsSummary" Text="Настройки хранятся на этом компьютере." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+              </Border>
             </StackPanel>
-          </Border>
+          </ScrollViewer>
         </Grid>
         <Grid x:Name="LogsPage" Visibility="Collapsed">
           <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="22">
