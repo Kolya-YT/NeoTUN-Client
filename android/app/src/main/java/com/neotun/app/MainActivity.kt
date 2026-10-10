@@ -961,11 +961,19 @@ class MainActivity : Activity() {
 
     private fun showRoutingSettings() {
         val profiles = routingStore.all()
-        val labels = profiles.map { "✓  ${it.name}" }.toMutableList()
+        val labels = profiles.map { profile ->
+            if (routingStore.active()?.id == profile.id) "✓  ${profile.name}" else profile.name
+        }.toMutableList()
+        val createIndex = labels.size
+        labels += "＋  Создать профиль"
+        val active = routingStore.active()
+        val deleteIndex = if (active != null) labels.size else -1
+        if (deleteIndex >= 0) labels += "⌫  Удалить активный профиль"
         val importIndex = labels.size
-        labels += "＋  Импортировать профиль"
+        labels += "⇩  Импортировать профиль"
         val toggleIndex = labels.size
         labels += if (routingStore.enabled()) "⏻  Выключить маршрутизацию" else "⏻  Включить маршрутизацию"
+
         val dialog = AlertDialog.Builder(this)
             .setTitle("Профили маршрутизации")
             .setItems(labels.toTypedArray()) { _, index ->
@@ -975,6 +983,22 @@ class MainActivity : Activity() {
                         routingStore.setEnabled(true)
                         toast("Активен профиль: ${profiles[index].name}. Переподключитесь для применения.")
                         renderSettings()
+                    }
+                    index == createIndex -> {
+                        startActivity(Intent(this, RoutingSettingsActivity::class.java)
+                            .putExtra(RoutingSettingsActivity.EXTRA_NEW_PROFILE, true))
+                    }
+                    index == deleteIndex && deleteIndex >= 0 -> {
+                        val target = routingStore.active() ?: return@setItems
+                        AlertDialog.Builder(this)
+                            .setTitle("Удалить профиль?")
+                            .setMessage("Профиль «${target.name}» будет удалён. Остальные профили и серверы останутся на месте.")
+                            .setNegativeButton("Отмена", null)
+                            .setPositiveButton("Удалить") { _, _ ->
+                                routingStore.delete(target.id)
+                                toast("Профиль удалён")
+                                renderSettings()
+                            }.show()
                     }
                     index == importIndex -> {
                         val input = EditText(this).apply {
