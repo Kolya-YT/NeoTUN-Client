@@ -70,8 +70,28 @@ jobs:
           $temp = Join-Path $env:RUNNER_TEMP "neotun-engines"
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
 
+          function Get-PinnedArchive([string]$Url, [string]$Destination) {
+            $lastError = $null
+            for ($attempt = 1; $attempt -le 4; $attempt++) {
+              try {
+                Write-Host "Downloading $Url (attempt $attempt/4)"
+                Remove-Item $Destination -Force -ErrorAction SilentlyContinue
+                Invoke-WebRequest -Uri $Url -OutFile $Destination -TimeoutSec 120
+                if (!(Test-Path $Destination) -or (Get-Item $Destination).Length -lt 1024) {
+                  throw "Downloaded archive is missing or unexpectedly small: $Destination"
+                }
+                return
+              } catch {
+                $lastError = $_
+                Write-Warning "Download attempt $attempt failed: $($_.Exception.Message)"
+                if ($attempt -lt 4) { Start-Sleep -Seconds (3 * $attempt) }
+              }
+            }
+            throw "Unable to download pinned runtime asset from $Url. Last error: $lastError"
+          }
+
           $singBoxZip = Join-Path $temp "sing-box.zip"
-          Invoke-WebRequest "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-windows-amd64.zip" -OutFile $singBoxZip
+          Get-PinnedArchive "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-windows-amd64.zip" $singBoxZip
           Expand-Archive $singBoxZip (Join-Path $temp "sing-box") -Force
           $singBoxExe = Get-ChildItem (Join-Path $temp "sing-box") -Filter "sing-box.exe" -Recurse | Select-Object -First 1
           if (!$singBoxExe) { throw "sing-box.exe missing from pinned upstream archive" }
@@ -79,7 +99,7 @@ jobs:
           Get-ChildItem $singBoxExe.DirectoryName -File | Where-Object { $_.Name -ne "sing-box.exe" } | Copy-Item -Destination $runtime -Force
 
           $xrayZip = Join-Path $temp "xray.zip"
-          Invoke-WebRequest "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-windows-64.zip" -OutFile $xrayZip
+          Get-PinnedArchive "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-windows-64.zip" $xrayZip
           Expand-Archive $xrayZip (Join-Path $temp "xray") -Force
           $xrayExe = Get-ChildItem (Join-Path $temp "xray") -Filter "xray.exe" -Recurse | Select-Object -First 1
           if (!$xrayExe) { throw "xray.exe missing from pinned upstream archive" }
@@ -87,7 +107,11 @@ jobs:
           Get-ChildItem $xrayExe.DirectoryName -File | Where-Object { $_.Name -ne "xray.exe" } | Copy-Item -Destination $runtime -Force
 
           $wintunZip = Join-Path $temp "wintun.zip"
-          Invoke-WebRequest "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile $wintunZip
+          Get-PinnedArchive "https://www.wintun.net/builds/wintun-0.14.1.zip" $wintunZip
+          $wintunHash = (Get-FileHash $wintunZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($wintunHash -ne "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51") {
+            throw "Wintun SHA-256 mismatch: $wintunHash"
+          }
           Expand-Archive $wintunZip (Join-Path $temp "wintun") -Force
           $wintunDll = Get-ChildItem (Join-Path $temp "wintun") -Filter "wintun.dll" -Recurse |
             Where-Object { $_.FullName -match "[\\/]amd64[\\/]" } | Select-Object -First 1
