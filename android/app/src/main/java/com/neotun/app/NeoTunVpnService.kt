@@ -194,7 +194,32 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     override fun setSystemProxyEnabled(isEnabled: Boolean) = Unit
     override fun triggerNativeCrash() = Unit
     override fun writeDebugMessage(message: String?) {
-        val line = message ?: return
+        val raw = message ?: return
+        // libbox adds ANSI colors even when writing to the in-app diagnostic log.
+        // Strip them so saved logs are readable and can be filtered reliably.
+        val line = raw.replace(Regex("\u001B\\[[;\\d]*m"), "").trim()
+        if (line.isEmpty()) return
+
+        val normalized = line.lowercase()
+        // These per-flow TRACE/DEBUG events repeat for every short-lived socket and
+        // bury actual startup, routing and error information in the diagnostic view.
+        // Keep DNS queries, route decisions, warnings and errors; drop routine noise.
+        val routineNoise = listOf(
+            "connection upload closed",
+            "connection download closed",
+            "connection upload finished",
+            "connection download finished",
+            "packet upload closed",
+            "packet download closed",
+            "packet upload finished",
+            "packet download finished",
+            "router: found user id:",
+            "dns: exchanged",
+        ).any(normalized::contains)
+        if (routineNoise && !normalized.contains("error") && !normalized.contains("warn")) {
+            return
+        }
+
         android.util.Log.d("NeoTUN", line)
         NeoTunDiagnostics.log(this, "libbox: " + line)
     }
