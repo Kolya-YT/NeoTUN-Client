@@ -6,10 +6,11 @@
 
 ## Скачать
 
-- **[Последние релизы](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)** — готовые версии и APK, если опубликованы.
-- [Все сборки GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions) — журналы, статусы и доступные CI-артефакты.
-- [Сборка Windows Desktop](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml) — Windows x64.
-- [Сборка Android APK](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml) — APK по архитектурам.
+- **[Последний опубликованный релиз](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)** — только версии, успешно опубликованные в Releases.
+- [Все сборки GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions) — статусы, логи и CI-артефакты.
+- [Последняя успешная сборка Windows (#93)](https://github.com/Kolya-YT/NeoTUN-Client/actions/runs/38046053861) — ZIP доступен в разделе **Artifacts** запуска.
+- [Сборки Android APK](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml) — APK по архитектурам.
+- [Исходный код](https://github.com/Kolya-YT/NeoTUN-Client) — текущая версия в `main` может быть новее опубликованного релиза.
 
 ### Android APK
 
@@ -23,13 +24,17 @@ CI собирает отдельные APK для следующих ABI:
 
 Выбирайте APK по архитектуре устройства. Не устанавливайте APK другой архитектуры, если не уверены в совместимости.
 
-Автоматическая публикация Android-релиза требует настроенных GitHub Actions Secrets для production-подписи. Без постоянного ключа подписи нельзя безопасно обновлять уже установленную production-версию.
+Для production-сборки требуются GitHub Actions Secrets с постоянным ключом подписи. Без них workflow намеренно не публикует APK, который нельзя гарантированно установить поверх существующей production-версии.
+
+**Статус сборки Android #403:** APK были собраны и загружены как CI-артефакты, но шаг публикации GitHub Release завершился HTTP 403 (`Resource not accessible by integration`). Поэтому собранный APK не обязательно появился на странице Releases. Проверяйте артефакты конкретного запуска и номер версии внутри него.
 
 ### Windows Desktop
 
 Windows workflow собирает WPF-приложение для **Windows x64** и подготавливает архив `NeoTUN-Windows-x64.zip` с приложением и сетевыми компонентами, если все проверки прошли. Артефакт появляется только после успешного завершения workflow.
 
-Последний проверяемый запуск может завершиться ошибкой на этапе сборки или загрузки runtime-компонентов. Смотрите статус и журналы конкретного запуска в [GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml). Не используйте неуспешную сборку как готовый установочный пакет.
+Последняя успешная сборка Windows Desktop — [workflow #93](https://github.com/Kolya-YT/NeoTUN-Client/actions/runs/38046053861): Rust Core, WPF-приложение и проверка состава архива прошли успешно. Скачайте `NeoTUN-Windows-x64` в разделе **Artifacts** этого запуска. Это CI-артефакт, а не автоматически опубликованный GitHub Release.
+
+Если загрузка сетевых компонентов или проверка состава архива завершается ошибкой, Windows ZIP не публикуется. История запусков и логи доступны в [Windows Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml).
 
 ## Возможности Android
 
@@ -209,11 +214,12 @@ Windows workflow публикует архив только после успе�
 
 ## Текущая версия
 
-- **Android:** 0.8.1
+- **Android в исходниках `main`:** 0.8.1
 - **Android versionCode:** 61
+- **Последний опубликованный релиз:** сверяйте с [GitHub Releases](https://github.com/Kolya-YT/NeoTUN-Client/releases); версия исходников может опережать публикацию.
 - **Android SDK:** minSdk 26, targetSdk 35
 - **sing-box Android dependency:** 1.14.1
-- **Windows:** ранняя WPF Desktop-версия; runtime package проходит отдельную CI-проверку
+- **Windows:** экспериментальная WPF Desktop-версия; архив #93 успешно собран, но работу TUN и реальный TCP/UDP-трафик ещё нужно проверить на ПК
 - **Статус:** активная разработка; готовность сетевого трафика необходимо подтверждать на реальных устройствах
 
 ## Участие в разработке
