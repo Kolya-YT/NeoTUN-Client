@@ -8,7 +8,6 @@ public static class SubscriptionImporter
     private static readonly string[] SupportedSchemes =
         ["vless://", "vmess://", "trojan://", "hysteria2://", "hy2://", "tuic://", "ss://"];
 
-
     public static IReadOnlyList<ServerProfile> Parse(string input, string source = "import")
     {
         var text = input.Trim();
