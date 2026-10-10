@@ -162,7 +162,10 @@ jobs:
           }
           $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $compiler)) { throw "Inno Setup compiler not found at $compiler" }
-          & $compiler "/DAppVersion=0.1.0" "installer/NeoTUN-Windows.iss"
+          $versionLine = Select-String -Path "android/app/build.gradle.kts" -Pattern 'versionName = "([^"]+)"' | Select-Object -First 1
+          if (!$versionLine -or $versionLine.Matches.Count -eq 0) { throw "Unable to read versionName from Android Gradle config" }
+          $version = $versionLine.Matches[0].Groups[1].Value
+          & $compiler "/DAppVersion=$version" "installer/NeoTUN-Windows.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
           $setup = "dist/NeoTUN-Setup-x64.exe"
           if (!(Test-Path $setup)) { throw "Installer EXE was not produced" }
