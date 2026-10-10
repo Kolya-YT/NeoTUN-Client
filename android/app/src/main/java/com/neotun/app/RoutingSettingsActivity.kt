@@ -157,7 +157,7 @@ class RoutingSettingsActivity : Activity() {
             textSize = 14f
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
-            singleLine = true
+            maxLines = 1
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(125, 109, 255))
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
