@@ -23,7 +23,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ServerProfile? SelectedProfile
     {
         get => _selectedProfile;
-        set { _selectedProfile = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedEndpoint)); }
+        set { _selectedProfile = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedEndpoint)); OnPropertyChanged(nameof(SelectedProfileName)); OnPropertyChanged(nameof(SelectedProfileUri)); OnPropertyChanged(nameof(SelectedProfileProtocol)); }
     }
 
     public string SelectedEndpoint => SelectedProfile?.Endpoint ?? "Сервер не выбран";
