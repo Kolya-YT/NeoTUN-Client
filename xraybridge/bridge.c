@@ -5,6 +5,7 @@ static JavaVM *g_vm = NULL;
 static jobject g_vpn_service = NULL;
 
 extern char *NeotunPrepare(char *server);
+extern char *NeotunSetAssetPath(char *path);
 extern char *NeotunInvoke(char *request);
 extern void NeotunResetDNS(void);
 extern void NeotunFree(char *value);
@@ -64,6 +65,23 @@ Java_com_neotun_app_NeoTunXrayBridge_nativeInit(
     }
     if (vpn_service != NULL) {
         g_vpn_service = (*env)->NewGlobalRef(env, vpn_service);
+    }
+}
+
+
+JNIEXPORT void JNICALL
+Java_com_neotun_app_NeoTunXrayBridge_nativeSetAssetPath(
+    JNIEnv *env, jclass clazz, jstring path) {
+    (void)clazz;
+    if (path == NULL) return;
+    const char *path_utf = (*env)->GetStringUTFChars(env, path, NULL);
+    if (path_utf == NULL) return;
+    char *error = NeotunSetAssetPath((char *)path_utf);
+    (*env)->ReleaseStringUTFChars(env, path, path_utf);
+    if (error != NULL) {
+        jclass exception = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        if (exception != NULL) (*env)->ThrowNew(env, exception, error);
+        NeotunFree(error);
     }
 }
 

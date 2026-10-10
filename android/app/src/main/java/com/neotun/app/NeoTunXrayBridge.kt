@@ -11,4 +11,5 @@ object NeoTunXrayBridge {
     external fun nativePrepare(dnsServer: String?): String?
     external fun nativeInvoke(request: String): String
     external fun nativeResetDns()
+    external fun nativeSetAssetPath(path: String)
 }

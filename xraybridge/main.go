@@ -8,6 +8,8 @@ import "C"
 
 import (
     "errors"
+    "os"
+    "path/filepath"
     "unsafe"
 
     libXray "github.com/xtls/libxray"
@@ -20,6 +22,21 @@ func (androidController) ProtectFd(fd int) bool {
 }
 
 func main() {}
+
+//export NeotunSetAssetPath
+func NeotunSetAssetPath(path *C.char) *C.char {
+    if path == nil || C.GoString(path) == "" {
+        return C.CString("Xray asset path is empty")
+    }
+    assetPath := filepath.Clean(C.GoString(path))
+    if err := os.Setenv("XRAY_LOCATION_ASSET", assetPath); err != nil {
+        return C.CString(err.Error())
+    }
+    if err := os.Setenv("xray.location.asset", assetPath); err != nil {
+        return C.CString(err.Error())
+    }
+    return nil
+}
 
 //export NeotunPrepare
 func NeotunPrepare(server *C.char) *C.char {

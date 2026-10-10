@@ -43,7 +43,13 @@ class NeoTunXrayVpnService : VpnService() {
         NeoTunDiagnostics.log(this, "Профиль получен: VLESS-ссылка (секретные параметры скрыты)")
 
         runCatching {
-            startXray(uri)
+            val routing = RoutingProfileStore(this).active()
+            val geoDir = java.io.File(filesDir, "geodata")
+            NeoTunDiagnostics.log(this, "GeoData: проверка файлов перед запуском Xray")
+            val geo = NeoTunGeoData.ensure(this, geoDir, routing?.json)
+            NeoTunDiagnostics.log(this, "GeoData: geoip=" + geo.geoIpBytes +
+                " bytes, geosite=" + geo.geoSiteBytes + " bytes, updated=" + geo.updated)
+            startXray(uri, geoDir.absolutePath)
             getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
                 .edit()
                 .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
@@ -59,10 +65,11 @@ class NeoTunXrayVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
-    private fun startXray(uri: String) {
+    private fun startXray(uri: String, geoDataPath: String) {
         NeoTunDiagnostics.log(this, "Этап 1/8: инициализация JNI/Xray")
         NeoTunXrayBridge.nativeInit(this)
-        NeoTunDiagnostics.log(this, "JNI/Xray bridge инициализирован")
+        NeoTunXrayBridge.nativeSetAssetPath(geoDataPath)
+        NeoTunDiagnostics.log(this, "JNI/Xray bridge инициализирован; XRAY_LOCATION_ASSET=" + geoDataPath)
 
         val connectivity = getSystemService(ConnectivityManager::class.java)
         val activeNetwork = connectivity.activeNetwork
