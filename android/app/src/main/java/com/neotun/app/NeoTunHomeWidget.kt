@@ -35,8 +35,12 @@ class NeoTunHomeWidget : AppWidgetProvider() {
             val running = context.getSharedPreferences(NeoTunVpnService.PREFS, Context.MODE_PRIVATE)
                 .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
             val views = RemoteViews(context.packageName, R.layout.widget_neotun)
-            views.setTextViewText(R.id.widget_status, if (running) "Подключено" else "Не подключено")
-            views.setTextViewText(R.id.widget_action, if (running) "Отключить" else "Подключить")
+            views.setTextViewText(R.id.widget_status, if (running) "ВКЛ" else "ВЫКЛ")
+            views.setTextColor(
+                R.id.widget_status,
+                if (running) android.graphics.Color.rgb(116, 226, 177)
+                else android.graphics.Color.rgb(174, 177, 196)
+            )
             val intent = Intent(context, MainActivity::class.java)
                 .setAction(MainActivity.ACTION_WIDGET_TOGGLE)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
