@@ -30,12 +30,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SelectedProfileName => SelectedProfile?.Name ?? "Сервер не выбран";
     public string SelectedProfileUri => SelectedProfile?.Uri ?? "";
     public string SelectedProfileProtocol => SelectedProfile?.Protocol ?? "—";
-    public string Status { get => _status; set { _status = value; OnPropertyChanged(); } }
+    public string Status { get => _status; set { _status = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConnectionLabel)); } }
     public string ActivePage { get => _activePage; set { _activePage = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsHomePage)); OnPropertyChanged(nameof(IsServersPage)); } }
     public bool IsHomePage => ActivePage == "Главная";
     public bool IsServersPage => ActivePage == "Серверы";
     public bool IsConnected { get => _isConnected; set { _isConnected = value; OnPropertyChanged(); OnPropertyChanged(nameof(ConnectionLabel)); OnPropertyChanged(nameof(ConnectionColorKey)); } }
-    public string ConnectionLabel => IsConnected ? "Подключено" : "Отключено";
+    public string ConnectionLabel => !IsConnected ? "Отключено" : Status.StartsWith("Движки запущены", StringComparison.OrdinalIgnoreCase) ? "Запуск" : "Подключено";
     public string ConnectionColorKey => IsConnected ? "SuccessBrush" : "BrandVioletBrush";
     public string SearchText { get => _searchText; set { _searchText = value; OnPropertyChanged(); RefreshFilter(); } }
     public string ImportText { get => _importText; set { _importText = value; OnPropertyChanged(); } }
