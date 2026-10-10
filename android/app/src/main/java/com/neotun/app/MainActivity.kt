@@ -659,11 +659,17 @@ class MainActivity : Activity() {
         content.addView(connection, margins(bottom = 12))
 
         val subscriptionsSection = settingsSection("СЕРВЕРЫ И ПОДПИСКИ")
+        val updateHours = prefs.getInt("subscription_update_hours", 12).coerceIn(1, 168)
         subscriptionsSection.addView(settingsRow(
             "🔄 Автообновление подписок",
             if (prefs.getBoolean("subscriptions_auto_update", true)) "Включено" else "Выключено",
-            "Проверка при запуске, не чаще одного раза в 12 часов"
+            "Проверка при запуске с выбранным интервалом"
         ) { toggleSetting("subscriptions_auto_update", "Автообновление подписок") { renderSettings() } })
+        subscriptionsSection.addView(settingsRow(
+            "⏱️ Интервал обновления",
+            when (updateHours) { 1 -> "Каждый час"; 6 -> "6 часов"; 12 -> "12 часов"; 24 -> "24 часа"; else -> "$updateHours ч." },
+            "Выберите, как часто проверять подписки на изменения"
+        ) { showSubscriptionIntervalSettings() })
         subscriptionsSection.addView(settingsRow(
             "🗂️ Серверы и подписки",
             "${store.all().size} / ${subscriptions.all().size}",
@@ -757,6 +763,25 @@ class MainActivity : Activity() {
             }, margins(top = 4, end = 18))
         }
         return row
+    }
+
+    private fun showSubscriptionIntervalSettings() {
+        val labels = arrayOf("Каждый час", "Каждые 6 часов", "Каждые 12 часов", "Каждые 24 часа", "Раз в 3 дня", "Раз в 7 дней")
+        val hours = intArrayOf(1, 6, 12, 24, 72, 168)
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val selected = hours.indexOf(prefs.getInt("subscription_update_hours", 12)).coerceAtLeast(0)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Интервал обновления подписок")
+            .setSingleChoiceItems(labels, selected) { dialog, which ->
+                prefs.edit().putInt("subscription_update_hours", hours[which]).apply()
+                dialog.dismiss()
+                renderSettings()
+                toast("Интервал обновления: ${labels[which].lowercase()}")
+            }
+            .setNegativeButton("Отмена", null)
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun showPingModeSettings() {
@@ -1497,7 +1522,10 @@ class MainActivity : Activity() {
 
     private fun refreshDueSubscriptions() {
         val now = System.currentTimeMillis()
-        subscriptions.all().filter { it.lastUpdated == 0L || now - it.lastUpdated >= 12L * 60L * 60L * 1000L }.forEach { sub ->
+        val hours = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+            .getInt("subscription_update_hours", 12).coerceIn(1, 168)
+        val intervalMs = hours * 60L * 60L * 1000L
+        subscriptions.all().filter { it.lastUpdated == 0L || now - it.lastUpdated >= intervalMs }.forEach { sub ->
             Thread { subscriptions.refresh(sub, store) }.start()
         }
     }
