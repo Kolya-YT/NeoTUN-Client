@@ -165,7 +165,7 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(8), dp(2), dp(18))
+            setPadding(dp(2), dp(4), dp(2), dp(12))
         }
         val logo = FrameLayout(this).apply {
             background = GradientDrawable(
@@ -175,29 +175,27 @@ class MainActivity : Activity() {
         }
         logo.addView(txt("N", 23f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER),
             FrameLayout.LayoutParams(-1, -1))
-        top.addView(logo, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
-            setMargins(0, 0, dp(12), 0)
+        top.addView(logo, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+            setMargins(0, 0, dp(10), 0)
         })
         val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brand.addView(txt("NeoTUN", 23f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        brand.addView(txt("Быстро. Просто. Подключено.", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 3))
+        brand.addView(txt("NeoTUN", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
+        brand.addView(txt("Подключение и серверы", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(iconButton("＋", 25) { showImportMenu() }.apply {
             background = rounded(NeoTunDesign.BRAND_SOFT, 15, Color.rgb(54, 58, 83), 1)
-        }, LinearLayout.LayoutParams(dp(46), dp(46)))
+        }, LinearLayout.LayoutParams(dp(42), dp(42)))
         content.addView(top)
 
         val connection = card().apply {
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                if (running) intArrayOf(Color.rgb(18, 55, 46), Color.rgb(17, 29, 37))
-                else intArrayOf(Color.rgb(38, 34, 75), Color.rgb(20, 24, 43))
-            ).apply {
-                cornerRadius = dp(25).toFloat()
-                setStroke(dp(1), if (running) Color.rgb(52, 116, 91) else Color.rgb(72, 67, 119))
-            }
-            elevation = dp(2).toFloat()
+            setPadding(dp(16), dp(15), dp(16), dp(16))
+            background = rounded(
+                if (running) NeoTunDesign.SUCCESS_SURFACE else NeoTunDesign.SURFACE,
+                19,
+                if (running) Color.rgb(52, 116, 91) else NeoTunDesign.BORDER,
+                1
+            )
+            elevation = 0f
         }
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -218,10 +216,10 @@ class MainActivity : Activity() {
         statusRow.addView(networkState)
         connection.addView(statusRow)
 
-        connection.addView(txt("Ваше соединение", 23f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+        connection.addView(txt("Подключение", 19f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 17))
+        }, margins(top = 12))
         connection.addView(txt(
             selected?.let { protocolLabel(it) } ?: "Добавьте сервер или ссылку подписки",
             11f, NeoTunDesign.TEXT_SECONDARY
@@ -237,8 +235,8 @@ class MainActivity : Activity() {
                 if (current == null) showImportMenu() else connect(current)
             }
         }.apply {
-            textSize = 15f
-            minHeight = dp(54)
+            textSize = 14f
+            minHeight = dp(50)
             background = GradientDrawable(
                 GradientDrawable.Orientation.LEFT_RIGHT,
                 if (running) intArrayOf(Color.rgb(38, 112, 83), Color.rgb(32, 88, 75))
@@ -246,7 +244,7 @@ class MainActivity : Activity() {
             ).apply { cornerRadius = dp(17).toFloat() }
         }
         homeConnectionButton = connectButton
-        connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(54)))
+        connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(50)))
         content.addView(connection, margins(bottom = 14))
 
         val errorCard = card().apply {
@@ -266,8 +264,8 @@ class MainActivity : Activity() {
 
         val traffic = readVpnTraffic()
         val trafficCard = card().apply {
-            setPadding(dp(14), dp(14), dp(14), dp(14))
-            background = rounded(NeoTunDesign.SURFACE, 21, NeoTunDesign.BORDER, 1)
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = rounded(NeoTunDesign.SURFACE, 17, NeoTunDesign.BORDER, 1)
         }
         val trafficHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1656,14 +1654,14 @@ class MainActivity : Activity() {
 
     private fun renderNavigation() {
         nav.removeAllViews()
-        val items = listOf("⌂" to "Главная", "⇄" to "Серверы", "⚙" to "Настройки")
+        val items = listOf("⌂" to "Главная", "▤" to "Серверы", "⚙" to "Настройки")
         items.forEachIndexed { index, pair ->
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(dp(if (selected) 14 else 8), dp(7), dp(if (selected) 14 else 8), dp(7))
+                setPadding(dp(if (selected) 10 else 6), dp(7), dp(if (selected) 10 else 6), dp(7))
                 background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else Color.TRANSPARENT, 18,
                     if (selected) Color.rgb(69, 59, 113) else null, if (selected) 1 else 0)
                 isClickable = true
