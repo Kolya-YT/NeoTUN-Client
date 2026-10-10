@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     private var trafficLastRx = -1L
     private var trafficLastTx = -1L
     private var trafficLastAt = 0L
+    private var lastWidgetRunning: Boolean? = null
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
     private var homeRxValue: TextView? = null
@@ -394,6 +395,10 @@ class MainActivity : Activity() {
     private fun updateHomeLiveData() {
         if (screen != Screen.HOME || isFinishing) return
         val running = isRunning()
+        if (lastWidgetRunning != running) {
+            lastWidgetRunning = running
+            NeoTunHomeWidget.refreshAll(this)
+        }
         val traffic = readVpnTraffic()
         homeRxValue?.text = formatBytes(traffic.sessionRx)
         homeTxValue?.text = formatBytes(traffic.sessionTx)
