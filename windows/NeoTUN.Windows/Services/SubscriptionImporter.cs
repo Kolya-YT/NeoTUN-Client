@@ -1,10 +1,49 @@
 using System.Text;
+using System.Net.Http;
 using NeoTUN.Windows.Models;
 
 namespace NeoTUN.Windows.Services;
 
 public static class SubscriptionImporter
 {
+    private static readonly HttpClient Http = new()
+    {
+        Timeout = TimeSpan.FromSeconds(25)
+    };
+
+    public static async Task<IReadOnlyList<ServerProfile>> ImportAsync(
+        string input,
+        CancellationToken cancellationToken = default)
+    {
+        var text = input.Trim();
+        if (text.Length == 0) return Array.Empty<ServerProfile>();
+
+        if (System.Uri.TryCreate(text, UriKind.Absolute, out var remote) &&
+            (remote.Scheme == "https" || remote.Scheme == "http"))
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, remote);
+            request.Headers.UserAgent.ParseAdd("NeoTUN-Windows/0.1");
+            using var response = await Http.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            var mediaType = response.Content.Headers.ContentType?.MediaType ?? "";
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (bytes.Length == 0) return Array.Empty<ServerProfile>();
+            if (bytes.Length > 5 * 1024 * 1024)
+                throw new InvalidDataException("Подписка превышает лимит 5 МБ.");
+
+            var body = Encoding.UTF8.GetString(bytes).Trim();
+            if (body.Length == 0) return Array.Empty<ServerProfile>();
+            var imported = Parse(body, source: remote.ToString());
+            if (imported.Count == 0)
+                throw new InvalidDataException($"Подписка загружена ({mediaType}), но поддерживаемых ссылок не найдено.");
+            return imported;
+        }
+
+        return Parse(text);
+    }
+
     private static readonly string[] SupportedSchemes =
         ["vless://", "vmess://", "trojan://", "hysteria2://", "hy2://", "tuic://", "ss://"];
 
