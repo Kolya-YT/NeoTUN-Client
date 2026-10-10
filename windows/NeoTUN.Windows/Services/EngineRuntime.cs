@@ -1,0 +1,198 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+
+namespace NeoTUN.Windows.Services;
+
+internal sealed class EngineRuntime : IDisposable
+{
+    private readonly object _sync = new();
+    private Process? _singBox;
+    private Process? _xray;
+    private readonly string _dataDirectory;
+    private readonly string _runtimeDirectory;
+    private readonly string _logPath;
+
+    public event Action<string>? LogLine;
+    public event Action<bool, string>? StateChanged;
+    public bool IsRunning
+    {
+        get { lock (_sync) return _singBox is { HasExited: false }; }
+    }
+
+    public EngineRuntime()
+    {
+        _dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoTUN");
+        _runtimeDirectory = Path.Combine(AppContext.BaseDirectory, "runtime");
+        Directory.CreateDirectory(_dataDirectory);
+        _logPath = Path.Combine(_dataDirectory, "windows-runtime.log");
+    }
+
+    public async Task StartAsync(string shareUri, CancellationToken cancellationToken = default)
+    {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Windows runtime доступен только в Windows.");
+        if (!IsAdministrator())
+            throw new InvalidOperationException("Для создания системного TUN нужны права администратора. Запусти NeoTUN от имени администратора.");
+        if (IsRunning) return;
+
+        var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
+        var xrayPath = Path.Combine(_runtimeDirectory, "xray.exe");
+        if (!File.Exists(singBoxPath)) throw new FileNotFoundException("Не найден sing-box.exe в папке runtime.", singBoxPath);
+
+        var runtime = NativeCore.BuildRuntimeConfig(shareUri);
+        var singBoxConfigPath = Path.Combine(_dataDirectory, "sing-box-runtime.json");
+        await File.WriteAllTextAsync(singBoxConfigPath, runtime.SingBoxJson, new UTF8Encoding(false), cancellationToken);
+
+        if (runtime.Engine == "xray")
+        {
+            if (runtime.XrayJson is null) throw new InvalidOperationException("Для этого профиля не сформирована конфигурация Xray.");
+            if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
+            var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
+            await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
+            await ValidateAsync(xrayPath, "run", "-test", "-config", xrayConfigPath, cancellationToken);
+            _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
+            await Task.Delay(650, cancellationToken);
+            if (_xray.HasExited)
+            {
+                var exit = _xray.ExitCode;
+                _xray.Dispose();
+                _xray = null;
+                throw new InvalidOperationException($"Xray завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
+            }
+        }
+
+        try
+        {
+            await ValidateAsync(singBoxPath, "check", "-c", singBoxConfigPath, cancellationToken);
+            _singBox = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
+            await Task.Delay(900, cancellationToken);
+            if (_singBox.HasExited)
+            {
+                var exit = _singBox.ExitCode;
+                _singBox.Dispose();
+                _singBox = null;
+                throw new InvalidOperationException($"sing-box завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
+            }
+        }
+        catch
+        {
+            await StopProcessAsync(ref _xray, "xray");
+            throw;
+        }
+
+        StateChanged?.Invoke(true, "Сетевой движок запущен. Проверяем доступность трафика…");
+        WriteLog("Runtime started; engine=" + runtime.Engine);
+    }
+
+    public async Task StopAsync()
+    {
+        await StopProcessAsync(ref _singBox, "sing-box");
+        await StopProcessAsync(ref _xray, "xray");
+        StateChanged?.Invoke(false, "Отключено");
+        WriteLog("Runtime stopped");
+    }
+
+    private async Task ValidateAsync(string executable, params object[] args)
+    {
+        var cancellationToken = (CancellationToken)args[^1];
+        var values = args[..^1].Select(x => (string)x).ToArray();
+        var start = new ProcessStartInfo(executable)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = Path.GetDirectoryName(executable)!
+        };
+        foreach (var arg in values) start.ArgumentList.Add(arg);
+        using var process = new Process { StartInfo = start };
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+        if (!process.Start()) throw new InvalidOperationException("Не удалось запустить проверку конфигурации.");
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        await process.WaitForExitAsync(cancellationToken);
+        if (process.ExitCode != 0)
+        {
+            var details = stderr.ToString().Trim();
+            if (details.Length == 0) details = stdout.ToString().Trim();
+            WriteLog("Config validation failed: " + details);
+            throw new InvalidOperationException("Проверка конфигурации не пройдена: " + (details.Length > 0 ? details : $"код {process.ExitCode}"));
+        }
+        WriteLog("Config validation passed: " + Path.GetFileName(executable));
+    }
+
+    private Process StartProcess(string executable, string arguments, string name)
+    {
+        var start = new ProcessStartInfo(executable)
+        {
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = Path.GetDirectoryName(executable)!
+        };
+        var process = new Process { StartInfo = start, EnableRaisingEvents = true };
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) WriteLog(name + ": " + e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) WriteLog(name + ": " + e.Data); };
+        process.Exited += (_, _) =>
+        {
+            var exitCode = SafeExitCode(process);
+            WriteLog($"{name} exited with code {exitCode}");
+            if (name == "sing-box") StateChanged?.Invoke(false, $"sing-box завершился с кодом {exitCode}. См. журнал.");
+        };
+        if (!process.Start()) throw new InvalidOperationException("Не удалось запустить " + name);
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        WriteLog(name + " process started");
+        return process;
+    }
+
+    private async Task StopProcessAsync(ref Process? process, string name)
+    {
+        Process? current;
+        lock (_sync) { current = process; process = null; }
+        if (current is null) return;
+        try
+        {
+            if (!current.HasExited)
+            {
+                current.Kill(entireProcessTree: true);
+                await current.WaitForExitAsync();
+            }
+        }
+        catch (InvalidOperationException) { }
+        catch (Exception ex) { WriteLog(name + " stop warning: " + ex.Message); }
+        finally { current.Dispose(); }
+        WriteLog(name + " process stopped");
+    }
+
+    private void WriteLog(string line)
+    {
+        var entry = $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] {line}";
+        try { File.AppendAllText(_logPath, entry + Environment.NewLine, Encoding.UTF8); } catch { }
+        LogLine?.Invoke(entry);
+    }
+
+    private static bool IsAdministrator()
+    {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        return new System.Security.Principal.WindowsPrincipal(identity)
+            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+    }
+
+    private static int SafeExitCode(Process process)
+    {
+        try { return process.ExitCode; } catch { return -1; }
+    }
+
+    private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
+
+    public void Dispose()
+    {
+        try { StopAsync().GetAwaiter().GetResult(); } catch { }
+    }
+}
