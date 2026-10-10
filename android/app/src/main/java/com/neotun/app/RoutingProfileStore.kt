@@ -185,6 +185,19 @@ object NeoTunRoutingAdapter {
         return requested + defaultOrder.filterNot { it in requested }
     }
 
+    /**
+     * Returns geodata tokens that cannot currently be represented by this
+     * adapter. Happ/INCY geosite/geoip entries reference Xray .dat databases;
+     * they are not valid sing-box domain/IP matchers or sing-box .srs rule sets.
+     * Keep this explicit so the UI can warn instead of silently losing policy.
+     */
+    fun unsupportedSingBoxGeoTokens(profile: NeoTunRoutingProfile): List<String> {
+        val keys = listOf("BlockSites", "DirectSites", "ProxySites")
+        return keys.flatMap { key -> profile.values(key) }
+            .filter { it.startsWith("geosite:", true) || it.startsWith("geoip:", true) }
+            .distinct()
+    }
+
     fun singBoxRules(profile: NeoTunRoutingProfile): JSONArray {
         val rules = JSONArray()
         fun add(values: List<String>, isDomain: Boolean, action: String, outbound: String? = null) {
