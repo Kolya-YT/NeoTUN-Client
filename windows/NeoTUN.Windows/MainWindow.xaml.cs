@@ -200,7 +200,7 @@ public partial class MainWindow : Window
     private string RuntimeLogPath => Path.Combine(DataDirectory, "windows-runtime.log");
 
     private sealed record RoutingSettings(
-        bool GlobalProxy, int RouteOrder, string RemoteDns, string DomesticDns, string DomesticDnsDomains,
+        bool GlobalProxy, bool Ipv6Enabled, int Mtu, int RouteOrder, string RemoteDns, string DomesticDns, string DomesticDnsDomains,
         string BlockSites, string BlockIp, string ProxySites, string ProxyIp,
         string DirectSites, string DirectIp);
 
@@ -214,6 +214,8 @@ public partial class MainWindow : Window
             var settings = JsonSerializer.Deserialize<RoutingSettings>(File.ReadAllText(RoutingSettingsPath));
             if (settings is null) return;
             GlobalProxyToggle.IsChecked = settings.GlobalProxy;
+            Ipv6Toggle.IsChecked = settings.Ipv6Enabled;
+            MtuInput.Text = settings.Mtu.ToString();
             RouteOrderSelector.SelectedIndex = Math.Clamp(settings.RouteOrder, 0, 2);
             RemoteDnsInput.Text = settings.RemoteDns;
             DomesticDnsInput.Text = settings.DomesticDns;
@@ -238,8 +240,16 @@ public partial class MainWindow : Window
             !ValidateDns(DomesticDnsInput.Text, "Домашний DNS"))
             return;
 
+        if (!int.TryParse(MtuInput.Text.Trim(), out var mtu) || mtu is < 1280 or > 1500)
+        {
+            MessageBox.Show("MTU должен быть целым числом от 1280 до 1500.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var settings = new RoutingSettings(
             GlobalProxyToggle.IsChecked == true,
+            Ipv6Toggle.IsChecked == true,
+            mtu,
             Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
             RemoteDnsInput.Text.Trim(),
             DomesticDnsInput.Text.Trim(),
@@ -288,8 +298,12 @@ public partial class MainWindow : Window
     {
         try
         {
+            if (!int.TryParse(MtuInput.Text.Trim(), out var mtu) || mtu is < 1280 or > 1500)
+                throw new InvalidDataException("MTU должен быть целым числом от 1280 до 1500.");
             var settings = new RoutingSettings(
                 GlobalProxyToggle.IsChecked == true,
+                Ipv6Toggle.IsChecked == true,
+                mtu,
                 Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
                 RemoteDnsInput.Text.Trim(), DomesticDnsInput.Text.Trim(), NormalizeLines(DomesticDnsDomainsEditor.Text),
                 NormalizeLines(BlockSitesEditor.Text), NormalizeLines(BlockIpEditor.Text),
@@ -306,6 +320,8 @@ public partial class MainWindow : Window
         if (MessageBox.Show("Сбросить поля маршрутизации? Сохранённый файл не будет удалён до нового сохранения.",
                 "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         GlobalProxyToggle.IsChecked = true;
+        Ipv6Toggle.IsChecked = false;
+        MtuInput.Text = "1500";
         RouteOrderSelector.SelectedIndex = 0;
         RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
         DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
@@ -415,7 +431,12 @@ public partial class MainWindow : Window
             using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
             if (key is null) throw new InvalidOperationException("Не удалось открыть раздел автозапуска.");
             if (LaunchWithWindowsToggle.IsChecked == true)
-                key.SetValue("NeoTUN", $"\\\"{System.Reflection.Assembly.GetEntryAssembly()?.Location ?? Process.GetCurrentProcess().MainModule?.FileName}\\\"");
+            {
+                var executable = Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrWhiteSpace(executable))
+                    throw new InvalidOperationException("Не удалось определить путь к NeoTUN.exe.");
+                key.SetValue("NeoTUN", $"\"{executable}\"");
+            }
             else key.DeleteValue("NeoTUN", false);
             SettingsSummary.Text = LaunchWithWindowsToggle.IsChecked == true
                 ? "Автозапуск включён для текущего пользователя."
