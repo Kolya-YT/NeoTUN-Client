@@ -101,6 +101,12 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             .edit()
             .putBoolean(KEY_RUNNING, false)
             .apply()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
     }
 
     override fun serviceStop() {

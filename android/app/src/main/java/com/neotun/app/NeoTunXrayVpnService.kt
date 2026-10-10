@@ -382,10 +382,17 @@ class NeoTunXrayVpnService : VpnService() {
         }
 
         running = false
+        starting = false
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
             .edit()
             .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
             .apply()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
     }
 
     private fun stopWithError(message: String) {
