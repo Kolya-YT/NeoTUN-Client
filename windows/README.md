@@ -23,4 +23,4 @@ dotnet build .\windows\NeoTUN.Windows\NeoTUN.Windows.csproj -c Release
 dotnet publish .\windows\NeoTUN.Windows\NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o .\dist\windows
 ```
 
-CI builds the app package as a Windows x64 artifact, along with the existing Rust core.
+CI publishes the self-contained WPF UI as the `NeoTUN-Windows-x64` artifact. The Rust core is not included in this UI-only package because Windows tunnel/runtime integration is not wired yet.
