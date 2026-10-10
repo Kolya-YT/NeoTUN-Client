@@ -64,6 +64,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Notice = added > 0 ? $"Импортировано серверов: {added}" : "Новых серверов не найдено.";
     }
 
+    public int ReplaceSubscriptionProfiles(string source, IEnumerable<ServerProfile> refreshed)
+    {
+        var incoming = refreshed.Select(profile =>
+        {
+            profile.Source = source;
+            return profile;
+        }).ToList();
+        var incomingUris = incoming.Select(profile => profile.Uri).ToHashSet(StringComparer.Ordinal);
+        var oldSelectedUri = SelectedProfile?.Uri;
+
+        foreach (var old in Profiles.Where(profile => profile.Source == source && !incomingUris.Contains(profile.Uri)).ToList())
+            Profiles.Remove(old);
+
+        foreach (var item in incoming)
+        {
+            var existing = Profiles.FirstOrDefault(profile => profile.Uri == item.Uri);
+            if (existing is null)
+                Profiles.Add(item);
+            else
+            {
+                existing.Name = item.Name;
+                existing.Source = source;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        _store.Save(Profiles);
+        RefreshFilter();
+        SelectedProfile = Profiles.FirstOrDefault(profile => profile.Uri == oldSelectedUri)
+            ?? SelectedProfile
+            ?? Profiles.FirstOrDefault();
+        OnPropertyChanged(nameof(SelectedProfile));
+        return incoming.Count;
+    }
+
     public bool RemoveSelected()
     {
         if (SelectedProfile is null) return false;
