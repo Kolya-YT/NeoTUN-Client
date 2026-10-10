@@ -26,6 +26,9 @@ import org.json.JSONObject
 import java.util.UUID
 
 class MainActivity : Activity() {
+    companion object {
+        const val ACTION_WIDGET_TOGGLE = "com.neotun.app.action.WIDGET_TOGGLE"
+    }
     private lateinit var updater: AppUpdater
     private lateinit var store: ProfileStore
     private lateinit var subscriptions: SubscriptionStore
@@ -77,6 +80,7 @@ class MainActivity : Activity() {
         buildShell()
         showScreen(Screen.HOME)
         handleRoutingIntent(intent)
+        handleWidgetToggleIntent(intent)
         refreshDueRoutingProfiles()
         handler.post(poll)
     }
@@ -1651,6 +1655,23 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleRoutingIntent(intent)
+        handleWidgetToggleIntent(intent)
+    }
+
+    private fun handleWidgetToggleIntent(intent: Intent?) {
+        if (intent?.action != ACTION_WIDGET_TOGGLE) return
+        intent.action = null
+        // Let the initial screen finish before toggling the active profile.
+        handler.post {
+            if (isFinishing) return@post
+            if (isRunning()) {
+                disconnect()
+            } else {
+                val profile = selectedProfile(store.all())
+                if (profile == null) showImportMenu() else connect(profile)
+            }
+            NeoTunHomeWidget.refreshAll(this)
+        }
     }
 
     private fun handleRoutingIntent(intent: Intent?) {
