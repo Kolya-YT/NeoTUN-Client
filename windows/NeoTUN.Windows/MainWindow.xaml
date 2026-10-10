@@ -1,0 +1,200 @@
+<Window x:Class="NeoTUN.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NeoTUN" Width="1180" Height="780" MinWidth="920" MinHeight="620"
+        WindowStartupLocation="CenterScreen">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="224"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Border Grid.Column="0" Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="0,0,1,0">
+      <DockPanel LastChildFill="True">
+        <StackPanel DockPanel.Dock="Top" Margin="20,22,20,24">
+          <StackPanel Orientation="Horizontal">
+            <Border Width="36" Height="36" CornerRadius="12" Background="{StaticResource AccentSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1">
+              <TextBlock Text="N" Foreground="{StaticResource BrandVioletBrush}" FontSize="23" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <StackPanel Margin="11,1,0,0">
+              <TextBlock Text="NeoTUN" FontWeight="Bold" FontSize="21"/>
+              <TextBlock Text="CLIENT" FontSize="10" Foreground="{StaticResource TextMutedBrush}" CharacterSpacing="220"/>
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Margin="18,12,18,18">
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="12">
+            <StackPanel>
+              <TextBlock Text="СОСТОЯНИЕ" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"/>
+              <TextBlock Text="{Binding ConnectionLabel}" FontSize="14" FontWeight="SemiBold" Margin="0,5,0,0"/>
+              <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>
+            </StackPanel>
+          </Border>
+          <TextBlock Text="NeoTUN • Windows" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="2,16,0,0"/>
+        </StackPanel>
+        <StackPanel Margin="12,0,12,0">
+          <TextBlock Text="РАБОЧЕЕ ПРОСТРАНСТВО" Foreground="{StaticResource TextMutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="10,0,0,10"/>
+          <Button Content="⌂   Главная" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="HomeNav_Click" Background="{StaticResource AccentSurfaceBrush}" BorderBrush="{StaticResource AccentSurfaceBrush}"/>
+          <Button Content="▤   Серверы" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="ServersNav_Click"/>
+          <Button Content="⤴   Маршрутизация" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="RoutingNav_Click"/>
+          <Button Content="⚙   Настройки" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="SettingsNav_Click"/>
+          <Button Content="☷   Журнал" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="LogsNav_Click"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Column="1" Margin="30,24,30,22">
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <Grid Grid.Row="0" Margin="0,0,0,24">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="{Binding ActivePage}" FontSize="26" FontWeight="Bold"/>
+          <TextBlock Text="Безопасное и быстрое подключение" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
+        </StackPanel>
+        <Button Grid.Column="1" Content="＋  Импорт" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="ImportNav_Click" VerticalAlignment="Center"/>
+      </Grid>
+
+      <Grid Grid.Row="1">
+        <Grid x:Name="HomePage">
+          <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="24" Padding="28">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="0.9*"/></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center" Margin="4,0,20,0">
+                <Border Background="{StaticResource AccentSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="14" HorizontalAlignment="Left">
+                  <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="NEOTUN CONNECTION" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+                <TextBlock Text="{Binding ConnectionLabel}" FontSize="36" FontWeight="Bold" Margin="0,20,0,0"/>
+                <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" FontSize="14" Margin="0,8,0,0"/>
+                <TextBlock Text="Выбранный сервер" Foreground="{StaticResource TextMutedBrush}" Margin="0,30,0,8"/>
+                <Border Background="{StaticResource InputSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="14">
+                  <StackPanel>
+                    <TextBlock Text="{Binding SelectedProfile.Name, TargetNullValue=Сервер не выбран}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding SelectedEndpoint}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding SelectedProfile.Protocol, TargetNullValue=—}" Foreground="{StaticResource BrandVioletBrush}" FontSize="11" Margin="0,8,0,0"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Button x:Name="ConnectButton" Width="164" Height="164" Padding="12" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandBlueBrush}" BorderThickness="4" Click="Connect_Click">
+                  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="⏻" FontSize="56" HorizontalAlignment="Center"/>
+                    <TextBlock Text="ПОДКЛЮЧИТЬ" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Button>
+                <TextBlock Text="Трафик появится после интеграции сетевого движка" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource TextMutedBrush}" Width="230" Margin="0,20,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,8,0">
+              <StackPanel><TextBlock Text="СКОРОСТЬ" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Нет активного туннеля" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="4,0">
+              <StackPanel><TextBlock Text="ПОЛУЧЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Ожидание статистики" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
+            </Border>
+            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="8,0,0,0">
+              <StackPanel><TextBlock Text="ОТПРАВЛЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="Ожидание статистики" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+
+        <Grid x:Name="ServersPage" Visibility="Collapsed">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions>
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="18" Margin="0,0,10,0">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Поиск серверов" Margin="0,0,0,10"/>
+                <Button Content="＋  Добавить из буфера / ссылки" Click="ImportNav_Click" HorizontalAlignment="Stretch"/>
+              </StackPanel>
+              <ListBox x:Name="ProfileList" ItemsSource="{Binding FilteredProfiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate><DataTemplate>
+                  <Border Background="{StaticResource RaisedSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,8">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Endpoint}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding Protocol}" Foreground="{StaticResource BrandVioletBrush}" FontSize="10" Margin="0,6,0,0"/>
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="›" Foreground="{StaticResource TextMutedBrush}" FontSize="24" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    </Grid>
+                  </Border>
+                </DataTemplate></ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </Border>
+          <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="20" Margin="10,0,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel>
+                <TextBlock Text="Параметры сервера" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Название" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,18,0,6"/>
+                <TextBox x:Name="ProfileName" Text="{Binding SelectedProfile.Name, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Text="Ссылка подключения" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,16,0,6"/>
+                <TextBox x:Name="ProfileUri" Text="{Binding SelectedProfile.Uri, UpdateSourceTrigger=PropertyChanged}" MinHeight="84" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+                <TextBlock Text="{Binding SelectedEndpoint}" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
+                <WrapPanel Margin="0,22,0,0">
+                  <Button Content="Сохранить" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="SaveProfile_Click" Margin="0,0,8,8"/>
+                  <Button Content="Копировать ссылку" Click="CopyProfile_Click" Margin="0,0,8,8"/>
+                  <Button Content="Удалить" Background="{StaticResource DangerSurfaceBrush}" BorderBrush="{StaticResource DangerSurfaceBrush}" Click="DeleteProfile_Click" Margin="0,0,8,8"/>
+                </WrapPanel>
+                <TextBlock Text="{Binding Notice}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,14,0,0"/>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+        <Grid x:Name="ImportPage" Visibility="Collapsed">
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="900" HorizontalAlignment="Left">
+            <Grid>
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <TextBlock Text="Добавить серверы или подписку" FontSize="20" FontWeight="Bold"/>
+              <TextBlock Grid.Row="1" Text="Вставьте ссылку VLESS / VMess / Trojan / Hysteria2 / TUIC / Shadowsocks либо содержимое подписки." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,16"/>
+              <TextBox Grid.Row="2" x:Name="ImportEditor" Text="{Binding ImportText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="250" VerticalContentAlignment="Top"/>
+              <WrapPanel Grid.Row="3" Margin="0,14,0,0">
+                <Button Content="Импортировать" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="ImportProfiles_Click" Margin="0,0,8,0"/>
+                <Button Content="Вставить из буфера" Click="PasteImport_Click" Margin="0,0,8,0"/>
+                <Button Content="Очистить" Click="ClearImport_Click"/>
+              </WrapPanel>
+              <TextBlock Grid.Row="4" Text="{Binding Notice}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,14,0,0"/>
+            </Grid>
+          </Border>
+        </Grid>
+        <Grid x:Name="RoutingPage" Visibility="Collapsed">
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="820" HorizontalAlignment="Left">
+            <StackPanel>
+              <TextBlock Text="Маршрутизация" FontSize="20" FontWeight="Bold"/>
+              <TextBlock Text="Импорт профилей Happ / INCY и применение этих правил в сетевом движке появятся после подключения к runtime. Сейчас доступен импорт JSON для хранения и проверки." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,18"/>
+              <TextBox x:Name="RoutingEditor" MinHeight="260" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+              <WrapPanel Margin="0,14,0,0">
+                <Button Content="Загрузить JSON" Click="LoadRouting_Click" Margin="0,0,8,0"/>
+                <Button Content="Скопировать JSON" Click="CopyRouting_Click"/>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
+        <Grid x:Name="SettingsPage" Visibility="Collapsed">
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="820" HorizontalAlignment="Left">
+            <StackPanel>
+              <TextBlock Text="Настройки" FontSize="20" FontWeight="Bold"/>
+              <TextBlock Text="Параметры сетевого движка станут доступны после интеграции Windows TUN / service. Недоступные настройки не меняют систему незаметно." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,20"/>
+              <TextBlock Text="Платформа" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+              <TextBlock Text="Windows x64" FontSize="15" Margin="0,5,0,16"/>
+              <TextBlock Text="Режим" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+              <TextBlock Text="Пока доступен интерфейс профилей и импорт. Туннель ещё не подключён." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+        <Grid x:Name="LogsPage" Visibility="Collapsed">
+          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="22">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="Журнал приложения" FontSize="19" FontWeight="Bold" Margin="0,0,0,16"/>
+              <TextBox x:Name="LogsText" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="{StaticResource InputSurfaceBrush}"/>
+            </DockPanel>
+          </Border>
+        </Grid>
+      </Grid>
+
+      <TextBlock Grid.Row="2" Text="{Binding Notice}" Foreground="{StaticResource TextMutedBrush}" Margin="2,14,0,0" TextTrimming="CharacterEllipsis"/>
+    </Grid>
+  </Grid>
+</Window>
