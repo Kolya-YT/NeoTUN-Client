@@ -81,7 +81,7 @@
                     <TextBlock x:Name="ConnectLabel" Text="ПОДКЛЮЧИТЬ" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center"/>
                   </StackPanel>
                 </Button>
-                <TextBlock Text="Трафик появится после интеграции сетевого движка" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource TextMutedBrush}" Width="230" Margin="0,20,0,0"/>
+                <TextBlock Text="Скорость и трафик обновляются после успешного запуска TUN" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource TextMutedBrush}" Width="230" Margin="0,20,0,0"/>
               </StackPanel>
             </Grid>
           </Border>
@@ -163,7 +163,7 @@
           <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="24" MaxWidth="820" HorizontalAlignment="Left">
             <StackPanel>
               <TextBlock Text="Маршрутизация" FontSize="20" FontWeight="Bold"/>
-              <TextBlock Text="Импорт профилей Happ / INCY и применение этих правил в сетевом движке появятся после подключения к runtime. Сейчас доступен импорт JSON для хранения и проверки." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,18"/>
+              <TextBlock Text="Здесь можно проверить JSON правил. Сейчас правила сохраняются для проверки, но ещё не применяются к системному трафику. Не считайте импорт подтверждением активной маршрутизации." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,12,0,18"/>
               <TextBox x:Name="RoutingEditor" MinHeight="260" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
               <WrapPanel Margin="0,14,0,0">
                 <Button Content="Загрузить JSON" Click="LoadRouting_Click" Margin="0,0,8,0"/>
@@ -180,7 +180,7 @@
               <TextBlock Text="Платформа" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
               <TextBlock Text="Windows x64" FontSize="15" Margin="0,5,0,16"/>
               <TextBlock Text="Режим" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-              <TextBlock Text="Первый runtime milestone: sing-box для поддерживаемых профилей и Xray + локальный SOCKS для VLESS XHTTP. Проверяй реальный трафик на устройстве; поддержка всех транспортов и пользовательской маршрутизации ещё не завершена." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              <TextBlock Text="Сетевой движок находится в стадии интеграции. Поддерживаемые профили запускаются через sing-box или Xray; до проверки стабильного TUN и реального TCP/UDP-трафика подключение не считается подтверждённым. Пользовательская маршрутизация пока не применяется." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
             </StackPanel>
           </Border>
         </Grid>
