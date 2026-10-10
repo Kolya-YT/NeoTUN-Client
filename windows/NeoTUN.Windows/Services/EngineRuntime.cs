@@ -190,6 +190,34 @@ internal sealed class EngineRuntime : IDisposable
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
+            var ipv6Enabled = ReadBool("Ipv6Enabled", false);
+            var mtu = Math.Clamp(ReadInt("Mtu", 1500), 1280, 1500);
+            if (singBoxRoot["inbounds"] is JsonArray inbounds)
+            {
+                foreach (var inbound in inbounds.OfType<JsonObject>())
+                {
+                    if (!string.Equals(inbound["type"]?.GetValue<string>(), "tun", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    inbound["mtu"] = mtu;
+                    var oldAddresses = inbound["address"] as JsonArray;
+                    var newAddresses = new JsonArray();
+                    if (oldAddresses is not null)
+                    {
+                        foreach (var addressNode in oldAddresses)
+                        {
+                            var address = addressNode?.GetValue<string>();
+                            if (!string.IsNullOrWhiteSpace(address) &&
+                                (ipv6Enabled || !address.Contains(':', StringComparison.Ordinal)))
+                                newAddresses.Add(address);
+                        }
+                    }
+                    if (ipv6Enabled && !newAddresses.Any(a => (a?.GetValue<string>() ?? "").Contains(':', StringComparison.Ordinal)))
+                        newAddresses.Add("fdfe:dcba:9876::1/126");
+                    inbound["address"] = newAddresses;
+                }
+            }
+
             var route = singBoxRoot["route"] as JsonObject;
             if (route is null)
             {
@@ -256,7 +284,7 @@ internal sealed class EngineRuntime : IDisposable
             ApplyDnsPreferences(singBoxRoot, ReadString("RemoteDns", ""), ReadString("DomesticDns", ""),
                 ReadLines("DomesticDnsDomains"));
 
-            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}.");
+            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}.");
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or FormatException)
         {
