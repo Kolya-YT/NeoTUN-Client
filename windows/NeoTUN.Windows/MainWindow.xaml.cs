@@ -288,7 +288,7 @@ public partial class MainWindow : Window
         string BlockSites, string BlockIp, string ProxySites, string ProxyIp,
         string DirectSites, string DirectIp, string ProcessExclusions);
 
-    private sealed record UiSettings(string Theme);
+    private sealed record UiSettings(string? Theme = null, int? FontScale = null, bool? UiAnimations = null, bool? AutoUpdateSubscriptions = null, int? SubscriptionUpdateHours = null);
 
     private void LoadRoutingSettings()
     {
@@ -458,6 +458,10 @@ public partial class MainWindow : Window
                 : null;
             var theme = saved?.Theme ?? "dark";
             ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
+            FontScaleSelector.SelectedIndex = (saved?.FontScale ?? 100) switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
+            UiAnimationsToggle.IsChecked = saved?.UiAnimations ?? true;
+            AutoUpdateSubscriptionsToggle.IsChecked = saved?.AutoUpdateSubscriptions ?? true;
+            SubscriptionIntervalSelector.SelectedIndex = (saved?.SubscriptionUpdateHours ?? 12) switch { 1 => 0, 6 => 1, 24 => 3, 72 => 4, 168 => 5, _ => 2 };
             LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
             ApplyTheme(theme);
         }
@@ -467,18 +471,58 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private UiSettings ReadUiSettings()
     {
-        if (!IsInitialized || ThemeSelector.SelectedIndex < 0) return;
         var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
-        ApplyTheme(theme);
+        var fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 };
+        var hours = SubscriptionIntervalSelector.SelectedIndex switch { 0 => 1, 1 => 6, 3 => 24, 4 => 72, 5 => 168, _ => 12 };
+        return new UiSettings(theme, fontScale, UiAnimationsToggle.IsChecked == true,
+            AutoUpdateSubscriptionsToggle.IsChecked == true, hours);
+    }
+
+    private void PersistUiSettings(string message)
+    {
+        if (_loadingUiSettings || !IsInitialized) return;
         try
         {
             Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(UiSettingsPath, JsonSerializer.Serialize(new UiSettings(theme), new JsonSerializerOptions { WriteIndented = true }));
-            SettingsSummary.Text = "Тема применена и сохранена.";
+            File.WriteAllText(UiSettingsPath, JsonSerializer.Serialize(ReadUiSettings(), new JsonSerializerOptions { WriteIndented = true }));
+            SettingsSummary.Text = message;
         }
-        catch (Exception ex) { SettingsSummary.Text = "Тема применена, но не сохранена: " + ex.Message; }
+        catch (Exception ex) { SettingsSummary.Text = "Настройка применена, но не сохранена: " + ex.Message; }
+    }
+
+    private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingUiSettings || !IsInitialized || ThemeSelector.SelectedIndex < 0) return;
+        var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
+        ApplyTheme(theme);
+        PersistUiSettings("Тема применена и сохранена.");
+    }
+
+    private void FontScaleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingUiSettings || !IsInitialized || FontScaleSelector.SelectedIndex < 0) return;
+        ApplyFontScale();
+        PersistUiSettings("Размер текста применён и сохранён.");
+    }
+
+    private void UiAnimations_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingUiSettings || !IsInitialized) return;
+        PersistUiSettings(UiAnimationsToggle.IsChecked == true ? "Переходы включены." : "Переходы выключены.");
+    }
+
+    private void AutoUpdateSubscriptions_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingUiSettings || !IsInitialized) return;
+        PersistUiSettings(AutoUpdateSubscriptionsToggle.IsChecked == true ? "Автообновление подписок включено." : "Автообновление подписок выключено.");
+    }
+
+    private void SubscriptionInterval_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingUiSettings || !IsInitialized || SubscriptionIntervalSelector.SelectedIndex < 0) return;
+        PersistUiSettings("Интервал обновления подписок сохранён.");
     }
 
     private void ApplyTheme(string theme)
