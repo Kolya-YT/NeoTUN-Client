@@ -84,10 +84,9 @@ public partial class MainWindow : Window
             _vm.Status = "Проверяем профиль и запускаем сетевой движок…";
             AddLog(_vm.Status);
             await _runtime.StartAsync(profile.Uri);
-            _vm.IsConnected = true;
-            _vm.Status = "Сетевой движок запущен. Проверь доступ к сайтам и UDP-приложениям.";
-            ConnectLabel.Text = "ОТКЛЮЧИТЬ";
-            AddLog(_vm.Status);
+            // EngineRuntime owns connection state. Do not overwrite its status here:
+            // an engine can exit immediately after startup and publish a failure state.
+            AddLog("Запуск движка завершён; актуальное состояние получено от runtime.");
         }
         catch (Exception ex)
         {
