@@ -23,6 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore Windows UI
+        run: dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj
+
+      - name: Build Windows UI
+        run: dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release --no-restore
+
+      - name: Publish self-contained Windows application
+        run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -47,17 +61,12 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item $binary "dist/neotun_core.dll"
-          @"
-          NeoTUN Windows native core (x64) — experimental
-
-          This is only the Rust parsing/configuration library.
-          It is NOT a complete Windows client: no desktop UI, TUN adapter,
-          Windows service, or integrated Xray/sing-box runtime is included.
-          "@ | Set-Content -Encoding utf8 "dist/README-Windows.txt"
           Get-ChildItem dist | Format-Table Name, Length
 
-      - name: Upload Windows artifact
+      - name: Upload Windows UI
         uses: actions/upload-artifact@v4
         with:
-          name: NeoTUN-Windows-Core-x64
-          path: dist/*
+          name: NeoTUN-Windows-x64
+          path: |
+            dist/NeoTUN-Windows/**
+            dist/neotun_core.dll
