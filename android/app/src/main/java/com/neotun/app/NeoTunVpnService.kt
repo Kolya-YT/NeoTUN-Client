@@ -19,36 +19,59 @@ import io.nekohasekai.libbox.SystemProxyStatus
 class NeoTunVpnService : VpnService(), CommandServerHandler {
     private lateinit var platform: PlatformInterface
     private lateinit var commandServer: CommandServer
-    private var running = false
+    @Volatile private var running = false
+    @Volatile private var starting = false
+    @Volatile private var startupGeneration = 0
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
+            startupGeneration++
+            starting = false
             stopServiceInternal()
             stopSelf(startId)
             return START_NOT_STICKY
         }
-        if (!running) {
-            NeoTunDiagnostics.clear(this)
-            NeoTunDiagnostics.log(this, "sing-box: onStartCommand; Android SDK=" + Build.VERSION.SDK_INT)
-            runCatching {
-                NeoTunDiagnostics.log(this, "sing-box: starting foreground service")
-                startForegroundNotification()
-                NeoTunDiagnostics.log(this, "sing-box: creating Android platform adapter")
-                platform = NeoTunPlatform(this)
-                NeoTunDiagnostics.log(this, "sing-box: constructing libbox CommandServer")
-                commandServer = CommandServer(this, platform)
-                NeoTunDiagnostics.log(this, "sing-box: starting libbox CommandServer")
-                commandServer.start()
-                NeoTunDiagnostics.log(this, "sing-box: CommandServer started")
+        if (running || starting) return START_NOT_STICKY
 
-                val config = intent?.getStringExtra(EXTRA_CONFIG)
-                    ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CONFIG, null)
-                if (config.isNullOrBlank()) {
-                    throw IllegalArgumentException("Нет конфигурации sing-box")
-                }
-                val normalizedConfig = config.trim()
-                if (!normalizedConfig.startsWith("{")) {
-                    throw IllegalArgumentException("Некорректная конфигурация sing-box")
+        val generation = ++startupGeneration
+        starting = true
+        NeoTunDiagnostics.clear(this)
+        NeoTunDiagnostics.log(this, "sing-box: onStartCommand; Android SDK=" + Build.VERSION.SDK_INT)
+        val config = intent?.getStringExtra(EXTRA_CONFIG)
+            ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CONFIG, null)
+        if (config.isNullOrBlank()) {
+            starting = false
+            stopWithError("Нет конфигурации sing-box")
+            return START_NOT_STICKY
+        }
+        val normalizedConfig = config.trim()
+        if (!normalizedConfig.startsWith("{")) {
+            starting = false
+            stopWithError("Некорректная конфигурация sing-box")
+            return START_NOT_STICKY
+        }
+
+        // Remote sing-box rule sets may need network I/O during startup. Never call
+        // startOrReloadService on Android's main thread: it can block long enough
+        // to trigger an ANR and freeze the entire app UI.
+        NeoTunDiagnostics.log(this, "sing-box: starting foreground service")
+        startForegroundNotification()
+        Thread({
+            try {
+                if (generation != startupGeneration) return@Thread
+                NeoTunDiagnostics.log(this, "sing-box: creating Android platform adapter")
+                val newPlatform = NeoTunPlatform(this)
+                platform = newPlatform
+                NeoTunDiagnostics.log(this, "sing-box: constructing libbox CommandServer")
+                val newServer = CommandServer(this, newPlatform)
+                commandServer = newServer
+                NeoTunDiagnostics.log(this, "sing-box: starting libbox CommandServer")
+                newServer.start()
+                NeoTunDiagnostics.log(this, "sing-box: CommandServer started")
+                if (generation != startupGeneration) {
+                    runCatching { newServer.closeService() }
+                    runCatching { newServer.close() }
+                    return@Thread
                 }
 
                 val configSummary = runCatching {
@@ -61,9 +84,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 }.getOrDefault("config summary unavailable")
                 NeoTunDiagnostics.log(this, "sing-box: config accepted; chars=" +
                     normalizedConfig.length + "; " + configSummary)
-                NeoTunDiagnostics.log(this, "sing-box: calling startOrReloadService")
-                commandServer.startOrReloadService(normalizedConfig, OverrideOptions())
-                NeoTunDiagnostics.log(this, "sing-box: startOrReloadService returned successfully")
+                NeoTunDiagnostics.log(this, "sing-box: starting engine on background thread")
+                newServer.startOrReloadService(normalizedConfig, OverrideOptions())
+                if (generation != startupGeneration) {
+                    runCatching { newServer.closeService() }
+                    runCatching { newServer.close() }
+                    return@Thread
+                }
                 getSharedPreferences(PREFS, MODE_PRIVATE)
                     .edit()
                     .putString(KEY_CONFIG, config)
@@ -71,13 +98,25 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                     .putBoolean(KEY_RUNNING, true)
                     .apply()
                 running = true
+                starting = false
                 NeoTunDiagnostics.log(this, "sing-box: startup completed")
-            }.onFailure { error ->
-                NeoTunDiagnostics.error(this, "sing-box startup failed", error)
-                stopWithError(error.message ?: error.javaClass.simpleName ?: "Не удалось запустить sing-box")
+            } catch (error: Throwable) {
+                if (generation == startupGeneration) {
+                    starting = false
+                    NeoTunDiagnostics.error(this, "sing-box startup failed", error)
+                    runOnMainThread {
+                        stopWithError(error.message ?: error.javaClass.simpleName ?: "Не удалось запустить sing-box")
+                    }
+                } else {
+                    NeoTunDiagnostics.log(this, "sing-box: startup cancelled")
+                }
             }
-        }
+        }, "NeoTUN-singbox-startup").start()
         return START_NOT_STICKY
+    }
+
+    private fun runOnMainThread(action: () -> Unit) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post(action)
     }
 
     override fun onBind(intent: Intent): IBinder =
@@ -92,6 +131,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     private fun stopServiceInternal() {
+        startupGeneration++
+        starting = false
         if (::commandServer.isInitialized) {
             runCatching { commandServer.closeService() }
             runCatching { commandServer.close() }
