@@ -39,6 +39,13 @@
             </intent-filter>
         </service>
 
+        <activity
+            android:name=".NeoTunWidgetToggleActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:taskAffinity="" />
         <activity android:name=".RoutingSettingsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".MainActivity"
