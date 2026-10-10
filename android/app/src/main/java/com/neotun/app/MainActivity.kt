@@ -1229,9 +1229,16 @@ class MainActivity : Activity() {
             if (routing != null && (routing.has("Name") || routing.has("GlobalProxy") ||
                     routing.has("DirectSites") || routing.has("ProxySites") || routing.has("BlockSites") ||
                     routing.has("DirectIp") || routing.has("ProxyIp") || routing.has("BlockIp"))) {
-                val saved = routingStore.save(routing, activate = true)
-                routingStore.setEnabled(true)
-                toast("Маршрутизация «${saved.name}» импортирована")
+                val isOnAdd = routingText.contains("://routing/onadd/", true) ||
+                    routingText.contains("://autorouting/onadd/", true)
+                val shouldActivate = isOnAdd || routingStore.active() == null
+                val saved = routingStore.save(routing, activate = shouldActivate)
+                if (shouldActivate) routingStore.setEnabled(true)
+                toast(if (shouldActivate) {
+                    "Маршрутизация «${saved.name}» импортирована и активирована"
+                } else {
+                    "Профиль «${saved.name}» добавлен. Активный профиль не изменён"
+                })
                 showScreen(Screen.SETTINGS)
                 return
             }
