@@ -8,6 +8,8 @@ import android.net.NetworkRequest
 import java.net.InetAddress
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.system.OsConstants
 import io.nekohasekai.libbox.BridgeOptions
@@ -93,15 +95,28 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
             }
 
             val r4 = options.inet4RouteRange
+            var hasIpv4Route = false
             while (r4.hasNext()) {
                 val prefix = r4.next()
                 builder.addRoute(prefix.address(), prefix.prefix())
+                hasIpv4Route = true
+            }
+            // Avoid creating an auto-routed TUN without an IPv4 route if libbox supplies an empty iterator.
+            if (!hasIpv4Route) {
+                builder.addRoute("0.0.0.0", 0)
+                NeoTunDiagnostics.log(vpn, "sing-box: no IPv4 routes supplied; using 0.0.0.0/0")
             }
 
             val r6 = options.inet6RouteRange
+            var hasIpv6Route = false
             while (r6.hasNext()) {
                 val prefix = r6.next()
                 builder.addRoute(prefix.address(), prefix.prefix())
+                hasIpv6Route = true
+            }
+            if (!hasIpv6Route && options.inet6Address.hasNext()) {
+                builder.addRoute("::", 0)
+                NeoTunDiagnostics.log(vpn, "sing-box: no IPv6 routes supplied; using ::/0")
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -178,15 +193,29 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
             }
 
             override fun onLost(network: Network) {
-                val active = connectivity.activeNetwork
-                if (active != null) updateDefaultInterface(listener, active)
+                val replacement = bestPhysicalNetwork()
+                if (replacement != null) updateDefaultInterface(listener, replacement)
                 else listener.updateDefaultInterface("", -1, false, false)
             }
         }
 
         defaultNetworkCallbacks[listener] = callback
         runCatching {
-            connectivity.registerDefaultNetworkCallback(callback)
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+                .build()
+            val handler = Handler(Looper.getMainLooper())
+            when {
+                // Android P+ may report the VPN itself as the default network.
+                // Request the best underlying Internet network instead.
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                    connectivity.registerBestMatchingNetworkCallback(request, callback, handler)
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ->
+                    connectivity.requestNetwork(request, callback, handler)
+                else ->
+                    connectivity.registerDefaultNetworkCallback(callback)
+            }
         }.onFailure {
             defaultNetworkCallbacks.remove(listener)
             throw it
@@ -204,40 +233,77 @@ class NeoTunPlatform(private val vpn: VpnService) : PlatformInterface {
         network: Network,
         capabilities: NetworkCapabilities? = connectivity.getNetworkCapabilities(network),
     ) {
-        val linkProperties = connectivity.getLinkProperties(network)
-        val interfaceName = linkProperties?.interfaceName.orEmpty()
+        val caps = capabilities ?: connectivity.getNetworkCapabilities(network) ?: return
+        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return
+        val linkProperties = connectivity.getLinkProperties(network) ?: return
+        val interfaceName = linkProperties.interfaceName.orEmpty()
         if (interfaceName.isBlank()) return
-        val expensive = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true
+        val expensive = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         val interfaceIndex = runCatching { NetworkInterface.getByName(interfaceName)?.index ?: -1 }
             .getOrDefault(-1)
+        if (interfaceIndex < 0) return
         listener.updateDefaultInterface(interfaceName, interfaceIndex, expensive, false)
         listener.updateNetworkPath(network.toString())
     }
 
-    override fun getInterfaces(): NetworkInterfaceIterator {
-        val result = NetworkInterface.getNetworkInterfaces()
-            ?.toList()
-            .orEmpty()
-            .map { ni ->
-                LibNetworkInterface().apply {
-                    name = ni.name
-                    index = ni.index
-                    mtu = runCatching { ni.mtu }.getOrDefault(1500)
-                    addresses = NeoTunStringIterator(
-                        ni.interfaceAddresses.map {
-                            it.address.hostAddress + "/" + it.networkPrefixLength
-                        },
-                    )
-                    flags = if (ni.isUp) OsConstants.IFF_UP else 0
-                    if (ni.isLoopback) flags = flags or OsConstants.IFF_LOOPBACK
-                    if (ni.isPointToPoint) flags = flags or OsConstants.IFF_POINTOPOINT
-                    if (ni.supportsMulticast()) flags = flags or OsConstants.IFF_MULTICAST
-                    type = io.nekohasekai.libbox.Libbox.InterfaceTypeOther
-                    dnsServer = NeoTunStringIterator(emptyList())
-                    gateway = NeoTunStringIterator(emptyList())
-                    metered = false
+    private fun bestPhysicalNetwork(): Network? {
+        return connectivity.allNetworks.asSequence()
+            .mapNotNull { network ->
+                val caps = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
+                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                    !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                    return@mapNotNull null
                 }
+                val name = connectivity.getLinkProperties(network)?.interfaceName ?: return@mapNotNull null
+                if (name.isBlank() || NetworkInterface.getByName(name) == null) return@mapNotNull null
+                val score = (if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) 100 else 0) +
+                    (if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) 10 else 0) +
+                    (if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) 8 else 0) +
+                    (if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) 5 else 0)
+                network to score
             }
+            .maxByOrNull { it.second }
+            ?.first
+    }
+
+    override fun getInterfaces(): NetworkInterfaceIterator {
+        // Use Android's connected networks and their real metadata. Never advertise our own TUN as an outbound.
+        val result = connectivity.allNetworks.mapNotNull { network ->
+            val caps = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                return@mapNotNull null
+            }
+            val links = connectivity.getLinkProperties(network) ?: return@mapNotNull null
+            val name = links.interfaceName ?: return@mapNotNull null
+            val ni = runCatching { NetworkInterface.getByName(name) }.getOrNull() ?: return@mapNotNull null
+            LibNetworkInterface().apply {
+                this.name = name
+                index = ni.index
+                mtu = runCatching { ni.mtu }.getOrDefault(1500)
+                addresses = NeoTunStringIterator(
+                    ni.interfaceAddresses.mapNotNull { address ->
+                        val host = address.address.hostAddress?.substringBefore('%') ?: return@mapNotNull null
+                        "$host/${address.networkPrefixLength}"
+                    },
+                )
+                dnsServer = NeoTunStringIterator(links.dnsServers.mapNotNull { it.hostAddress })
+                gateway = NeoTunStringIterator(
+                    links.routes.filter { it.isDefaultRoute }.mapNotNull { it.gateway?.hostAddress }
+                )
+                flags = OsConstants.IFF_UP or OsConstants.IFF_RUNNING
+                if (ni.isLoopback) flags = flags or OsConstants.IFF_LOOPBACK
+                if (ni.isPointToPoint) flags = flags or OsConstants.IFF_POINTOPOINT
+                if (ni.supportsMulticast()) flags = flags or OsConstants.IFF_MULTICAST
+                type = when {
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> io.nekohasekai.libbox.Libbox.InterfaceTypeWIFI
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> io.nekohasekai.libbox.Libbox.InterfaceTypeCellular
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> io.nekohasekai.libbox.Libbox.InterfaceTypeEthernet
+                    else -> io.nekohasekai.libbox.Libbox.InterfaceTypeOther
+                }
+                metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            }
+        }
         return NeoTunNetworkInterfaceIterator(result.iterator())
     }
 
