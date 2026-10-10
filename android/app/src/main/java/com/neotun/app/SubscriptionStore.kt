@@ -157,6 +157,7 @@ class SubscriptionStore(context: Context) {
         }
 
         val auto = candidate.contains("://autorouting/", true)
+        val onAdd = auto || candidate.contains("://routing/onadd/", true)
         val remoteUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
             candidate.contains("://routing/add/http", true)) {
             val payload = when {
@@ -176,8 +177,9 @@ class SubscriptionStore(context: Context) {
         } else {
             RoutingProfileStore.decode(candidate)
         } ?: return
-        routingProfiles.save(profileJson, sourceUrl = sourceUrl, activate = true)
-        routingProfiles.setEnabled(true)
+        val shouldActivate = onAdd || routingProfiles.active() == null
+        routingProfiles.save(profileJson, sourceUrl = sourceUrl, activate = shouldActivate)
+        if (shouldActivate) routingProfiles.setEnabled(true)
     }
 
     private fun normalizeGitHubRawUrl(url: String): String =
