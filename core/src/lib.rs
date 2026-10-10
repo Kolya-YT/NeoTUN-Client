@@ -439,10 +439,9 @@ impl Profile {
         if self.protocol != "vless" { return Err("Xray adapter currently supports VLESS profiles only".into()); }
         let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
         let network = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
-        if network != "xhttp" { return Err("Xray runtime is selected only for VLESS XHTTP".into()); }
         let security = self.params.get("security").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "none".into());
         let server_name = self.params.get("sni").or_else(|| self.params.get("host")).cloned().unwrap_or_else(|| self.address.clone());
-        let mut stream = serde_json::json!({ "network": "xhttp", "security": security });
+        let mut stream = serde_json::json!({ "network": network, "security": security });
         if security == "tls" {
             stream["tlsSettings"] = serde_json::json!({ "serverName": server_name });
             if let Some(alpn) = self.params.get("alpn") { stream["tlsSettings"]["alpn"] = serde_json::json!(alpn.split(',').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>()); }
@@ -450,10 +449,50 @@ impl Profile {
         } else if security == "reality" {
             stream["realitySettings"] = serde_json::json!({ "serverName": server_name, "publicKey": self.params.get("pbk").cloned().unwrap_or_default(), "shortId": self.params.get("sid").cloned().unwrap_or_default(), "fingerprint": self.params.get("fp").cloned().unwrap_or_else(|| "chrome".into()) });
         }
-        let mut xhttp = serde_json::json!({ "path": self.params.get("path").cloned().unwrap_or_else(|| "/".into()) });
-        if let Some(host) = self.params.get("host").filter(|v| !v.trim().is_empty()) { xhttp["host"] = serde_json::json!(host); }
-        if let Some(mode) = self.params.get("mode").filter(|v| !v.trim().is_empty()) { xhttp["mode"] = serde_json::json!(mode); }
-        stream["xhttpSettings"] = xhttp;
+
+        let path = self.params.get("path").cloned().unwrap_or_else(|| "/".into());
+        let host = self.params.get("host").filter(|v| !v.trim().is_empty()).cloned();
+        match network.as_str() {
+            "tcp" | "raw" => {
+                if self.params.get("headerType").map(|v| v.eq_ignore_ascii_case("http")).unwrap_or(false) {
+                    let mut headers = serde_json::json!({});
+                    if let Some(host) = host { headers["Host"] = serde_json::json!([host]); }
+                    headers["Path"] = serde_json::json!([path]);
+                    stream["tcpSettings"] = serde_json::json!({ "header": { "type": "http", "request": { "headers": headers } } });
+                }
+            }
+            "ws" | "websocket" => {
+                let mut ws = serde_json::json!({ "path": path });
+                if let Some(host) = host { ws["headers"] = serde_json::json!({ "Host": host }); }
+                stream["network"] = serde_json::json!("ws");
+                stream["wsSettings"] = ws;
+            }
+            "grpc" => {
+                stream["grpcSettings"] = serde_json::json!({
+                    "serviceName": self.params.get("serviceName").or_else(|| self.params.get("serviceName".into())).cloned().unwrap_or_else(|| path.trim_start_matches('/').to_string()),
+                    "multiMode": self.params.get("mode").map(|v| v.eq_ignore_ascii_case("multi")).unwrap_or(false)
+                });
+            }
+            "httpupgrade" => {
+                let mut settings = serde_json::json!({ "path": path });
+                if let Some(host) = host { settings["host"] = serde_json::json!(host); }
+                stream["httpupgradeSettings"] = settings;
+            }
+            "xhttp" | "splithttp" => {
+                stream["network"] = serde_json::json!("xhttp");
+                let mut settings = serde_json::json!({ "path": path });
+                if let Some(host) = host { settings["host"] = serde_json::json!(host); }
+                if let Some(mode) = self.params.get("mode").filter(|v| !v.trim().is_empty()) { settings["mode"] = serde_json::json!(mode); }
+                stream["xhttpSettings"] = settings;
+            }
+            "http" => {
+                let mut settings = serde_json::json!({ "path": path });
+                if let Some(host) = host { settings["host"] = serde_json::json!(host); }
+                stream["network"] = serde_json::json!("http");
+                stream["httpSettings"] = settings;
+            }
+            other => return Err(format!("Неподдерживаемый транспорт VLESS для Xray: {other}")),
+        }
         Ok(serde_json::json!({
             "log": { "loglevel": "warning" },
             "inbounds": [{ "tag": "socks-in", "listen": "127.0.0.1", "port": 10808, "protocol": "socks", "settings": { "auth": "noauth", "udp": true } }],
@@ -687,11 +726,9 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 
 impl Profile {
     pub fn engine(&self) -> &'static str {
-        if self.protocol == "vless" && self.params.get("type").map(|v| v.eq_ignore_ascii_case("xhttp")).unwrap_or(false) {
-            "xray"
-        } else {
-            "sing-box"
-        }
+        // Route every VLESS transport through Xray. sing-box remains the engine
+        // for the other protocols (Hysteria2, TUIC, Shadowsocks, etc.).
+        if self.protocol == "vless" { "xray" } else { "sing-box" }
     }
 }
 
@@ -774,25 +811,22 @@ mod tests {
     }
 
     #[test]
-    fn windows_runtime_selects_sing_box_for_vless_and_xray_for_xhttp() {
-        let standard = Profile::from_share_uri(
-            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=ws&path=%2F"
+    fn all_vless_transports_select_xray() {
+        for transport in ["tcp", "ws", "grpc", "httpupgrade", "xhttp"] {
+            let uri = format!("vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type={transport}&path=%2Fneo");
+            let profile = Profile::from_share_uri(&uri).unwrap();
+            assert_eq!(profile.engine(), "xray", "transport={transport}");
+            let runtime: serde_json::Value =
+                serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+            assert_eq!(runtime["engine"], "xray", "transport={transport}");
+            assert_eq!(runtime["xray_config"]["outbounds"][0]["streamSettings"]["network"],
+                       if transport == "xhttp" { "xhttp" } else { transport });
+            assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
+        }
+        let hysteria = Profile::from_share_uri(
+            "hysteria2://password@example.com:443"
         ).unwrap();
-        assert_eq!(standard.engine(), "sing-box");
-        let standard_runtime: serde_json::Value =
-            serde_json::from_str(&standard.to_windows_runtime_json().unwrap()).unwrap();
-        assert_eq!(standard_runtime["engine"], "sing-box");
-        assert!(standard_runtime["sing_box_config"]["inbounds"][0]["type"] == "tun");
-
-        let xhttp = Profile::from_share_uri(
-            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xhttp&path=%2F"
-        ).unwrap();
-        assert_eq!(xhttp.engine(), "xray");
-        let xhttp_runtime: serde_json::Value =
-            serde_json::from_str(&xhttp.to_windows_runtime_json().unwrap()).unwrap();
-        assert_eq!(xhttp_runtime["engine"], "xray");
-        assert_eq!(xhttp_runtime["xray_config"]["inbounds"][0]["port"], 10808);
-        assert_eq!(xhttp_runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
+        assert_eq!(hysteria.engine(), "sing-box");
     }
 
     #[test]
