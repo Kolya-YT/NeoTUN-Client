@@ -30,3 +30,13 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Build Windows app
         run: dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release
+      - name: Publish self-contained Windows x64 app
+        run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/NeoTUN-Windows
+      - name: Package portable ZIP
+        run: Compress-Archive -Path dist/NeoTUN-Windows/* -DestinationPath dist/NeoTUN-Windows-x64.zip
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeoTUN-Windows-x64
+          path: dist/NeoTUN-Windows-x64.zip
+          if-no-files-found: error
