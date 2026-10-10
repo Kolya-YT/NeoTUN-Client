@@ -590,7 +590,8 @@ class MainActivity : Activity() {
 
         val about = card()
         about.addView(txt("NeoTUN", 19f, Color.WHITE, Typeface.BOLD))
-        about.addView(txt("Версия 0.5.0 • Core " + NeoTunCore.nativeVersion(), 12f, Color.rgb(135, 140, 157)),
+        val appVersion = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "unknown"
+        about.addView(txt("Версия " + appVersion + " • Core " + NeoTunCore.nativeVersion(), 12f, Color.rgb(135, 140, 157)),
             margins(top = 5))
         about.addView(txt(
             "Настройки применяются при следующем подключении, если это требуется выбранному движку.",
@@ -1733,7 +1734,7 @@ class MainActivity : Activity() {
 
         // Some Android builds expose the VPN Network but do not allow reading its
         // counters under that interface name. Try the actual TUN interface as fallback.
-        val candidates = (vpnInterfaces + if (isRunning()) listOfNotNull(findVpnInterfaceFromSysfs()) else emptyList())
+        val candidates = (vpnInterfaces + if (isRunning()) findVpnInterfacesFromSysfs() else emptyList())
             .distinct()
         val interfaceName = candidates.firstOrNull { readInterfaceCounters(it) != null }
 
@@ -1773,12 +1774,25 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun findVpnInterfaceFromSysfs(): String? {
-        return runCatching {
+    private fun findVpnInterfacesFromSysfs(): List<String> {
+        val fromSysfs = runCatching {
             java.io.File("/sys/class/net").listFiles()
                 ?.map { it.name }
-                ?.firstOrNull { it.matches(Regex("(tun|utun|wg)\\d+")) }
-        }.getOrNull()
+                ?.filter { it.matches(Regex("(tun|utun|wg|vpn)\\d*")) }
+                .orEmpty()
+        }.getOrDefault(emptyList())
+        // Some Android/libbox builds expose the TUN interface through /proc/net/dev
+        // even when /sys/class/net is restricted or its listing is incomplete.
+        val fromProc = runCatching {
+            java.io.File("/proc/net/dev").useLines { lines ->
+                lines.drop(2).mapNotNull { line ->
+                    line.substringBefore(":").trim().takeIf {
+                        it.matches(Regex("(tun|utun|wg|vpn)\\d*"))
+                    }
+                }.toList()
+            }
+        }.getOrDefault(emptyList())
+        return (fromSysfs + fromProc).distinct()
     }
 
     private fun readInterfaceCounters(interfaceName: String): Pair<Long, Long>? {

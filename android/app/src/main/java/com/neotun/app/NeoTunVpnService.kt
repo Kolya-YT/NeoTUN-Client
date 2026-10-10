@@ -84,7 +84,9 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         super.onBind(intent) ?: error("VPN binder unavailable")
 
     override fun onDestroy() {
-        NeoTunDiagnostics.log(this, "sing-box: service onDestroy; running=" + running)
+        NeoTunDiagnostics.log(this, "sing-box: service onDestroy; running=" + running +
+            "; savedRunning=" + getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_RUNNING, false) +
+            "; savedError=" + (getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ERROR, null) ?: "none"))
         stopServiceInternal()
         super.onDestroy()
     }
@@ -101,8 +103,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             .apply()
     }
 
-    override fun serviceStop() = stopSelf()
-    override fun serviceReload() = Unit
+    override fun serviceStop() {
+        NeoTunDiagnostics.log(this, "sing-box: libbox requested serviceStop; running=" + running)
+        stopSelf()
+    }
+    override fun serviceReload() {
+        NeoTunDiagnostics.log(this, "sing-box: libbox requested serviceReload")
+    }
     override fun getSystemProxyStatus(): SystemProxyStatus? = null
     override fun setSystemProxyEnabled(isEnabled: Boolean) = Unit
     override fun triggerNativeCrash() = Unit
