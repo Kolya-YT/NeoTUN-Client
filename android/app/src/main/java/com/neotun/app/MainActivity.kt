@@ -379,7 +379,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        item.addView(txt(icon, 18f, Color.rgb(151, 132, 255), Typeface.BOLD, Gravity.CENTER))
+        item.addView(txt(icon, 18f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER))
         val valueView = txt(value, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -461,7 +461,7 @@ class MainActivity : Activity() {
                 })
                 info.addView(txt(if (sub.lastUpdated > 0)
                     "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
-                    else "Ожидает первого обновления", 11f, Color.rgb(133, 139, 158)), margins(top = 4))
+                    else "Ожидает первого обновления", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 4))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
                     background = rounded(NeoTunDesign.SURFACE_RAISED, 13)
@@ -478,7 +478,7 @@ class MainActivity : Activity() {
             val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(26), dp(20), dp(26)) }
             empty.addView(txt("Пока пусто", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
             empty.addView(txt("Добавьте ссылку на сервер или подписку. NeoTUN сам распознает формат и создаст профиль.",
-                13f, Color.rgb(139, 145, 164), Gravity.CENTER).apply { maxLines = 4 },
+                13f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER).apply { maxLines = 4 },
                 margins(top = 8, bottom = 16))
             empty.addView(button("＋  Добавить подключение") { showImportMenu() })
             content.addView(empty)
@@ -496,7 +496,7 @@ class MainActivity : Activity() {
             }
             listCard.addView(row)
             if (index < profiles.lastIndex) listCard.addView(View(this).apply {
-                setBackgroundColor(Color.rgb(35, 39, 58))
+                setBackgroundColor(NeoTunDesign.BORDER)
             }, LinearLayout.LayoutParams(-1, dp(1)))
         }
         content.addView(listCard, margins(bottom = 12))
@@ -519,7 +519,7 @@ class MainActivity : Activity() {
         row.addView(button("⋯  Действия") { profileActions(profile) },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
         bottomActions.addView(row)
-        bottomActions.addView(txt(profile.name, 10f, Color.rgb(137, 143, 163), Typeface.NORMAL, Gravity.CENTER).apply {
+        bottomActions.addView(txt(profile.name, 10f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 4))
@@ -563,7 +563,7 @@ class MainActivity : Activity() {
         }
         val pingLabel = pingResults[profile.id] ?: "Пинг"
         pingColumn.addView(txt(pingLabel, 9f,
-            if (pingLabel.endsWith("мс")) Color.rgb(105, 225, 167) else Color.rgb(139, 145, 164),
+            if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else Color.rgb(139, 145, 164),
             Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
             LinearLayout.LayoutParams(-1, dp(15)))
         pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
@@ -577,7 +577,7 @@ class MainActivity : Activity() {
             setMargins(dp(3), 0, dp(2), 0)
         })
         row.addView(txt(if (selected) "✓" else "›", if (selected) 18f else 22f,
-            if (selected) Color.rgb(103, 222, 160) else Color.rgb(100, 106, 127),
+            if (selected) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
             Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(20), dp(42)))
         row.minimumHeight = dp(if (compact) 50 else 56)
         return row
@@ -739,7 +739,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        top.addView(txt(title, 13.5f, NeoTunDesign.TEXT_PRIMARY, Typeface.MEDIUM).apply {
+        top.addView(txt(title, 13.5f, NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -1969,7 +1969,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(48), dp(52)))
         val textBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         textBox.addView(txt(title, 24f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        textBox.addView(txt(subtitle, 12f, Color.rgb(132, 137, 155)), margins(top = 2))
+        textBox.addView(txt(subtitle, 12f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
         row.addView(textBox, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(row, margins(bottom = 16))
     }
