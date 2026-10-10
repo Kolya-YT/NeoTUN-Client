@@ -391,7 +391,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var processExclusions = NormalizeLines(ProcessExclusionsEditor.Text);
+        var processExclusions = NormalizeLines(ProcessExclusionsEditor.Text)
+            .Split(Environment.NewLine, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var invalidProcessName = processExclusions.FirstOrDefault(name =>
             !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
             name != Path.GetFileName(name) || name.Contains('/') || name.Contains((char)92) || name.Contains(':'));
