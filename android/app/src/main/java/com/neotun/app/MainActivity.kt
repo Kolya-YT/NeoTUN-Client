@@ -813,10 +813,38 @@ class MainActivity : Activity() {
         // Use DNS endpoints from the active profile only when the user/imported profile
         // explicitly defines them; otherwise retain the app's selected resolver.
         val routingProfile = RoutingProfileStore(this).active()
-        val configuredRemoteDns = routingProfile?.json?.optString("RemoteDNS")
-            ?.trim()?.takeIf { it.isNotEmpty() }
-        val configuredDomesticDns = routingProfile?.json?.optString("DomesticDNS")
-            ?.trim()?.takeIf { it.isNotEmpty() }
+        // Happ uses mixed-case keys (RemoteDns/Geositeurl), while older INCY
+        // profiles commonly use RemoteDNS/Geositeurl. JSONObject lookups are
+        // case-sensitive, so normalize aliases here rather than losing settings.
+        fun routingValue(vararg keys: String): String? {
+            val json = routingProfile?.json ?: return null
+            for (key in keys) {
+                val value = json.optString(key).trim()
+                if (value.isNotEmpty() && value != "null") return value
+                val actual = json.keys().asSequence().firstOrNull { it.equals(key, true) }
+                if (actual != null) {
+                    val matched = json.optString(actual).trim()
+                    if (matched.isNotEmpty() && matched != "null") return matched
+                }
+            }
+            return null
+        }
+        fun dnsEndpoint(prefix: String): String? {
+            routingValue(prefix)?.let { return it }
+            val type = routingValue("${prefix}Type")?.uppercase()
+            val domain = routingValue("${prefix}Domain")
+            val ip = routingValue("${prefix}IP", "${prefix}Ip")
+            return when (type) {
+                "DOH" -> domain?.let { if (it.startsWith("http", true)) it else "https://$it" }
+                "DOT" -> domain
+                "DOU", "UDP" -> ip ?: domain
+                else -> domain?.takeIf { it.startsWith("http", true) } ?: ip ?: domain
+            }
+        }
+        val configuredRemoteDns = dnsEndpoint("RemoteDNS")
+            ?: dnsEndpoint("RemoteDns")
+        val configuredDomesticDns = dnsEndpoint("DomesticDNS")
+            ?: dnsEndpoint("DomesticDns")
         val dnsIp = when {
             dnsMode.contains("8.8.8.8") -> "8.8.8.8"
             dnsMode.contains("9.9.9.9") -> "9.9.9.9"
@@ -847,7 +875,8 @@ class MainActivity : Activity() {
             .put("servers", dnsServers)
             .put("final", "remote-dns")
             .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only")
-        val domesticDomains = routingProfile?.values("DomesticDNSDomains").orEmpty()
+        val domesticDomains = routingProfile?.values("DomesticDNSDomains")
+            ?.ifEmpty { routingProfile.values("DomesticDnsDomains") }.orEmpty()
         if (configuredDomesticDns != null && domesticDomains.isNotEmpty()) {
             dnsServers.put(dnsServer("domestic-dns", configuredDomesticDns, dnsIp))
             val suffixes = JSONArray()
