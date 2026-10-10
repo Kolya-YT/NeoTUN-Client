@@ -19,6 +19,12 @@ public partial class MainWindow : Window
         ProfileList.SelectionChanged += (_, _) => SyncSelectedProfileToEditor();
         SyncSelectedProfileToEditor();
         _runtime.LogLine += line => Dispatcher.BeginInvoke(() => AddLog(line));
+        _runtime.TrafficUpdated += (up, down, totalUp, totalDown) => Dispatcher.BeginInvoke(() =>
+        {
+            HomeSpeedText.Text = $"{FormatSpeed(down)} ↓ / {FormatSpeed(up)} ↑";
+            HomeReceivedText.Text = FormatBytes(totalDown);
+            HomeSentText.Text = FormatBytes(totalUp);
+        });
         _runtime.StateChanged += (running, status) => Dispatcher.BeginInvoke(() =>
         {
             _vm.IsConnected = running;
@@ -194,6 +200,17 @@ public partial class MainWindow : Window
     }
 
     private void CopyRouting_Click(object sender, RoutedEventArgs e) => Clipboard.SetText(RoutingEditor.Text);
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        double value = Math.Max(0, bytes);
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return $"{value:0.##} {units[unit]}";
+    }
+
+    private static string FormatSpeed(long bytesPerSecond) => FormatBytes(bytesPerSecond) + "/s";
 
     private void AddLog(string message)
     {
