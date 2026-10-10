@@ -879,6 +879,13 @@ class MainActivity : Activity() {
             if (value.startsWith("https://", true)) {
                 val uri = java.net.URI(value)
                 val host = uri.host ?: throw IllegalArgumentException("Некорректный DoH URL")
+                val tlsServerName = when (host.lowercase()) {
+                    "8.8.8.8", "8.8.4.4" -> "dns.google"
+                    "77.88.8.8", "77.88.8.2" -> "common.dot.dns.yandex.net"
+                    "1.1.1.1", "1.0.0.1" -> "cloudflare-dns.com"
+                    "9.9.9.9", "149.112.112.112" -> "dns.quad9.net"
+                    else -> host
+                }
                 return JSONObject()
                     .put("type", "https")
                     .put("tag", tag)
@@ -886,7 +893,7 @@ class MainActivity : Activity() {
                     .put("server_port", if (uri.port > 0) uri.port else 443)
                     .put("path", (uri.rawPath?.takeIf { it.isNotBlank() } ?: "/dns-query") +
                         (uri.rawQuery?.takeIf { it.isNotBlank() }?.let { "?$it" } ?: ""))
-                    .put("tls", JSONObject().put("enabled", true).put("server_name", host))
+                    .put("tls", JSONObject().put("enabled", true).put("server_name", tlsServerName))
             }
             val serverIp = value.takeIf {
                 it.matches(Regex("[0-9a-fA-F:.]+")) && (it.contains('.') || it.contains(':'))

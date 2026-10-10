@@ -51,6 +51,35 @@ class RoutingSettingsActivity : Activity() {
                 .put("GlobalProxy", "true")
                 .put("RouteOrder", orderValue)
         }
+        // Always expose usable DNS defaults in the editor, even when an imported
+        // routing profile omits Happ/INCY DNS keys. Preserve non-empty aliases.
+        fun profileValue(vararg aliases: String): String? {
+            val key = profileJson.keys().asSequence().firstOrNull { candidate ->
+                aliases.any { it.equals(candidate, true) } && profileJson.optString(candidate).isNotBlank()
+            } ?: return null
+            return profileJson.optString(key).trim().takeIf { it.isNotEmpty() }
+        }
+        fun hasDomains(): Boolean = profileJson.keys().asSequence().any { key ->
+            if (!key.equals("DomesticDNSDomains", true)) false
+            else when (val value = profileJson.opt(key)) {
+                is JSONArray -> value.length() > 0
+                is String -> value.isNotBlank()
+                else -> false
+            }
+        }
+        if (profileJson.optString("RemoteDNS").isBlank()) {
+            profileJson.put("RemoteDNS", profileValue("RemoteDns", "RemoteDomain", "RemoteIP", "RemoteIp")
+                ?: "https://8.8.8.8/dns-query")
+        }
+        if (profileJson.optString("DomesticDNS").isBlank()) {
+            profileJson.put("DomesticDNS", profileValue("DomesticDns", "DomesticDomain", "DomesticIP", "DomesticIp")
+                ?: "https://77.88.8.8/dns-query")
+        }
+        if (!hasDomains()) {
+            profileJson.put("DomesticDNSDomains", JSONArray().put("ru").put("su").put("рф"))
+        }
+        if (profileJson.optString("RemoteDNSType").isBlank()) profileJson.put("RemoteDNSType", "DoH")
+        if (profileJson.optString("DomesticDNSType").isBlank()) profileJson.put("DomesticDNSType", "DoH")
         buildUi()
     }
 
@@ -138,14 +167,14 @@ class RoutingSettingsActivity : Activity() {
         body.addView(sectionTitle("DNS OVER HTTPS"))
         val dnsCard = card()
         dnsCard.addView(text("Удалённый DNS", 13, NeoTunDesign.TEXT_SECONDARY, true))
-        remoteDns = inputField(profileJson.optString("RemoteDNS", ""), "Не задан — использовать DNS из настроек")
+        remoteDns = inputField(profileJson.optString("RemoteDNS", "https://8.8.8.8/dns-query"), "Не задан — использовать DNS из настроек")
         dnsCard.addView(remoteDns, params(top = 5, bottom = 12))
         dnsCard.addView(text("Домашний DNS", 13, NeoTunDesign.TEXT_SECONDARY, true))
-        domesticDns = inputField(profileJson.optString("DomesticDNS", ""), "Не задан")
+        domesticDns = inputField(profileJson.optString("DomesticDNS", "https://77.88.8.8/dns-query"), "Не задан")
         dnsCard.addView(domesticDns, params(top = 5, bottom = 12))
-        addRuleRow(dnsCard, "DomesticDNSDomains", "Домены для домашнего DNS", "Один домен или суффикс на строку")
+        addRuleRow(dnsCard, "DomesticDNSDomains", "Домены для домашнего DNS", "ru\\nsu\\nрф")
         dnsCard.addView(text(
-            "Домашний DNS используется только для доменов, указанных в его списке. Если список пустой, запросы обслуживает удалённый DNS.",
+            "По умолчанию .ru, .su и .рф используют домашний DNS 77.88.8.8; остальные домены — удалённый DNS 8.8.8.8. Список можно изменить.",
             12, NeoTunDesign.TEXT_SECONDARY
         ), params(top = 8))
         body.addView(dnsCard, params(bottom = 18))

@@ -200,3 +200,6 @@ NEOTUN_KEY_PASSWORD
 
 
 **0.7.8:** sing-box GeoSite/GeoIP rule-sets now use the same RoscomVPN `.srs` data source as the user's Happ profile, including `twitch-ads`, `google-play`, `github`, `youtube`, `telegram`, and GeoIP `direct/whitelist/private`. Android Actions no longer cancels an in-progress build when a newer commit is pushed.
+
+
+**0.7.9:** routing profiles that omit DNS fields now get working remote/domestic DoH defaults (Google 8.8.8.8 and Yandex 77.88.8.8), with `.ru`, `.su`, and `.рф` sent to domestic DNS. DoH TLS server names are set correctly for IP-based resolver URLs.
