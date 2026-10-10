@@ -177,7 +177,7 @@ class SubscriptionStore(context: Context) {
         } else {
             RoutingProfileStore.decode(candidate)
         } ?: return
-        val shouldActivate = onAdd || routingProfiles.active() == null
+        val shouldActivate = onAdd || routingProfiles.all().isEmpty()
         routingProfiles.save(profileJson, sourceUrl = sourceUrl, activate = shouldActivate)
         if (shouldActivate) routingProfiles.setEnabled(true)
     }
