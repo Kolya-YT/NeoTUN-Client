@@ -1,234 +1,182 @@
-# NeoTUN Client
+<div align="center">
 
-**NeoTUN** — клиент для Android и Windows, который находится в активной разработке. Репозиторий содержит Android-приложение, общий Rust Core и раннюю Windows Desktop-версию.
+# NeoTUN
 
-> **Важно:** успешная сборка не равна подтверждённой работе сетевого туннеля. Протоколы и маршрутизацию необходимо проверять на реальном устройстве. Windows-версия особенно экспериментальная: наличие UI, движков в пакете или успешной CI-сборки само по себе не подтверждает полноценную работу TUN, DNS, TCP/UDP и очистку маршрутов.
+**Один клиент. Ваши серверы. Гибкая маршрутизация.**
 
-## Скачать
+Кроссплатформенный проект клиента для Android и Windows с общим Rust Core и сетевыми движками Xray и sing-box.
 
-- **[Последний опубликованный релиз](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)** — только версии, успешно опубликованные в Releases.
-- [Все сборки GitHub Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions) — статусы, логи и CI-артефакты.
-- [Последняя успешная сборка Windows (#93)](https://github.com/Kolya-YT/NeoTUN-Client/actions/runs/38046053861) — ZIP доступен в разделе **Artifacts** запуска.
-- [Сборки Android APK](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml) — APK по архитектурам.
-- [Исходный код](https://github.com/Kolya-YT/NeoTUN-Client) — текущая версия в `main` может быть новее опубликованного релиза.
+[Скачать релиз](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest) · [Все сборки](https://github.com/Kolya-YT/NeoTUN-Client/actions) · [Сообщить об ошибке](https://github.com/Kolya-YT/NeoTUN-Client/issues)
 
-### Android APK
+![Android CI](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml/badge.svg)
+![Windows CI](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml/badge.svg)
 
-CI собирает отдельные APK для следующих ABI:
+</div>
 
-| Файл | Архитектура |
+---
+
+## 🚀 Скачать NeoTUN
+
+### Windows 10/11 · x64
+
+**Рекомендуемый файл — NeoTUN-Setup-x64.exe.** Это установщик Windows, а не архив: он устанавливает приложение и необходимые сетевые компоненты, создаёт ярлык и добавляет NeoTUN в список установленных программ.
+
+1. Откройте страницу [последнего релиза](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest).
+2. В разделе **Assets** скачайте **NeoTUN-Setup-x64.exe**.
+3. Запустите установщик. Для настройки сетевого туннеля могут потребоваться права администратора.
+4. Откройте NeoTUN из меню «Пуск» или с рабочего стола.
+
+Если в последнем релизе установщика ещё нет, откройте [последние сборки Windows](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml), выберите успешный запуск и скачайте артефакт **NeoTUN-Setup-x64** внизу страницы. Для скачивания CI-артефактов может потребоваться вход в GitHub.
+
+> **Важно:** Windows-клиент активно разрабатывается. Успешная сборка и наличие установщика не означают, что на каждом ПК уже проверена работа всего сетевого трафика. Перед повседневным использованием проверьте подключение, DNS, TCP/UDP и восстановление сети после отключения.
+
+### Android
+
+Откройте [последний релиз](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest) и скачайте APK, подходящий архитектуре устройства.
+
+| APK | Для каких устройств |
 |---|---|
-| `NeoTUN-arm64-v8a.apk` | Большинство современных Android-смартфонов |
-| `NeoTUN-armeabi-v7a.apk` | 32-битные ARM-устройства |
-| `NeoTUN-x86_64.apk` | Android-устройства и эмуляторы x86_64 |
+| NeoTUN-arm64-v8a.apk | Большинство современных Android-смартфонов и планшетов |
+| NeoTUN-armeabi-v7a.apk | Старые 32-битные ARM-устройства |
+| NeoTUN-x86_64.apk | Совместимые устройства и эмуляторы x86-64 |
 
-Выбирайте APK по архитектуре устройства. Не устанавливайте APK другой архитектуры, если не уверены в совместимости.
+Если APK отсутствуют в Releases, проверьте [последнюю сборку Android](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml) и её артефакты. Не устанавливайте APK другой архитектуры наугад.
 
-Для production-сборки требуются GitHub Actions Secrets с постоянным ключом подписи. Без них workflow намеренно не публикует APK, который нельзя гарантированно установить поверх существующей production-версии.
+---
 
-**Статус сборки Android #403:** APK были собраны и загружены как CI-артефакты, но шаг публикации GitHub Release завершился HTTP 403 (`Resource not accessible by integration`). Поэтому собранный APK не обязательно появился на странице Releases. Проверяйте артефакты конкретного запуска и номер версии внутри него.
+## ✨ Возможности
 
-### Windows Desktop
+- **Серверы и подписки:** импорт ссылок и списков, несколько профилей, выбор сервера и обновление подписок.
+- **Сетевые движки:** интеграция Xray и sing-box там, где это поддержано соответствующей сборкой.
+- **Маршрутизация:** правила для доменов и IP/CIDR с действиями **Proxy**, **Direct** и **Block**.
+- **DNS:** настройки резолвера, DNS over HTTPS и отдельный список доменов для домашнего DNS.
+- **Настройки соединения:** DNS, IPv6 и MTU на Android; Windows-функции развиваются отдельно.
+- **Диагностика:** журнал работы и сообщения об ошибках, помогающие проверять запуск и сетевой путь.
+- **Общий код:** Rust Core используется для общей логики разбора профилей.
 
-Windows workflow собирает WPF-приложение для **Windows x64** и подготавливает архив `NeoTUN-Windows-x64.zip` с приложением и сетевыми компонентами, если все проверки прошли. Артефакт появляется только после успешного завершения workflow.
+Доступность конкретной функции зависит от платформы, версии приложения, сетевого движка и параметров импортированной конфигурации.
 
-Последняя успешная сборка Windows Desktop — [workflow #93](https://github.com/Kolya-YT/NeoTUN-Client/actions/runs/38046053861): Rust Core, WPF-приложение и проверка состава архива прошли успешно. Скачайте `NeoTUN-Windows-x64` в разделе **Artifacts** этого запуска. Это CI-артефакт, а не автоматически опубликованный GitHub Release.
+## 🔌 Импортируемые протоколы
 
-Если загрузка сетевых компонентов или проверка состава архива завершается ошибкой, Windows ZIP не публикуется. История запусков и логи доступны в [Windows Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml).
+Клиент содержит обработчики следующих форматов ссылок:
 
-## Возможности Android
+- vless://
+- vmess://
+- trojan://
+- hysteria2:// и hy2://
+- tuic://
+- ss://
 
-- Подключение через Android `VpnService` и TUN.
-- Импорт одиночных ссылок, Base64-списков и HTTP(S)-подписок.
-- Несколько профилей серверов и обновление подписок.
-- Выбор сетевого движка для поддерживаемого профиля.
-- Отображение статистики трафика.
-- Настройки DNS, IPv6 и MTU.
-- Диагностический журнал, проверка обновлений и тёмный интерфейс.
-- Редактор маршрутизации с правилами доменов и IP/CIDR.
-- Порядок групп BLOCK / PROXY / DIRECT.
-- DNS over HTTPS и список доменов для домашнего DNS.
-- GeoSite/GeoIP rule-set для поддерживаемых правил sing-box и геоданные Xray.
+**Обработчик ссылки не является гарантией совместимости со всеми транспортами и параметрами.** Например, XHTTP, WebSocket, gRPC, QUIC, специальные расширения серверов и дополнительные поля требуют проверки конкретной конфигурации. WireGuard и AmneziaWG не следует считать поддерживаемыми, если соответствующий движок и полноценный путь подключения не реализованы в используемой сборке.
 
-## Протоколы
+## 🧭 Маршрутизация
 
-Импорт ссылки и наличие адаптера не означают, что каждый транспорт проверен end-to-end. Текущее состояние:
+Редактор профиля позволяет задавать списки доменов и IP/CIDR для трёх действий:
 
-| Протокол | Основной движок | Статус |
-|---|---|---|
-| VLESS TCP | Xray | Работоспособность проверялась; требуется регрессионная проверка после изменений |
-| VLESS XHTTP | Xray | Реализована поддержка; проверяйте конкретную конфигурацию |
-| VLESS WS / gRPC / HTTP / HTTPUpgrade | Xray | Требуется проверка конкретного транспорта |
-| VMess | sing-box | Адаптер реализован; требуется end-to-end проверка |
-| Trojan | sing-box | Адаптер реализован; требуется end-to-end проверка |
-| Hysteria2 | sing-box | Проверяйте QUIC/UDP, DNS и port hopping |
-| TUIC | sing-box | Требуется проверка QUIC/UDP |
-| Shadowsocks | sing-box | Требуется end-to-end проверка |
-| WireGuard / AmneziaWG | — | Не заявлены как реализованные |
+| Действие | Что делает |
+|---|---|
+| **Block** | Блокирует совпавший трафик |
+| **Proxy** | Направляет совпавший трафик через прокси |
+| **Direct** | Отправляет совпавший трафик напрямую |
 
-Поддерживаемые схемы импорта:
+Дополнительно доступны глобальный прокси, порядок групп правил, профили маршрутизации и настройки DNS. Поддержка GeoSite/GeoIP зависит от формата геоданных и движка: Xray использует совместимые .dat-файлы, а sing-box — поддерживаемые им rule-set. Нельзя считать, что любой токен geosite автоматически работает как обычный домен.
 
-```text
-vless://
-vmess://
-trojan://
-hysteria2://
-hy2://
-tuic://
-ss://
-```
+После изменения DNS или правил переподключите клиент, чтобы настройки применились к новой конфигурации.
 
-Подписка может содержать несколько серверов. Обновление должно проверять загруженное содержимое до замены существующих профилей, не удалять рабочие данные при сетевой ошибке и избегать повторного добавления уже известных серверов.
+## 🖥️ Windows: что входит в установщик
 
-## Маршрутизация и DNS
+NeoTUN-Setup-x64.exe создаётся в CI из проверенной папки приложения. Установщик включает:
 
-Редактор профиля поддерживает:
+- **NeoTUN.exe** — графический клиент;
+- **neotun_core.dll** — общий Rust Core;
+- **runtime/sing-box.exe** и необходимые файлы движка;
+- **runtime/xray.exe** и необходимые файлы движка;
+- **runtime/wintun.dll** — компонент TUN для Windows.
 
-- **BLOCK** — блокировка доменов и IP/CIDR.
-- **PROXY** — отправка совпавшего трафика через прокси.
-- **DIRECT** — прямое соединение.
-- Глобальный прокси и настраиваемый порядок групп.
-- Ручные списки доменов и IP/CIDR.
-- Импорт JSON и поддерживаемых routing deeplink-профилей INCY/Happ.
-- URL GeoSite/GeoIP и обновление файлов для соответствующего движка.
-- Удалённый DoH и домашний DoH с отдельным списком доменов.
+Установщик нужен потому, что одного GUI-файла недостаточно: приложению требуются нативная библиотека и сетевые компоненты. После установки запускать отдельные DLL или файлы движков вручную не нужно.
 
-DNS-перехват на порту 53 должен оставаться перед пользовательскими правилами. Для sing-box геоправила используют поддерживаемые бинарные rule-set; неизвестные токены нельзя считать обычными доменными именами. Для Xray используются совместимые GeoSite/GeoIP-данные.
+## 📱 Android: что входит в сборку
 
-Настройки маршрутизации и DNS применяются при запуске/переподключении туннеля. После изменения профиля отключите и снова подключите клиент.
+Android-приложение использует системный VpnService и TUN-интерфейс, а нативные библиотеки собираются под несколько ABI. Для выпуска обновлений поверх установленной production-версии важна совместимая подпись APK. Сборка CI может завершиться успешно, даже если публикация релиза отдельно не прошла — в таком случае APK ищите в артефактах запуска.
 
-## Как устроен проект
+## 🧱 Структура репозитория
 
-```text
-NeoTUN-Client/
-├── android/          Android-приложение, UI, TUN и сервисы
-├── core/             Общий Rust Core и разбор профилей
-├── xraybridge/       Сборка/интеграция Xray для Android
-├── windows/          Windows WPF Desktop-клиент
-├── .github/workflows CI-сборки Android и Windows
-└── DESIGN_SYSTEM.md  Общие токены интерфейса
-```
+    NeoTUN-Client/
+    ├── android/                  Android UI, VPN-сервис и интеграция движков
+    ├── core/                     Общий Rust Core
+    ├── xraybridge/               Интеграция Xray для Android
+    ├── windows/NeoTUN.Windows/   Windows WPF-клиент
+    ├── installer/                Сценарий сборки Windows Setup EXE
+    ├── .github/workflows/        CI для Android и Windows
+    └── DESIGN_SYSTEM.md          Общие дизайн-токены
 
-Общий поток Android-подключения:
-
-```text
-Ссылка / подписка
-       ↓
-Rust Core: разбор профиля
-       ↓
-Xray или sing-box
-       ↓
-Android VpnService / TUN
-       ↓
-DNS и пользовательский TCP/UDP-трафик
-```
-
-Windows использует WPF UI и общий Rust Core. Windows TUN, жизненный цикл движков, маршруты и DNS всё ещё требуют полноценной проверки на реальном ПК, включая отключение, повторное подключение, сон/пробуждение и восстановление сетевого состояния.
-
-## Сборка Android из исходников
-
-### Требования
-
-- JDK 17
-- Android SDK Platform 35
-- Android NDK r29
-- Rust stable и `cargo-ndk`
-- Go stable для сборки Xray bridge
-- Gradle 8.10.2
-
-Установите Android-цели Rust:
-
-```bash
-rustup target add aarch64-linux-android
-rustup target add armv7-linux-androideabi
-rustup target add x86_64-linux-android
-cargo install cargo-ndk --locked
-```
-
-Соберите Rust Core:
-
-```bash
-cd core
-cargo ndk \
-  -t arm64-v8a \
-  -t armeabi-v7a \
-  -t x86_64 \
-  -o ../android/app/src/main/jniLibs \
-  build --release
-```
-
-Сборка APK также требует подготовленных нативных библиотек Xray bridge. CI выполняет этот шаг автоматически. После подготовки библиотек выполните:
-
-```bash
-cd android
-gradle assembleRelease --no-daemon --parallel --build-cache
-```
-
-## Сборка Windows из исходников
+## 🛠️ Сборка Windows из исходников
 
 ### Требования
 
 - Windows x64
 - .NET 8 SDK
-- Rust stable с target `x86_64-pc-windows-msvc`
+- Rust stable и target x86_64-pc-windows-msvc
 - Visual Studio Build Tools с C++ workload
+- Inno Setup 6 для создания установщика
 
-```powershell
-rustup target add x86_64-pc-windows-msvc
-cargo test --manifest-path core/Cargo.toml
-cargo build --manifest-path core/Cargo.toml --release --target x86_64-pc-windows-msvc
-dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj
-dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
-```
+### Сборка приложения
 
-Этот набор команд собирает UI и Rust Core. Для готового дистрибутива дополнительно требуются сетевые runtime-компоненты, которые подготавливает Windows workflow.
+Запустите в PowerShell из корня репозитория:
 
-## GitHub Actions и подпись Android
+    rustup target add x86_64-pc-windows-msvc
+    cargo test --manifest-path core/Cargo.toml
+    cargo build --manifest-path core/Cargo.toml --release --target x86_64-pc-windows-msvc
+    dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj
+    dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
 
-Для production-сборки Android workflow ожидает следующие Secrets:
+Для полноценного дистрибутива также нужно поместить neotun_core.dll, sing-box.exe, xray.exe, wintun.dll и сопровождающие файлы в папку приложения. Затем установите Inno Setup 6 и выполните в PowerShell:
 
-```text
-NEOTUN_KEYSTORE_BASE64
-NEOTUN_KEYSTORE_PASSWORD
-NEOTUN_KEY_ALIAS
-NEOTUN_KEY_PASSWORD
-```
+    & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" "installer/NeoTUN-Windows.iss"
 
-Не коммитьте keystore, пароли или приватные ключи в репозиторий. При выпуске обновления Android package должен иметь тот же application ID и совместимую подпись, что и установленная версия.
+Готовый установщик появится по пути dist/NeoTUN-Setup-x64.exe.
 
-Windows workflow публикует архив только после успешной сборки приложения, размещения сетевых компонентов и проверки состава архива. Если шаг падает, скачиваемый дистрибутив не публикуется.
+## 🤖 Сборка Android из исходников
 
-## Диагностика
+Основные инструменты CI:
 
-Если клиент показывает подключение, но интернет не работает:
+- JDK 17
+- Android SDK и NDK
+- Rust stable и cargo-ndk
+- Go для Xray bridge
+- Gradle
 
-1. Проверьте, что профиль импортирован и конфигурация движка принята без ошибок.
-2. Убедитесь, что TUN создан и системный значок VPN появился.
-3. Проверьте в журнале DNS: должны быть видны запросы и ответы, а не только попытки подключения.
-4. Убедитесь, что реальные TCP- и UDP-соединения доходят до нужного outbound.
-5. Проверьте сайты и приложения, а не только статус «Подключено».
-6. Нажмите «Отключить» и проверьте, что VPN исчез и трафик восстановился через обычную сеть.
-7. После изменения DNS или правил маршрутизации переподключитесь и повторите проверку.
+CI workflow автоматизирует подготовку нативных компонентов, тестирование Rust Core, сборку APK и загрузку артефактов. Для production-подписи используются секреты GitHub Actions; приватный keystore и пароли нельзя коммитить в репозиторий.
 
-Перед отправкой диагностического журнала удаляйте адреса серверов, UUID, пароли, токены подписок и другие секреты.
+## 🧪 Проверка и диагностика
 
-## Текущая версия
+Если приложение показывает состояние «Подключено», но сайты не открываются:
 
-- **Android в исходниках `main`:** 0.8.1
-- **Android versionCode:** 61
-- **Последний опубликованный релиз:** сверяйте с [GitHub Releases](https://github.com/Kolya-YT/NeoTUN-Client/releases); версия исходников может опережать публикацию.
-- **Android SDK:** minSdk 26, targetSdk 35
-- **sing-box Android dependency:** 1.14.1
-- **Windows:** экспериментальная WPF Desktop-версия; архив #93 успешно собран, но работу TUN и реальный TCP/UDP-трафик ещё нужно проверить на ПК
-- **Статус:** активная разработка; готовность сетевого трафика необходимо подтверждать на реальных устройствах
+1. Проверьте, что конфигурация принята сетевым движком без ошибок.
+2. Убедитесь, что DNS-запросы получают ответы.
+3. Проверьте реальные TCP- и UDP-соединения, а не только статус подключения.
+4. Проверьте несколько сайтов и приложений.
+5. Отключите соединение и убедитесь, что системный VPN-индикатор исчез, а обычная сеть восстановилась.
+6. Повторите тест после сна/пробуждения устройства и переподключения.
 
-## Участие в разработке
+Перед отправкой журнала диагностики удалите UUID, пароли, токены подписок и другие секретные данные.
 
-Перед отправкой изменений запускайте доступные тесты Rust и проверяйте соответствующий GitHub Actions workflow. Изменения маршрутизации должны сохранять приоритет DNS hijack, не ломать пользовательский порядок правил и не подменять неподдерживаемые геотокены обычными доменами.
+## 📦 Версии и релизы
 
-- [Исходный код](https://github.com/Kolya-YT/NeoTUN-Client)
-- [Последние релизы](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)
-- [Android Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml)
-- [Windows Actions](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml)
-- [Система дизайна](DESIGN_SYSTEM.md)
-- [Лицензия](LICENSE)
+- **Последний опубликованный релиз:** [GitHub Releases](https://github.com/Kolya-YT/NeoTUN-Client/releases/latest)
+- **Android CI:** [сборки и логи](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/android.yml)
+- **Windows CI:** [сборки и логи](https://github.com/Kolya-YT/NeoTUN-Client/actions/workflows/desktop.yml)
+- **Исходный код:** [ветка main](https://github.com/Kolya-YT/NeoTUN-Client/tree/main)
+- **Дизайн-система:** [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)
+- **Обсуждение проблем:** [GitHub Issues](https://github.com/Kolya-YT/NeoTUN-Client/issues)
+
+Версия в main может быть новее последнего опубликованного релиза. Отдельно проверяйте результат CI: **зелёная сборка подтверждает успешную компиляцию и проверки workflow, но не заменяет тест реального сетевого трафика на устройстве.**
+
+---
+
+<div align="center">
+
+**NeoTUN — активная разработка.**  
+Спасибо, что тестируете клиент и сообщаете об ошибках.
+
+</div>

@@ -10,6 +10,8 @@ on:
       - "android/**"
       - "xraybridge/**"
       - ".github/workflows/desktop.yml"
+      - "installer/**"
+      - "README.md"
       - "DESIGN_SYSTEM.md"
   workflow_dispatch:
     inputs:
@@ -139,39 +141,59 @@ jobs:
           & (Join-Path $runtime "sing-box.exe") version
           & (Join-Path $runtime "xray.exe") version
 
-      - name: Verify Windows distribution and archive
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build and verify Windows installer EXE
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          if (!(Test-Path "dist/NeoTUN-Windows/NeoTUN.exe")) { throw "Published desktop executable not found" }
-          if (!(Test-Path "dist/NeoTUN-Windows/neotun_core.dll")) { throw "Shared Rust core DLL missing" }
-          Compress-Archive -Path "dist/NeoTUN-Windows/*" -DestinationPath "dist/NeoTUN-Windows-x64.zip" -Force
-          Get-ChildItem "dist/NeoTUN-Windows" -Recurse | Format-Table FullName, Length
-          Get-Item "dist/NeoTUN-Windows-x64.zip" | Format-Table Name, Length
+          $app = Resolve-Path "dist/NeoTUN-Windows"
+          $required = @(
+            "NeoTUN.exe",
+            "neotun_core.dll",
+            "runtime/sing-box.exe",
+            "runtime/xray.exe",
+            "runtime/wintun.dll"
+          )
+          foreach ($file in $required) {
+            if (!(Test-Path (Join-Path $app $file))) { throw "Required Windows runtime file missing: $file" }
+          }
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) { throw "Inno Setup compiler not found at $compiler" }
+          & $compiler "/DAppVersion=0.1.0" "installer/NeoTUN-Windows.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+          $setup = "dist/NeoTUN-Setup-x64.exe"
+          if (!(Test-Path $setup)) { throw "Installer EXE was not produced" }
+          if ((Get-Item $setup).Length -lt 10MB) { throw "Installer is unexpectedly small; runtime payload may be missing" }
+          Get-Item $setup | Format-Table Name, Length
+          Get-FileHash $setup -Algorithm SHA256 | Format-List
 
-      - name: Upload Windows build artifact
+      - name: Upload Windows installer EXE
         uses: actions/upload-artifact@v4
         with:
-          name: NeoTUN-Windows-x64
-          path: dist/NeoTUN-Windows-x64.zip
+          name: NeoTUN-Setup-x64
+          path: dist/NeoTUN-Setup-x64.exe
+          if-no-files-found: error
           retention-days: 30
 
-      - name: Attach Windows package to a manually selected release
+      - name: Attach Windows installer to a manually selected release
         if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release_tag }}
-          files: dist/NeoTUN-Windows-x64.zip
+          files: dist/NeoTUN-Setup-x64.exe
           fail_on_unmatched_files: true
           make_latest: false
           generate_release_notes: false
 
-      - name: Attach Windows package when a version tag is pushed
+      - name: Attach Windows installer when a version tag is pushed
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
-          files: dist/NeoTUN-Windows-x64.zip
+          files: dist/NeoTUN-Setup-x64.exe
           fail_on_unmatched_files: true
           make_latest: false
           generate_release_notes: false
