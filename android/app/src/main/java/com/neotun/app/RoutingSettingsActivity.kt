@@ -92,7 +92,7 @@ class RoutingSettingsActivity : Activity() {
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(12), dp(20), dp(28))
+            setPadding(dp(16), dp(10), dp(16), dp(24))
         }
 
         val header = LinearLayout(this).apply {
@@ -410,16 +410,16 @@ class RoutingSettingsActivity : Activity() {
         }
     }
 
-    private fun sectionTitle(label: String) = text(label, 11, NeoTunDesign.BRAND_VIOLET, true).apply {
-        setPadding(dp(2), dp(2), dp(2), dp(9))
+    private fun sectionTitle(label: String) = text(label, 10, NeoTunDesign.BRAND_VIOLET_LIGHT, true).apply {
+        setPadding(dp(2), dp(3), dp(2), dp(8))
     }
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
+        setPadding(dp(14), dp(12), dp(14), dp(12))
         background = GradientDrawable().apply {
             setColor(NeoTunDesign.SURFACE)
-            cornerRadius = dp(18).toFloat()
+            cornerRadius = dp(16).toFloat()
             setStroke(dp(1), NeoTunDesign.BORDER)
         }
     }
@@ -444,13 +444,20 @@ class RoutingSettingsActivity : Activity() {
 
     private fun iconButton(label: String, action: () -> Unit) = TextView(this).apply {
         text = label
-        textSize = 28f
+        textSize = 24f
         gravity = Gravity.CENTER
         setTextColor(NeoTunDesign.TEXT_PRIMARY)
         background = GradientDrawable().apply {
             setColor(NeoTunDesign.SURFACE_RAISED)
-            cornerRadius = dp(14).toFloat()
+            cornerRadius = dp(13).toFloat()
             setStroke(dp(1), NeoTunDesign.BORDER)
+        }
+        setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.94f).scaleY(0.94f).setDuration(70L).start()
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(125L).start()
+            }
+            false
         }
         setOnClickListener { action() }
     }

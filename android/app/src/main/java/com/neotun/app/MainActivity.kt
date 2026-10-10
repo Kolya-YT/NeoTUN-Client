@@ -93,7 +93,7 @@ class MainActivity : Activity() {
         shellRoot = root
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(20))
+            setPadding(dp(18), dp(12), dp(18), dp(18))
             clipChildren = true
             clipToPadding = true
         }
@@ -145,9 +145,11 @@ class MainActivity : Activity() {
             Screen.SETTINGS -> renderSettings()
         }
         renderNavigation()
+        content.animate().cancel()
         content.alpha = 0f
-        content.translationY = dp(8).toFloat()
-        content.animate().alpha(1f).translationY(0f).setDuration(220L).start()
+        content.translationY = dp(5).toFloat()
+        content.animate().alpha(1f).translationY(0f).setDuration(180L)
+            .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
     }
 
     private fun renderHome() {
@@ -169,7 +171,7 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(4), dp(2), dp(12))
+            setPadding(dp(1), dp(3), dp(1), dp(16))
         }
         val logo = FrameLayout(this).apply {
             background = GradientDrawable(
@@ -183,8 +185,8 @@ class MainActivity : Activity() {
             setMargins(0, 0, dp(10), 0)
         })
         val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brand.addView(txt("NeoTUN", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        brand.addView(txt("Подключение и серверы", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
+        brand.addView(txt("NeoTUN", 20f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
+        brand.addView(txt("Ваше соединение", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 3))
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(iconButton("＋", 25) { showImportMenu() }.apply {
             background = rounded(NeoTunDesign.BRAND_SOFT, 15, Color.rgb(54, 58, 83), 1)
@@ -220,13 +222,13 @@ class MainActivity : Activity() {
         statusRow.addView(networkState)
         connection.addView(statusRow)
 
-        connection.addView(txt("Подключение", 19f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+        connection.addView(txt(if (running) "Вы в сети" else "Всё готово", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 12))
         connection.addView(txt(
-            selected?.let { protocolLabel(it) } ?: "Добавьте сервер или ссылку подписки",
-            11f, NeoTunDesign.TEXT_SECONDARY
+            selected?.let { "${protocolLabel(it)}  ·  ${it.name}" } ?: "Добавьте сервер или ссылку подписки",
+            11.5f, NeoTunDesign.TEXT_SECONDARY
         ).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -275,7 +277,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        trafficHeader.addView(txt("Статистика", 15f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+        trafficHeader.addView(txt("Трафик за сессию", 15f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
         trafficHeader.addView(txt("LIVE", 9f, Color.rgb(107, 224, 169), Typeface.BOLD).apply {
             setPadding(dp(8), dp(5), dp(8), dp(5))
@@ -306,15 +308,15 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(1), dp(44)))
         metrics.addView(speedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
         trafficCard.addView(metrics)
-        content.addView(trafficCard, margins(bottom = 18))
+        content.addView(trafficCard, margins(bottom = 22))
 
         val sectionTitle = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        sectionTitle.addView(txt("Текущий сервер", 17f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+        sectionTitle.addView(txt("Выбранный сервер", 16f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        sectionTitle.addView(txt("Все серверы  ›", 11f, Color.rgb(174, 161, 255), Typeface.BOLD).apply {
+        sectionTitle.addView(txt("Все серверы  ›", 11f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD).apply {
             setOnClickListener { showScreen(Screen.PROFILES) }
         })
         content.addView(sectionTitle, margins(bottom = 9))
@@ -340,7 +342,7 @@ class MainActivity : Activity() {
                 setOnClickListener { showScreen(Screen.PROFILES) }
             }
             val serverIcon = FrameLayout(this).apply {
-                background = rounded(Color.rgb(34, 32, 59), 14)
+                background = rounded(NeoTunDesign.BRAND_SOFT, 14)
                 addView(txt(countryFlag(selected.name), 23f, NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER),
                     FrameLayout.LayoutParams(-1, -1))
             }
@@ -352,7 +354,7 @@ class MainActivity : Activity() {
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
-            serverInfo.addView(txt(maskUri(selected.uri), 10.5f, Color.rgb(139, 146, 168)).apply {
+            serverInfo.addView(txt(maskUri(selected.uri), 10.5f, NeoTunDesign.TEXT_MUTED).apply {
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, margins(top = 4))
@@ -369,13 +371,13 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        item.addView(txt(icon, 18f, Color.rgb(151, 132, 255), Typeface.BOLD, Gravity.CENTER))
+        item.addView(txt(icon, 18f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER))
         val valueView = txt(value, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         item.addView(valueView, margins(top = 5))
-        item.addView(txt(label, 9f, Color.rgb(130, 137, 159), Typeface.BOLD, Gravity.CENTER).apply {
+        item.addView(txt(label, 9f, NeoTunDesign.TEXT_MUTED, Typeface.BOLD, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 4))
@@ -437,7 +439,7 @@ class MainActivity : Activity() {
 
         if (subs.isNotEmpty()) {
             val subCard = card()
-            subCard.addView(txt("ПОДПИСКИ", 10f, Color.rgb(160, 148, 255), Typeface.BOLD), margins(bottom = 5))
+            subCard.addView(txt("ПОДПИСКИ", 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD), margins(bottom = 5))
             subs.forEachIndexed { index, sub ->
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -454,11 +456,11 @@ class MainActivity : Activity() {
                     else "Ожидает первого обновления", 11f, Color.rgb(133, 139, 158)), margins(top = 4))
                 row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
-                    background = rounded(Color.rgb(29, 31, 51), 13)
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 13, NeoTunDesign.BORDER, 1)
                 }, LinearLayout.LayoutParams(dp(42), dp(42)))
                 subCard.addView(row)
                 if (index < subs.lastIndex) subCard.addView(View(this).apply {
-                    setBackgroundColor(Color.rgb(35, 39, 58))
+                    setBackgroundColor(NeoTunDesign.BORDER)
                 }, LinearLayout.LayoutParams(-1, dp(1)))
             }
             content.addView(subCard, margins(bottom = 14))
@@ -468,14 +470,14 @@ class MainActivity : Activity() {
             val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(26), dp(20), dp(26)) }
             empty.addView(txt("Пока пусто", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
             empty.addView(txt("Добавьте ссылку на сервер или подписку. NeoTUN сам распознает формат и создаст профиль.",
-                13f, Color.rgb(139, 145, 164), Gravity.CENTER).apply { maxLines = 4 },
+                13f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER).apply { maxLines = 4 },
                 margins(top = 8, bottom = 16))
             empty.addView(button("＋  Добавить подключение") { showImportMenu() })
             content.addView(empty)
             return
         }
 
-        content.addView(txt("ВСЕ ПОДКЛЮЧЕНИЯ", 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
+        content.addView(txt("ВСЕ ПОДКЛЮЧЕНИЯ", 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
             margins(start = 4, bottom = 7))
         val listCard = card().apply { setPadding(dp(8), dp(6), dp(8), dp(6)) }
         profiles.forEachIndexed { index, p ->
@@ -486,7 +488,7 @@ class MainActivity : Activity() {
             }
             listCard.addView(row)
             if (index < profiles.lastIndex) listCard.addView(View(this).apply {
-                setBackgroundColor(Color.rgb(35, 39, 58))
+                setBackgroundColor(NeoTunDesign.BORDER)
             }, LinearLayout.LayoutParams(-1, dp(1)))
         }
         content.addView(listCard, margins(bottom = 12))
@@ -509,7 +511,7 @@ class MainActivity : Activity() {
         row.addView(button("⋯  Действия") { profileActions(profile) },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
         bottomActions.addView(row)
-        bottomActions.addView(txt(profile.name, 10f, Color.rgb(137, 143, 163), Typeface.NORMAL, Gravity.CENTER).apply {
+        bottomActions.addView(txt(profile.name, 10f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 4))
@@ -520,12 +522,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(6), dp(5), dp(5), dp(5))
-            background = if (selected) rounded(Color.rgb(29, 30, 49), 13,
-                Color.rgb(73, 66, 119), 1) else ColorDrawable(Color.TRANSPARENT)
+            background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 13,
+                NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
         val iconSize = if (compact) 38 else 42
         val flag = FrameLayout(this).apply {
-            background = rounded(if (selected) Color.rgb(43, 39, 71) else Color.rgb(26, 29, 45), 11)
+            background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED, 11)
         }
         flag.addView(txt(countryFlag(profile.name), if (compact) 21f else 23f,
             NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
@@ -541,11 +543,18 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
         val detail = if (compact) maskUri(profile.uri) else protocolLabel(profile) + "  ·  " + maskUri(profile.uri)
-        info.addView(txt(detail, 10f, Color.rgb(139, 145, 164)).apply {
+        info.addView(txt(detail, 10f, NeoTunDesign.TEXT_MUTED).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+        row.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.99f).scaleY(0.99f).setDuration(70L).start()
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(125L).start()
+            }
+            false
+        }
         val pingColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -553,11 +562,11 @@ class MainActivity : Activity() {
         }
         val pingLabel = pingResults[profile.id] ?: "Пинг"
         pingColumn.addView(txt(pingLabel, 9f,
-            if (pingLabel.endsWith("мс")) Color.rgb(105, 225, 167) else Color.rgb(139, 145, 164),
+            if (pingLabel.endsWith("мс")) Color.rgb(105, 225, 167) else NeoTunDesign.TEXT_MUTED,
             Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
             LinearLayout.LayoutParams(-1, dp(15)))
         pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
-            Color.rgb(151, 132, 255), Typeface.BOLD, Gravity.CENTER).apply {
+            NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
             isClickable = true
             isFocusable = true
             contentDescription = "Проверить пинг: ${profile.name}"
@@ -662,8 +671,8 @@ class MainActivity : Activity() {
 
 
     private fun settingsSection(title: String): LinearLayout {
-        val section = card().apply { setPadding(dp(14), dp(10), dp(14), dp(8)) }
-        section.addView(txt(title, 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
+        val section = card().apply { setPadding(dp(14), dp(12), dp(14), dp(8)) }
+        section.addView(txt(title, 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
             margins(start = 2, bottom = 2))
         return section
     }
@@ -681,18 +690,25 @@ class MainActivity : Activity() {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        texts.addView(txt(summary, 11f, Color.rgb(124, 129, 147)).apply {
+        texts.addView(txt(summary, 11f, NeoTunDesign.TEXT_MUTED).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        row.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.995f).scaleY(0.995f).setDuration(65L).start()
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(120L).start()
+            }
+            false
+        }
         if (value.isNotBlank()) {
-            row.addView(txt(value, 11.5f, Color.rgb(174, 161, 255), Typeface.BOLD, Gravity.END).apply {
+            row.addView(txt(value, 11.5f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(dp(112), -2))
         }
-        row.addView(txt("›", 23f, Color.rgb(94, 99, 117), Gravity.CENTER),
+        row.addView(txt("›", 23f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER),
             LinearLayout.LayoutParams(dp(28), dp(42)))
         return row
     }
@@ -1805,7 +1821,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(48), dp(52)))
         val textBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         textBox.addView(txt(title, 24f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        textBox.addView(txt(subtitle, 12f, Color.rgb(132, 137, 155)), margins(top = 2))
+        textBox.addView(txt(subtitle, 12f, NeoTunDesign.TEXT_MUTED), margins(top = 3))
         row.addView(textBox, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(row, margins(bottom = 16))
     }
@@ -1816,7 +1832,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         setTextColor(NeoTunDesign.TEXT_PRIMARY)
         setOnClickListener { action() }
-        background = rounded(Color.TRANSPARENT, 18)
+        background = rounded(NeoTunDesign.SURFACE_RAISED, 14, NeoTunDesign.BORDER, 1)
     }
 
     private fun decodeUriValue(value: String): String {
@@ -1878,27 +1894,32 @@ class MainActivity : Activity() {
 
     private fun renderNavigation() {
         nav.removeAllViews()
-        val items = listOf("⌂" to "Главная", "▤" to "Серверы", "⚙" to "Настройки")
+        val items = listOf("⌂" to "Главная", "⇄" to "Серверы", "⚙" to "Настройки")
         items.forEachIndexed { index, pair ->
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(3), dp(3), dp(3), dp(3))
+                setPadding(dp(4), dp(5), dp(4), dp(5))
                 background = rounded(
-                    if (selected) NeoTunDesign.BRAND_SOFT else Color.TRANSPARENT,
-                    13,
-                    if (selected) Color.rgb(69, 59, 113) else null,
+                    if (selected) NeoTunDesign.NAV_SELECTED else Color.TRANSPARENT,
+                    14,
+                    if (selected) NeoTunDesign.BORDER_ACCENT else null,
                     if (selected) 1 else 0
                 )
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { showScreen(target) }
+                setOnClickListener {
+                    animate().scaleX(0.96f).scaleY(0.96f).setDuration(65L).withEndAction {
+                        animate().scaleX(1f).scaleY(1f).setDuration(110L).start()
+                    }.start()
+                    showScreen(target)
+                }
             }
             item.addView(txt(
                 pair.first, 19f,
-                if (selected) Color.rgb(190, 178, 255) else NeoTunDesign.TEXT_MUTED,
+                if (selected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER
             ))
             item.addView(txt(
@@ -1916,7 +1937,7 @@ class MainActivity : Activity() {
     private fun header(title: String, subtitle: String) {
         content.addView(txt(
             title,
-            if (resources.displayMetrics.widthPixels < dp(360)) 22f else 25f,
+            if (resources.displayMetrics.widthPixels < dp(360)) 22f else 24f,
             NeoTunDesign.TEXT_PRIMARY,
             Typeface.BOLD
         ))
@@ -1928,9 +1949,9 @@ class MainActivity : Activity() {
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = rounded(Color.rgb(17, 20, 33), 20, Color.rgb(38, 42, 64), 1)
-        elevation = dp(1).toFloat()
+        setPadding(dp(15), dp(13), dp(15), dp(13))
+        background = rounded(NeoTunDesign.SURFACE, 18, NeoTunDesign.BORDER, 1)
+        elevation = 0f
     }
 
     private fun rounded(fill: Int, radius: Int, stroke: Int? = null, strokeWidth: Int = 0): GradientDrawable =
@@ -1949,14 +1970,17 @@ class MainActivity : Activity() {
         minimumWidth = 0
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
-        setPadding(dp(8), 0, dp(8), 0)
-        background = rounded(Color.rgb(32, 35, 57), 14, Color.rgb(65, 61, 100), 1)
+        setPadding(dp(12), 0, dp(12), 0)
+        background = GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
+        ).apply { cornerRadius = dp(14).toFloat() }
         setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN ->
-                    view.animate().scaleX(0.985f).scaleY(0.985f).setDuration(80L).start()
+                    view.animate().scaleX(0.985f).scaleY(0.985f).setDuration(70L).start()
                 android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
-                    view.animate().scaleX(1f).scaleY(1f).setDuration(120L).start()
+                    view.animate().scaleX(1f).scaleY(1f).setDuration(125L).start()
             }
             false
         }
@@ -1971,7 +1995,7 @@ class MainActivity : Activity() {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
-        addView(txt(label, 10f, Color.rgb(130, 134, 146), textGravity = Gravity.CENTER).apply {
+        addView(txt(label, 10f, NeoTunDesign.TEXT_MUTED, textGravity = Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 2))
