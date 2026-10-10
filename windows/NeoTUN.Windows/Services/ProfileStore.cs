@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 using NeoTUN.Windows.Models;
 
 namespace NeoTUN.Windows.Services;
