@@ -10,6 +10,14 @@ on:
       - "xraybridge/**"
       - ".github/workflows/android.yml"
       - "DESIGN_SYSTEM.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "core/**"
+      - "xraybridge/**"
+      - ".github/workflows/android.yml"
+      - "DESIGN_SYSTEM.md"
   workflow_dispatch:
 
 permissions:

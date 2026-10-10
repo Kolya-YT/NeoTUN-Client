@@ -1,70 +1,37 @@
-# NeoTUN Client — Shared Design System
+# NeoTUN Client — Design System
 
-This file is the source of truth for Android, Windows, and future iOS clients. Native layout can adapt to the device; visual identity and semantic meaning must stay consistent.
+A compact dark interface for a fast, dependable connection client. Keep the violet-to-blue identity, use green for an active connection, and reserve red for errors.
 
-## Palette
-- Background: #070910
-- Navigation: #0C0F19
-- Surface: #121521
-- Raised surface: #1C2033
-- Input surface: #0D111D
-- Border: #2A2E44
-- Primary brand violet: #8769FF
-- Brand blue: #5B5BF1
-- Accent surface: #23203B
-- Primary text: #FFFFFF
-- Secondary text: #A5ABC2
-- Muted text: #8F96AD
-- Connected/success: #5FE6A6 on #12372E
-- Error/destructive: #FFB1C0 on #311B27
+## Visual tokens
+- Background #080A12; navigation #0D101B; surface #131725; raised surface #1B2031.
+- Input #0E1220; border #292F45; accent border #49416F.
+- Brand violet #8068FF; brand blue #5B68F2; selected navigation #211D38.
+- Primary text #F7F8FF; secondary #B1B8CD; muted #858EA8.
+- Connected #65E7B0 on #12362F; error #FFB5C3 on #321C29.
 
-## Typography
-- Brand/title: 23–28sp/px, bold.
-- Section headings: 17–18sp/px, semibold.
-- Body and buttons: 13–15sp/px.
-- Metadata: 9–11sp/px; uppercase sparingly.
+## Layout and typography
+- Use an 8dp spacing rhythm; common gaps are 8, 12, 16 and 24dp.
+- Cards use 18dp corners and a subtle border; avoid heavy shadows and nested cards.
+- Keep screen headings compact and the primary action visible without scrolling on common phone sizes.
+- Server names and endpoint details remain single-line ellipsized.
+- Settings rows use a clear title, short explanation and concise current value.
+- Bottom navigation uses three equal targets and respects Android system insets.
+- Narrow screens must not horizontally overflow or clip primary actions.
 
-## Geometry
-- Base spacing: 8 units; common gaps 8, 12, 16, 18, 24.
-- Card radius: 18–25 units; controls: 12–17 units.
-- Prefer layered surfaces and subtle borders over heavy shadows.
-- Disconnected primary action uses violet-to-blue; connected uses green.
-- Phone layouts stack vertically; desktop layouts may use columns. No overflow or clipped primary actions.
+## Motion and feedback
+- Screen changes use a short fade and vertical settle; buttons provide restrained press feedback.
+- Never delay connection state changes with animation.
+- Live statistics update in place rather than rebuilding the screen.
 
-## Shared information architecture
-1. Home / connection status / selected server
-2. Live traffic statistics: received, sent, speed
-3. Server profiles and subscriptions
-4. Routing profiles and settings
-5. Diagnostics/logs and app updates
+## Information architecture
+1. Home: connection state, primary action, session traffic and selected server.
+2. Servers: profiles and subscriptions, selection, ping and profile actions.
+3. Settings: routing, DNS, MTU, IPv6, subscriptions, diagnostics and updates.
 
-## Implementation
-Android tokens: `android/app/src/main/java/com/neotun/app/NeoTunDesign.kt`.
-Windows token map: `windows/NeoTUN.Windows/App.xaml`.
-Update both token maps and this document when visual tokens change. Platform-specific controls are fine, but don't invent platform-specific colors, labels, or status meanings.
-
-
-## Functional UI contract
-- Routing editor uses the same `NeoTunDesign` palette and spacing scale as the main Android screens.
-- Every visible routing control must persist to the active profile and be consumed by the relevant engine adapter.
-- GeoSite/GeoIP refresh runs off the main thread, validates HTTPS sources, and preserves the last working files if a download fails.
-- DNS split routing is opt-in: the domestic DNS is only selected for the profile's explicit `DomesticDNSDomains` list. Do not invent a domain list or silently rewrite imported profiles.
-- Hide controls whose runtime behavior is not implemented; a decorative control is a bug, not a placeholder.
-
-
-## Android quick access
-- Provide a compact home-screen widget with the current connection state and a single tap action.
-- Provide a Quick Settings tile for quick connect/disconnect; delegate to the main activity so VPN permission and profile validation are preserved.
-- Keep widget and tile status derived from the same persisted connection state as the main screen. Do not create a separate tunnel lifecycle.
-
-## Motion
-- Screen changes use a short fade and vertical settle; buttons use a subtle press scale.
-- Motion should communicate state and touch feedback, not delay connecting or hide errors.
-- Avoid continuous decorative animation that wastes battery or competes with live traffic values.
-
-## Android layout rules
-- Keep the home brand header compact; do not use a large marketing slogan above the connection state.
-- The primary connect/disconnect action is the visual focal point and must remain reachable on narrow screens.
-- Use compact, equal-height navigation targets; show the selected label and keep inactive items visually quiet.
-- Server names and endpoint summaries are single-line ellipsized; never let long names expand cards horizontally.
-- Keep typography and spacing consistent with the shared palette; avoid oversized page titles and stacked decorative cards.
+## Functional contract
+- UI reflects the actual VPN service state; a button press alone is not proof of connection.
+- Widget and Quick Settings tile delegate to the same connection lifecycle.
+- Hide controls whose runtime behavior is not implemented.
+- Routing controls persist to the active profile and are consumed by the engine adapter.
+- DNS, MTU and IPv6 changes communicate when reconnecting is required.
+- Keep Android tokens in `NeoTunDesign.kt` and Windows equivalents in `windows/NeoTUN.Windows/App.xaml` aligned.
