@@ -15,6 +15,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.NeoTUN">
+        <activity android:name=".RoutingSettingsActivity" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

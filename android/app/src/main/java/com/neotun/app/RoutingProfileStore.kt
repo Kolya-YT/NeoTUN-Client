@@ -159,7 +159,7 @@ class RoutingProfileStore(context: Context) {
 
 /** Builds per-engine route rules from the same normalized profile. */
 object NeoTunRoutingAdapter {
-    private val defaultOrder = listOf("block", "direct", "proxy")
+    private val defaultOrder = listOf("block", "proxy", "direct")
 
     /**
      * INCY/Happ profiles can specify RouteOrder as a string (for example,
