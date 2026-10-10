@@ -104,7 +104,22 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     override fun serviceStop() {
-        NeoTunDiagnostics.log(this, "sing-box: libbox requested serviceStop; running=" + running)
+        val wasRunning = running
+        NeoTunDiagnostics.log(this, "sing-box: libbox requested serviceStop; running=" + wasRunning)
+        val message = if (wasRunning) "sing-box остановил соединение" else
+            "sing-box остановил сервис во время запуска. Проверьте конфигурацию и логи libbox."
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putString(KEY_ERROR, message)
+            .putBoolean(KEY_RUNNING, false)
+            .apply()
+        NeoTunDiagnostics.error(this, message)
+        running = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         stopSelf()
     }
     override fun serviceReload() {
