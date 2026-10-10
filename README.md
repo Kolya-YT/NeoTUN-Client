@@ -210,3 +210,8 @@ NEOTUN_KEY_PASSWORD
 - Загрузки sing-box rule-set направляются через `direct`, чтобы не зависеть от прокси-маршрутизации при запуске туннеля.
 - Исправлено соответствие `geosite:epicgames` и алиаса `geosite:epic-games` фактическому файлу `epicgames.srs`.
 - Список поддерживаемых GeoSite-наборов приведён к опубликованным SRS-файлам проекта; неизвестные токены остаются явно неподдерживаемыми.
+
+
+### 0.8.1
+- Routing editor: constrain the order selector row to a stable height and keep the save action clear of Android system bars/keyboard.
+- Windows CI: locate the built Rust core DLL from Cargo's actual output directory before staging the desktop runtime.

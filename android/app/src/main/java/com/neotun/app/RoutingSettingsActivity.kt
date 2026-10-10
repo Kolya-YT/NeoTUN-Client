@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.WindowManager
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -34,6 +35,7 @@ class RoutingSettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         window.statusBarColor = NeoTunDesign.BACKGROUND
         window.navigationBarColor = NeoTunDesign.NAVIGATION
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -150,6 +152,8 @@ class RoutingSettingsActivity : Activity() {
         val orderRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(52)
+            layoutParams = LinearLayout.LayoutParams(-1, dp(52))
             addView(orderLabel, LinearLayout.LayoutParams(0, -2, 1f))
             addView(
                 text("⌄", 22, NeoTunDesign.TEXT_SECONDARY),
@@ -218,14 +222,15 @@ class RoutingSettingsActivity : Activity() {
             NeoTunDesign.TEXT_MUTED, false).apply { gravity = Gravity.CENTER },
             params(top = 10))
 
-        scroll.clipToPadding = false
+        scroll.clipToPadding = true
         scroll.addView(body)
         setContentView(scroll)
         // Android 15 enforces edge-to-edge for targetSdk 35. Keep content below
         // the status bar and make the final action scroll fully above navigation.
         ViewCompat.setOnApplyWindowInsetsListener(scroll) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            body.setPadding(dp(20), dp(12) + bars.top, dp(20), dp(28) + bars.bottom)
+            body.setPadding(dp(20), dp(12), dp(20), dp(28))
+            scroll.setPadding(0, bars.top, 0, bars.bottom)
             insets
         }
         ViewCompat.requestApplyInsets(scroll)

@@ -65,7 +65,21 @@ jobs:
           $ErrorActionPreference = "Stop"
           $runtime = Join-Path (Get-Location) "dist/NeoTUN-Windows/runtime"
           New-Item -ItemType Directory -Force -Path $runtime | Out-Null
-          Copy-Item "core/target/x86_64-pc-windows-msvc/release/neotun_core.dll" "dist/NeoTUN-Windows/neotun_core.dll"
+          # Cargo's target directory can be affected by workspace-level Cargo config.
+          # Locate the exact built DLL instead of assuming a fixed target path.
+          $coreDll = Get-ChildItem "core" -Filter "neotun_core.dll" -File -Recurse |
+            Where-Object { $_.FullName -match "[\\\\/]x86_64-pc-windows-msvc[\\\\/]release[\\\\/]" } |
+            Select-Object -First 1
+          if (!$coreDll) {
+            $coreDll = Get-ChildItem "core" -Filter "neotun_core.dll" -File -Recurse |
+              Where-Object { $_.FullName -match "[\\\\/]release[\\\\/]" } |
+              Select-Object -First 1
+          }
+          if (!$coreDll) {
+            throw "neotun_core.dll was not produced by cargo build. Search paths: $(Get-ChildItem core -Directory | Select-Object -ExpandProperty FullName -Join ', ')"
+          }
+          Write-Host "Staging shared core from $($coreDll.FullName)"
+          Copy-Item $coreDll.FullName "dist/NeoTUN-Windows/neotun_core.dll"
 
           $temp = Join-Path $env:RUNNER_TEMP "neotun-engines"
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
