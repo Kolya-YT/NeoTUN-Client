@@ -102,7 +102,10 @@ class RoutingSettingsActivity : Activity() {
         header.addView(iconButton("‹") { finish() }, LinearLayout.LayoutParams(dp(44), dp(44)))
         val titleStack = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titleStack.addView(text("Маршрутизация", 22, NeoTunDesign.TEXT_PRIMARY, true))
-        titleStack.addView(text(profileName, 12, NeoTunDesign.TEXT_SECONDARY), params(top = 3))
+        titleStack.addView(text(profileName, 12, NeoTunDesign.TEXT_SECONDARY).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, params(top = 3))
         header.addView(titleStack, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(10) })
         body.addView(header, params(bottom = 14))
 
@@ -160,6 +163,15 @@ class RoutingSettingsActivity : Activity() {
                 LinearLayout.LayoutParams(dp(28), -2).apply { gravity = Gravity.CENTER_VERTICAL }
             )
             isClickable = true
+            isFocusable = true
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(NeoTunDesign.BRAND_SOFT),
+                android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),
+                GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    cornerRadius = dp(10).toFloat()
+                }
+            )
             setOnClickListener { chooseOrder() }
         }
         orderCard.addView(orderRow)
@@ -253,7 +265,16 @@ class RoutingSettingsActivity : Activity() {
             text = "Изменить  ›"
             textSize = 12f
             setTextColor(NeoTunDesign.BRAND_VIOLET)
-            setPadding(dp(8), dp(10), dp(2), dp(10))
+            setPadding(dp(10), dp(10), dp(8), dp(10))
+            isFocusable = true
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(NeoTunDesign.BRAND_SOFT),
+                android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),
+                GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    cornerRadius = dp(9).toFloat()
+                }
+            )
             setOnClickListener { editList(key, label, hint) }
         }
         row.addView(edit)
