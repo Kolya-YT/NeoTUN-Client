@@ -2,17 +2,21 @@ name: Android APK
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
     tags: ["v*"]
+    paths:
+      - "android/**"
+      - "core/**"
+      - "xraybridge/**"
+      - ".github/workflows/android.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-${{ github.ref }}
-  # Let the current build finish; a newer push must not cancel native compilation.
-  cancel-in-progress: false
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -144,7 +148,7 @@ jobs:
 
       - name: Read app version
         id: version
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: android
         run: |
           VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
@@ -154,7 +158,7 @@ jobs:
           echo "Release version: $VERSION ($CODE)"
 
       - name: Publish GitHub Release from main
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version }}
