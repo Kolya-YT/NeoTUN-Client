@@ -93,7 +93,7 @@ class MainActivity : Activity() {
         shellRoot = root
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(20))
+            setPadding(dp(18), dp(12), dp(18), dp(18))
             clipChildren = true
             clipToPadding = true
         }
@@ -169,7 +169,7 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(4), dp(2), dp(12))
+            setPadding(dp(1), dp(3), dp(1), dp(16))
         }
         val logo = FrameLayout(this).apply {
             background = GradientDrawable(
@@ -183,8 +183,8 @@ class MainActivity : Activity() {
             setMargins(0, 0, dp(10), 0)
         })
         val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brand.addView(txt("NeoTUN", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        brand.addView(txt("Подключение и серверы", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
+        brand.addView(txt("NeoTUN", 20f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
+        brand.addView(txt("Ваше соединение", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 3))
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(iconButton("＋", 25) { showImportMenu() }.apply {
             background = rounded(NeoTunDesign.BRAND_SOFT, 15, Color.rgb(54, 58, 83), 1)
@@ -220,13 +220,13 @@ class MainActivity : Activity() {
         statusRow.addView(networkState)
         connection.addView(statusRow)
 
-        connection.addView(txt("Подключение", 19f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+        connection.addView(txt(if (running) "Вы в сети" else "Всё готово", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 12))
         connection.addView(txt(
-            selected?.let { protocolLabel(it) } ?: "Добавьте сервер или ссылку подписки",
-            11f, NeoTunDesign.TEXT_SECONDARY
+            selected?.let { "${protocolLabel(it)}  ·  ${it.name}" } ?: "Добавьте сервер или ссылку подписки",
+            11.5f, NeoTunDesign.TEXT_SECONDARY
         ).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -275,7 +275,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        trafficHeader.addView(txt("Статистика", 15f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+        trafficHeader.addView(txt("Трафик за сессию", 15f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
         trafficHeader.addView(txt("LIVE", 9f, Color.rgb(107, 224, 169), Typeface.BOLD).apply {
             setPadding(dp(8), dp(5), dp(8), dp(5))
@@ -306,13 +306,13 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(1), dp(44)))
         metrics.addView(speedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
         trafficCard.addView(metrics)
-        content.addView(trafficCard, margins(bottom = 18))
+        content.addView(trafficCard, margins(bottom = 22))
 
         val sectionTitle = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        sectionTitle.addView(txt("Текущий сервер", 17f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+        sectionTitle.addView(txt("Выбранный сервер", 16f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
         sectionTitle.addView(txt("Все серверы  ›", 11f, Color.rgb(174, 161, 255), Typeface.BOLD).apply {
             setOnClickListener { showScreen(Screen.PROFILES) }
@@ -340,7 +340,7 @@ class MainActivity : Activity() {
                 setOnClickListener { showScreen(Screen.PROFILES) }
             }
             val serverIcon = FrameLayout(this).apply {
-                background = rounded(Color.rgb(34, 32, 59), 14)
+                background = rounded(NeoTunDesign.BRAND_SOFT, 14)
                 addView(txt(countryFlag(selected.name), 23f, NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER),
                     FrameLayout.LayoutParams(-1, -1))
             }
@@ -369,7 +369,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        item.addView(txt(icon, 18f, Color.rgb(151, 132, 255), Typeface.BOLD, Gravity.CENTER))
+        item.addView(txt(icon, 18f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER))
         val valueView = txt(value, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -663,7 +663,7 @@ class MainActivity : Activity() {
 
     private fun settingsSection(title: String): LinearLayout {
         val section = card().apply { setPadding(dp(14), dp(10), dp(14), dp(8)) }
-        section.addView(txt(title, 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
+        section.addView(txt(title, 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
             margins(start = 2, bottom = 2))
         return section
     }
@@ -1885,11 +1885,11 @@ class MainActivity : Activity() {
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(3), dp(3), dp(3), dp(3))
+                setPadding(dp(4), dp(5), dp(4), dp(5))
                 background = rounded(
-                    if (selected) NeoTunDesign.BRAND_SOFT else Color.TRANSPARENT,
-                    13,
-                    if (selected) Color.rgb(69, 59, 113) else null,
+                    if (selected) NeoTunDesign.NAV_SELECTED else Color.TRANSPARENT,
+                    14,
+                    if (selected) NeoTunDesign.BORDER_ACCENT else null,
                     if (selected) 1 else 0
                 )
                 isClickable = true
@@ -1898,7 +1898,7 @@ class MainActivity : Activity() {
             }
             item.addView(txt(
                 pair.first, 19f,
-                if (selected) Color.rgb(190, 178, 255) else NeoTunDesign.TEXT_MUTED,
+                if (selected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER
             ))
             item.addView(txt(
@@ -1928,9 +1928,9 @@ class MainActivity : Activity() {
 
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = rounded(Color.rgb(17, 20, 33), 20, Color.rgb(38, 42, 64), 1)
-        elevation = dp(1).toFloat()
+        setPadding(dp(15), dp(13), dp(15), dp(13))
+        background = rounded(NeoTunDesign.SURFACE, 18, NeoTunDesign.BORDER, 1)
+        elevation = 0f
     }
 
     private fun rounded(fill: Int, radius: Int, stroke: Int? = null, strokeWidth: Int = 0): GradientDrawable =
@@ -1950,7 +1950,7 @@ class MainActivity : Activity() {
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(8), 0, dp(8), 0)
-        background = rounded(Color.rgb(32, 35, 57), 14, Color.rgb(65, 61, 100), 1)
+        background = rounded(NeoTunDesign.SURFACE_RAISED, 14, NeoTunDesign.BORDER_ACCENT, 1)
         setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN ->
