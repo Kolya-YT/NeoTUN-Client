@@ -13,6 +13,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import kotlin.concurrent.thread
 
 class AppUpdater(private val context: Context) {
@@ -36,7 +37,7 @@ class AppUpdater(private val context: Context) {
                 val latest = release.optString("tag_name").removePrefix("v").trim()
                 val assets = release.optJSONArray("assets")
                 val supportedAbis = Build.SUPPORTED_ABIS.toList()
-                var apk: String? = null
+                var selectedAsset: JSONObject? = null
                 if (assets != null) {
                     // Prefer the APK compiled for this device, so updates stay small.
                     for (abi in supportedAbis) {
@@ -44,27 +45,34 @@ class AppUpdater(private val context: Context) {
                         for (i in 0 until assets.length()) {
                             val asset = assets.getJSONObject(i)
                             if (asset.optString("name") == expectedName) {
-                                apk = asset.optString("browser_download_url")
+                                selectedAsset = asset
                                 break
                             }
                         }
-                        if (apk != null) break
+                        if (selectedAsset != null) break
                     }
                     // Backward compatibility with releases created before ABI-specific APKs.
-                    if (apk == null) {
+                    if (selectedAsset == null) {
                         for (i in 0 until assets.length()) {
                             val asset = assets.getJSONObject(i)
                             val name = asset.optString("name")
                             if (name.equals("app-release.apk", true) ||
                                 name.equals("NeoTUN-universal.apk", true)) {
-                                apk = asset.optString("browser_download_url")
+                                selectedAsset = asset
                                 break
                             }
                         }
                     }
                 }
-                if (latest.isBlank() || apk.isNullOrBlank()) {
-                    post(onResult, UpdateResult.Error("В последнем релизе нет APK"))
+                val apk = selectedAsset?.optString("browser_download_url").orEmpty()
+                val digest = selectedAsset?.optString("digest").orEmpty().removePrefix("sha256:").lowercase()
+                val size = selectedAsset?.optLong("size", 0L) ?: 0L
+                if (latest.isBlank() || apk.isBlank()) {
+                    post(onResult, UpdateResult.Error("В последнем релизе нет APK для этого устройства"))
+                    return@thread
+                }
+                if (!digest.matches(Regex("[0-9a-f]{64}")) || size <= 0L) {
+                    post(onResult, UpdateResult.Error("У релизного APK отсутствует контрольная сумма или размер"))
                     return@thread
                 }
                 val current = currentVersion()
@@ -75,17 +83,19 @@ class AppUpdater(private val context: Context) {
                     compareVersions(latest, current.first) > 0
                 }
                 post(onResult, if (shouldUpdate)
-                    UpdateResult.Available(latest, apk!!) else UpdateResult.UpToDate(current.first))
+                    UpdateResult.Available(latest, apk, digest, size) else UpdateResult.UpToDate(current.first))
             } catch (e: Exception) {
                 post(onResult, UpdateResult.Error(e.message ?: "Не удалось проверить обновления"))
             }
         }
     }
 
-    fun downloadAndInstall(url: String, version: String, onProgress: (Int) -> Unit, onError: (String) -> Unit) {
+    fun downloadAndInstall(url: String, version: String, expectedSha256: String, expectedSize: Long, onProgress: (Int) -> Unit, onError: (String) -> Unit) {
         thread {
             try {
-                require(url.startsWith("https://github.com/")) { "Недоверенный адрес APK" }
+                val source = URL(url)
+                require(source.protocol == "https" && source.host.equals("github.com", true) && source.path.startsWith("/Kolya-YT/NeoTUN-Client/releases/download/")) { "Недоверенный адрес APK" }
+                require(expectedSha256.matches(Regex("[0-9a-fA-F]{64}")) && expectedSize > 0L) { "Нет корректной контрольной суммы или размера APK" }
                 val c = (URL(url).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15_000
                     readTimeout = 30_000
@@ -96,10 +106,17 @@ class AppUpdater(private val context: Context) {
                     c.disconnect()
                     throw IllegalStateException("Сервер APK вернул HTTP $status")
                 }
-                val total = c.contentLengthLong
+                val finalUrl = c.url
+                if (finalUrl.protocol != "https" || !(finalUrl.host.equals("github.com", true) || finalUrl.host.endsWith(".githubusercontent.com", true))) {
+                    c.disconnect()
+                    throw IllegalStateException("Сервер перенаправил загрузку на недоверенный адрес")
+                }
+                val responseSize = c.contentLengthLong
+                val total = expectedSize.takeIf { it > 0L } ?: responseSize
                 val file = File(context.cacheDir, "NeoTUN-$version.apk")
                 file.delete()
                 post { onProgress(0) }
+                val sha256 = MessageDigest.getInstance("SHA-256")
                 c.inputStream.use { input ->
                     file.outputStream().use { output ->
                         val buffer = ByteArray(64 * 1024)
@@ -109,6 +126,7 @@ class AppUpdater(private val context: Context) {
                             val n = input.read(buffer)
                             if (n < 0) break
                             output.write(buffer, 0, n)
+                            sha256.update(buffer, 0, n)
                             done += n
                             if (total > 0) {
                                 val p = ((done * 100L) / total).toInt().coerceIn(0, 99)
@@ -125,10 +143,19 @@ class AppUpdater(private val context: Context) {
                     file.delete()
                     throw IllegalStateException("Скачанный APK слишком мал или пуст")
                 }
+                if (file.length() != expectedSize) {
+                    file.delete()
+                    throw IllegalStateException("Размер APK не совпал с релизом: " + file.length() + " из " + expectedSize + " байт")
+                }
+                val actualSha256 = sha256.digest().joinToString("") { "%02x".format(it) }
+                if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                    file.delete()
+                    throw IllegalStateException("Контрольная сумма APK не совпала с релизом")
+                }
                 post { onProgress(100) }
                 post {
                     try {
-                        validateApkForUpdate(file)
+                        validateApkForUpdate(file, version)
                         installApk(file)
                     } catch (e: Exception) {
                         file.delete()
@@ -141,7 +168,7 @@ class AppUpdater(private val context: Context) {
         }
     }
 
-    private fun validateApkForUpdate(file: File) {
+    private fun validateApkForUpdate(file: File, expectedVersion: String) {
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             PackageManager.GET_SIGNING_CERTIFICATES
         } else {
@@ -153,6 +180,9 @@ class AppUpdater(private val context: Context) {
 
         if (archive.packageName != context.packageName) {
             throw IllegalStateException("APK относится к другому приложению")
+        }
+        if (!archive.versionName.orEmpty().equals(expectedVersion, ignoreCase = true)) {
+            throw IllegalStateException("Версия APK не совпала с выбранным релизом: " + archive.versionName + " вместо " + expectedVersion)
         }
 
         val currentCode = currentVersion().second
@@ -255,7 +285,7 @@ class AppUpdater(private val context: Context) {
 }
 
 sealed class UpdateResult {
-    data class Available(val version: String, val apkUrl: String) : UpdateResult()
+    data class Available(val version: String, val apkUrl: String, val sha256: String, val sizeBytes: Long) : UpdateResult()
     data class UpToDate(val version: String) : UpdateResult()
     data class Error(val message: String) : UpdateResult()
 }

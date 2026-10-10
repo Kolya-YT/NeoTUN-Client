@@ -1375,11 +1375,42 @@ class MainActivity : Activity() {
     private fun checkUpdates() {
         updater.checkForUpdates { result ->
             when (result) {
-                is UpdateResult.Available -> updater.downloadAndInstall(
-                    result.apkUrl, result.version,
-                    { toast("Загрузка обновления: " + it + "%") },
-                    { toast("Ошибка обновления: " + it) }
-                )
+                is UpdateResult.Available -> {
+                    val layout = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(24), dp(12), dp(24), dp(8))
+                    }
+                    val status = txt("Подготовка загрузки…", 13f, Color.rgb(170, 174, 192))
+                    val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                        max = 100
+                        this.progress = 0
+                    }
+                    layout.addView(status, LinearLayout.LayoutParams(-1, -2))
+                    layout.addView(progress, LinearLayout.LayoutParams(-1, dp(28)))
+                    val dialog = AlertDialog.Builder(this)
+                        .setTitle("NeoTUN " + result.version)
+                        .setView(layout)
+                        .setCancelable(false)
+                        .create()
+                    dialog.show()
+                    updater.downloadAndInstall(
+                        result.apkUrl,
+                        result.version,
+                        result.sha256,
+                        result.sizeBytes,
+                        { percent ->
+                            progress.progress = percent
+                            val mb = result.sizeBytes / (1024.0 * 1024.0)
+                            status.text = if (percent >= 100) "Проверка APK…" else
+                                "Загрузка: " + percent + "% · " + String.format(java.util.Locale.US, "%.1f", mb) + " МБ"
+                            if (percent >= 100 && dialog.isShowing) dialog.dismiss()
+                        },
+                        { message ->
+                            if (dialog.isShowing) dialog.dismiss()
+                            toast("Ошибка обновления: " + message)
+                        },
+                    )
+                }
                 is UpdateResult.UpToDate -> toast("Установлена последняя версия " + result.version)
                 is UpdateResult.Error -> toast("Обновления: " + result.message)
             }

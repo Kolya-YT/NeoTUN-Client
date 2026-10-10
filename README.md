@@ -147,7 +147,7 @@ NEOTUN_KEY_PASSWORD
 
 ## Текущая версия
 
-- Android: **0.6.2**
+- Android: **0.6.3**
 - `versionCode`: **42**
 - Rust Core: **0.2.4**
 - Движки: sing-box 1.14.1 и Xray
