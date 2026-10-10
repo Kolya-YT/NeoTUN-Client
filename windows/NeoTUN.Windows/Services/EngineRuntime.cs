@@ -190,7 +190,7 @@ internal sealed class EngineRuntime : IDisposable
             {
                 throw;
             }
-            catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or InvalidDataException)
+            catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException)
             {
                 lastError = ex;
             }
