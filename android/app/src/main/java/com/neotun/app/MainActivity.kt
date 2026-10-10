@@ -960,6 +960,11 @@ class MainActivity : Activity() {
         val routeRules = JSONArray().put(JSONObject().put("port", 53).put("action", "hijack-dns"))
         val nativeRules = route.optJSONArray("rules")
         if (routing != null) {
+            // TUN packets commonly arrive with only a destination IP. Sniff TLS SNI,
+            // HTTP Host and supported transport metadata before matching domain/GeoSite
+            // rules; without this, traffic silently falls through to route.final=proxy.
+            routeRules.put(JSONObject().put("action", "sniff"))
+            NeoTunDiagnostics.log(this, "Routing: domain sniffing enabled before profile rules")
             val profileRules = NeoTunRoutingAdapter.singBoxRules(routing)
             for (i in 0 until profileRules.length()) routeRules.put(profileRules.getJSONObject(i))
             val profileRuleSets = NeoTunRoutingAdapter.singBoxRuleSets(routing)
