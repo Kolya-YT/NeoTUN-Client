@@ -91,8 +91,15 @@ class AppUpdater(private val context: Context) {
                     readTimeout = 30_000
                     setRequestProperty("User-Agent", "NeoTUN-Updater")
                 }
+                val status = c.responseCode
+                if (status !in 200..299) {
+                    c.disconnect()
+                    throw IllegalStateException("Сервер APK вернул HTTP $status")
+                }
                 val total = c.contentLengthLong
                 val file = File(context.cacheDir, "NeoTUN-$version.apk")
+                file.delete()
+                post { onProgress(0) }
                 c.inputStream.use { input ->
                     file.outputStream().use { output ->
                         val buffer = ByteArray(64 * 1024)
@@ -104,7 +111,7 @@ class AppUpdater(private val context: Context) {
                             output.write(buffer, 0, n)
                             done += n
                             if (total > 0) {
-                                val p = ((done * 100) / total).toInt()
+                                val p = ((done * 100L) / total).toInt().coerceIn(0, 99)
                                 if (p != last) {
                                     last = p
                                     post { onProgress(p) }
@@ -114,6 +121,11 @@ class AppUpdater(private val context: Context) {
                     }
                 }
                 c.disconnect()
+                if (!file.isFile || file.length() < 100L * 1024L) {
+                    file.delete()
+                    throw IllegalStateException("Скачанный APK слишком мал или пуст")
+                }
+                post { onProgress(100) }
                 post {
                     try {
                         validateApkForUpdate(file)

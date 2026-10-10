@@ -9,6 +9,8 @@ import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -18,6 +20,9 @@ import org.json.JSONObject
 class NeoTunXrayVpnService : VpnService() {
     private var tunFd: Int = -1
     private var running = false
+    @Volatile private var starting = false
+    @Volatile private var destroyed = false
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
@@ -25,7 +30,9 @@ class NeoTunXrayVpnService : VpnService() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
-        if (running) return START_NOT_STICKY
+        if (running || starting) return START_NOT_STICKY
+        destroyed = false
+        starting = true
 
         NeoTunDiagnostics.clear(this)
         NeoTunDiagnostics.log(this, "Xray service: onStartCommand")
@@ -42,25 +49,37 @@ class NeoTunXrayVpnService : VpnService() {
 
         NeoTunDiagnostics.log(this, "Профиль получен: VLESS-ссылка (секретные параметры скрыты)")
 
-        runCatching {
-            val routing = RoutingProfileStore(this).active()
-            val geoDir = java.io.File(filesDir, "geodata")
-            NeoTunDiagnostics.log(this, "GeoData: проверка файлов перед запуском Xray")
-            val geo = NeoTunGeoData.ensure(this, geoDir, routing?.json)
-            NeoTunDiagnostics.log(this, "GeoData: geoip=" + geo.geoIpBytes +
-                " bytes, geosite=" + geo.geoSiteBytes + " bytes, updated=" + geo.updated)
-            startXray(uri, geoDir.absolutePath)
-            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-                .edit()
-                .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
-                .remove(NeoTunVpnService.KEY_ERROR)
-                .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
-                .apply()
-            running = true
-        }.onFailure {
-            NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", it)
-            stopWithError(it.message ?: "Не удалось запустить Xray")
-        }
+        // Network I/O must not run on Android main thread.
+        Thread({
+            try {
+                val routing = RoutingProfileStore(this).active()
+                val geoDir = java.io.File(filesDir, "geodata")
+                NeoTunDiagnostics.log(this, "GeoData: проверка файлов в фоновом потоке")
+                val geo = NeoTunGeoData.ensure(this, geoDir, routing?.json)
+                NeoTunDiagnostics.log(this, "GeoData: geoip=" + geo.geoIpBytes +
+                    " bytes, geosite=" + geo.geoSiteBytes + " bytes, updated=" + geo.updated)
+                mainHandler.post {
+                    if (destroyed || !starting) return@post
+                    try {
+                        startXray(uri, geoDir.absolutePath)
+                        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                            .edit()
+                            .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
+                            .remove(NeoTunVpnService.KEY_ERROR)
+                            .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
+                            .apply()
+                        running = true
+                        starting = false
+                    } catch (t: Throwable) {
+                        NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", t)
+                        stopWithError(t.message ?: "Не удалось запустить Xray")
+                    }
+                }
+            } catch (t: Throwable) {
+                NeoTunDiagnostics.error(this, "Критическая ошибка подготовки GeoData", t)
+                mainHandler.post { if (!destroyed) stopWithError(t.message ?: "Не удалось подготовить геобазы") }
+            }
+        }, "NeoTUN-GeoData").start()
 
         return START_NOT_STICKY
     }
@@ -335,6 +354,9 @@ class NeoTunXrayVpnService : VpnService() {
     override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
 
     override fun onDestroy() {
+        destroyed = true
+        starting = false
+        mainHandler.removeCallbacksAndMessages(null)
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
         stopTunnel()
         super.onDestroy()
@@ -369,6 +391,7 @@ class NeoTunXrayVpnService : VpnService() {
     private fun stopWithError(message: String) {
         NeoTunDiagnostics.error(this, "Остановка с ошибкой: $message")
         running = false
+        starting = false
 
         // Always stop Xray before releasing the Android TUN fd. Xray owns the
         // fd while the core is running; closing it first can leave a stale
