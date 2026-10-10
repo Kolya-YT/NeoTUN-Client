@@ -151,7 +151,7 @@
               <TextBlock Grid.Row="1" Text="Вставьте ссылку VLESS / VMess / Trojan / Hysteria2 / TUIC / Shadowsocks либо содержимое подписки." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,16"/>
               <TextBox Grid.Row="2" x:Name="ImportEditor" Text="{Binding ImportText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="250" VerticalContentAlignment="Top"/>
               <WrapPanel Grid.Row="3" Margin="0,14,0,0">
-                <Button Content="Импортировать" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="ImportProfiles_Click" Margin="0,0,8,0"/>
+                <Button x:Name="ImportProfilesButton" Content="Импортировать" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="ImportProfiles_Click" Margin="0,0,8,0"/>
                 <Button Content="Вставить из буфера" Click="PasteImport_Click" Margin="0,0,8,0"/>
                 <Button Content="Очистить" Click="ClearImport_Click"/>
               </WrapPanel>
