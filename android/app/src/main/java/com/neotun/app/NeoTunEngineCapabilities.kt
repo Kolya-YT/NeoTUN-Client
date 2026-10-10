@@ -59,7 +59,7 @@ object NeoTunEngineCapabilityRegistry {
             supportsDnsSettings = xray || singBox,
             supportsRoutingProfiles = xray || singBox,
             supportsMtu = xray || singBox,
-            supportsAppExclusions = xray || singBox,
+            supportsAppExclusions = false,
             notes = notes,
         )
     }
