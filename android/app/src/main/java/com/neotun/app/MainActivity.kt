@@ -3010,7 +3010,9 @@ class MainActivity : Activity() {
             "profiles.delete" -> {
                 val id = payload.optString("profileId")
                 require(store.all().any { it.id == id }) { "Профиль не найден" }
-                require(!(isRunning() && selectedProfileId() == id)) {
+                val activeUri = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                    .getString(NeoTunVpnService.KEY_URI, null)
+                require(!(isRunning() && (selectedProfileId() == id || store.all().any { it.id == id && it.uri == activeUri }))) {
                     "Отключите соединение перед удалением активного профиля"
                 }
                 if (selectedProfileId() == id) {
@@ -3128,9 +3130,12 @@ class MainActivity : Activity() {
         val sent = traffic.sessionTx.coerceAtLeast(0L)
         val now = System.currentTimeMillis()
         val running = isRunning()
+        val activeUri = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .getString(NeoTunVpnService.KEY_URI, null)
+        val activeProfileId = if (running) profiles.firstOrNull { it.uri == activeUri }?.id ?: selectedId else null
         val connection = JSONObject()
             .put("status", if (running) "connected" else if (!error.isNullOrBlank()) "error" else "disconnected")
-            .put("profileId", if (running) selectedId ?: JSONObject.NULL else JSONObject.NULL)
+            .put("profileId", activeProfileId ?: JSONObject.NULL)
             .put("since", JSONObject.NULL)
             .put("error", error ?: JSONObject.NULL)
         val stats = JSONObject()
