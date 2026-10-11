@@ -73,7 +73,7 @@ internal sealed class SharedUiPreviewWindow : Window
         string requestId = "";
         try
         {
-            using var document = JsonDocument.Parse(e.WebMessageAsJson);
+            using var document = JsonDocument.Parse(e.TryGetWebMessageAsString());
             var request = document.RootElement;
             if (!request.TryGetProperty("bridgeVersion", out var version) || version.GetInt32() != 1 ||
                 !request.TryGetProperty("requestId", out var id) ||
