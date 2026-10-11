@@ -20,6 +20,14 @@ export interface NativeProfile {
   subscriptionId?: string;
 }
 
+export interface NativeSubscription {
+  id: string;
+  name: string;
+  url: string;
+  lastUpdated: number;
+  profileCount: number;
+}
+
 export interface NativeConnectionState {
   status: ConnectionStatus;
   profileId: string | null;
@@ -105,6 +113,7 @@ export interface NativeAppSnapshot {
   connection: NativeConnectionState;
   traffic: NativeTrafficStats;
   profiles: NativeProfile[];
+  subscriptions: NativeSubscription[];
   settings: NativeClientSettings;
   routingRules: NativeRoutingRule[];
   capabilities: NativeCapabilities;
@@ -138,6 +147,10 @@ export type NativeCommand =
   | { type: "clipboard.import" }
   | { type: "connection.connect"; payload: { profileId?: string } }
   | { type: "connection.disconnect" }
+  | { type: "subscriptions.create"; payload: { name: string; url: string } }
+  | { type: "subscriptions.rename"; payload: { subscriptionId: string; name: string } }
+  | { type: "subscriptions.delete"; payload: { subscriptionId: string; deleteProfiles?: boolean } }
+  | { type: "subscriptions.setSchedule"; payload: { enabled: boolean; intervalHours: number } }
   | { type: "subscriptions.refresh"; payload: { subscriptionId?: string } }
   | { type: "routing.save"; payload: { rules: NativeRoutingRule[] } }
   | { type: "settings.save"; payload: NativeClientSettings }
