@@ -10,6 +10,7 @@ on:
       - "xraybridge/**"
       - ".github/workflows/android.yml"
       - "DESIGN_SYSTEM.md"
+      - "shared-ui/**"
   pull_request:
     branches: [main]
     paths:
@@ -18,6 +19,7 @@ on:
       - "xraybridge/**"
       - ".github/workflows/android.yml"
       - "DESIGN_SYSTEM.md"
+      - "shared-ui/**"
   workflow_dispatch:
 
 permissions:
@@ -37,6 +39,21 @@ jobs:
       NEOTUN_KEY_PASSWORD: ${{ secrets.NEOTUN_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: shared-ui/package.json
+
+      - name: Build shared UI for Android WebView
+        working-directory: shared-ui
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          mkdir -p ../android/app/src/main/assets/shared-ui
+          cp -R dist/. ../android/app/src/main/assets/shared-ui/
 
       - name: Set up JDK
         uses: actions/setup-java@v6
