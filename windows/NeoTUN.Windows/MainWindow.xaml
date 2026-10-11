@@ -51,9 +51,13 @@
         <Button Grid.Column="1" Content="＋  Импорт" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="ImportNav_Click" VerticalAlignment="Center"/>
       </Grid>
 
-      <Grid Grid.Row="1">
-        <Grid x:Name="HomePage">
-          <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False" PanningMode="VerticalOnly">
+        <Grid>
+        <ScrollViewer x:Name="HomePage" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="False" PanningMode="VerticalOnly">
+          <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Border x:Name="HomeHeroCard" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="24" Padding="28">
             <Grid x:Name="HomeHeroLayout">
               <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="0.9*"/></Grid.ColumnDefinitions>
@@ -360,7 +364,9 @@
             </DockPanel>
           </Border>
         </Grid>
-      </Grid>
+        </ScrollViewer>
+        </Grid>
+      </ScrollViewer>
 
       <TextBlock Grid.Row="2" Text="{Binding Notice}" Foreground="{StaticResource TextMutedBrush}" Margin="2,14,0,0" TextTrimming="CharacterEllipsis"/>
     </Grid>
