@@ -1042,6 +1042,7 @@ class MainActivity : Activity() {
                 renderHome()
                 return
             }
+            logRealityConfigDiagnostics(config)
             prefs.edit().putString(NeoTunVpnService.KEY_CONFIG, config).apply()
         }
 
@@ -1049,6 +1050,43 @@ class MainActivity : Activity() {
         if (intent != null) startActivityForResult(intent, REQUEST_VPN) else startVpnFromPrefs()
     }
 
+    /**
+     * Log only presence/shape of REALITY fields. Never log the key, UUID,
+     * server address, or full imported share link.
+     */
+    private fun logRealityConfigDiagnostics(config: String) {
+        runCatching {
+            val root = JSONObject(config)
+            val outbounds = root.optJSONArray("outbounds") ?: JSONArray()
+            var proxy: JSONObject? = null
+            for (i in 0 until outbounds.length()) {
+                val outbound = outbounds.optJSONObject(i) ?: continue
+                if (outbound.optString("tag") == "proxy" ||
+                    (proxy == null && outbound.optString("type") == "vless")) {
+                    proxy = outbound
+                    if (outbound.optString("tag") == "proxy") break
+                }
+            }
+            val tls = proxy?.optJSONObject("tls")
+            val reality = tls?.optJSONObject("reality")
+            val utls = tls?.optJSONObject("utls")
+            val publicKey = reality?.optString("public_key").orEmpty()
+            val shortId = reality?.optString("short_id").orEmpty()
+            val sni = tls?.optString("server_name").orEmpty()
+            val fingerprint = utls?.optString("fingerprint").orEmpty()
+            NeoTunDiagnostics.log(
+                this,
+                "REALITY config check: outbound=" + (proxy?.optString("type") ?: "missing") +
+                    "; tlsEnabled=" + (tls?.optBoolean("enabled", false) == true) +
+                    "; realityEnabled=" + (reality?.optBoolean("enabled", false) == true) +
+                    "; sniPresent=" + sni.isNotBlank() + "; publicKeyPresent=" + publicKey.isNotBlank() +
+                    "; publicKeyLength=" + publicKey.length + "; shortIdPresent=" + shortId.isNotBlank() +
+                    "; shortIdLength=" + shortId.length + "; fingerprintPresent=" + fingerprint.isNotBlank() + "."
+            )
+        }.onFailure {
+            NeoTunDiagnostics.log(this, "REALITY config check unavailable: " + it.javaClass.simpleName)
+        }
+    }
     /**
      * Applies the settings screen to the real sing-box configuration.
      * MTU, DNS and IPv6 are written into the config used by libbox.
