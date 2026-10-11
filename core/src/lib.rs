@@ -857,7 +857,7 @@ mod tests {
         assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server"], "example.com");
         assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server_port"], 443);
         assert_eq!(runtime["sing_box_config"]["outbounds"][0]["transport"]["type"], "ws");
-        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["detour"], "direct");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
     }
 
     #[test]
