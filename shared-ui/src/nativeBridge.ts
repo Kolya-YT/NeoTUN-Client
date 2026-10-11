@@ -136,10 +136,6 @@ export interface NativeAppSnapshot {
   appearance?: { theme: "dark" | "light" | "oled"; fontScale: number; animations: boolean };
   launchWithWindows?: boolean;
   pingMethod?: "tcp" | "icmp" | "http";
-  androidSettings?: {
-    dnsMode: string;
-    apps: { packageName: string; label: string; excluded: boolean }[];
-  };
   routingRules: NativeRoutingRule[];
   routingProfiles?: NativeRoutingProfile[];
   routingEnabled?: boolean;
