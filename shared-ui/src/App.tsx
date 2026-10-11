@@ -130,7 +130,7 @@ export default function App() {
                   </div>
                   <div className="section-actions"><span className="capability-tag">
                     {snapshot?.capabilities.routing ? 'Доступно' : 'Только в классическом интерфейсе'}
-                  </span>{snapshot?.platform==='windows'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть все настройки маршрутизации</button>}</div>
+                  </span>{snapshot?.platform==='android'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть настройки маршрутизации</button>}{snapshot?.platform==='windows'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть все настройки маршрутизации</button>}</div>
                 </div>
 
                 <div className="route-intro">
