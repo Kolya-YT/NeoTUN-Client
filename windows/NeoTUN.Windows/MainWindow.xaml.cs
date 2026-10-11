@@ -156,6 +156,7 @@ public partial class MainWindow : Window
 
     internal object BuildSharedUiSnapshot()
     {
+        var uiSettings = ReadUiSettings();
         var connected = _runtime.IsRunning;
         var subscriptionState = LoadSubscriptionUpdateState();
         var subscriptionNames = LoadSubscriptionNames();
