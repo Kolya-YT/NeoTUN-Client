@@ -1029,6 +1029,27 @@ mod tests {
     }
 
     #[test]
+    fn sing_box_vless_reality_preserves_server_name_key_short_id_and_fingerprint() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=www.example.org&fp=firefox&pbk=public-key-value&sid=ab12cd34"
+        ).unwrap();
+
+        assert_eq!(profile.engine(), "sing-box");
+        let config: serde_json::Value =
+            serde_json::from_str(&profile.to_generic_sing_box_json().unwrap()).unwrap();
+        let outbound = &config["outbounds"][0];
+        assert_eq!(outbound["type"], "vless");
+        assert_eq!(outbound["flow"], "xtls-rprx-vision");
+        assert_eq!(outbound["tls"]["enabled"], true);
+        assert_eq!(outbound["tls"]["server_name"], "www.example.org");
+        assert_eq!(outbound["tls"]["utls"]["enabled"], true);
+        assert_eq!(outbound["tls"]["utls"]["fingerprint"], "firefox");
+        assert_eq!(outbound["tls"]["reality"]["enabled"], true);
+        assert_eq!(outbound["tls"]["reality"]["public_key"], "public-key-value");
+        assert_eq!(outbound["tls"]["reality"]["short_id"], "ab12cd34");
+    }
+
+    #[test]
     fn parses_ipv6_vless_uri() {
         let profile = Profile::from_vless_uri(
             "vless://123e4567-e89b-12d3-a456-426614174000@[2001:db8::1]:443?type=tcp"
