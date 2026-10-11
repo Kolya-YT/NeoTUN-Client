@@ -105,7 +105,8 @@
 
         <Grid x:Name="ServersPage" Visibility="Collapsed">
           <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions>
-          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="18" Margin="0,0,10,0">
+          <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="0"/></Grid.RowDefinitions>
+          <Border x:Name="ProfileListPanel" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="18" Margin="0,0,10,0">
             <DockPanel>
               <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Поиск серверов" Margin="0,0,0,10"/>
@@ -153,7 +154,7 @@
               </ListBox>
             </DockPanel>
           </Border>
-          <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="20" Margin="10,0,0,0">
+          <Border x:Name="ProfileEditorPanel" Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="20" Margin="10,0,0,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <StackPanel>
                 <TextBlock Text="Параметры сервера" FontSize="18" FontWeight="SemiBold"/>
@@ -223,30 +224,30 @@
                 <StackPanel>
                   <TextBlock Text="Правила доменов и IP/CIDR" FontSize="18" FontWeight="SemiBold"/>
                   <TextBlock Text="Каждая строка — одно значение. Примеры: example.org или 192.0.2.0/24." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,14"/>
-                  <Grid>
+                  <Grid x:Name="RoutingRulesGrid">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <StackPanel Margin="0,0,7,12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="0"/><RowDefinition Height="0"/><RowDefinition Height="0"/></Grid.RowDefinitions>
+                    <StackPanel x:Name="BlockSitesPanel" Margin="0,0,7,12">
                       <TextBlock Text="Блокировать домены" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                       <TextBox x:Name="BlockSitesEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="7,0,0,12">
+                    <StackPanel x:Name="BlockIpPanel" Grid.Column="1" Margin="7,0,0,12">
                       <TextBlock Text="Блокировать IP/CIDR" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                       <TextBox x:Name="BlockIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="1" Margin="0,0,7,12">
+                    <StackPanel x:Name="ProxySitesPanel" Grid.Row="1" Margin="0,0,7,12">
                       <TextBlock Text="Через прокси — домены" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                       <TextBox x:Name="ProxySitesEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="7,0,0,12">
+                    <StackPanel x:Name="ProxyIpPanel" Grid.Row="1" Grid.Column="1" Margin="7,0,0,12">
                       <TextBlock Text="Через прокси — IP/CIDR" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                       <TextBox x:Name="ProxyIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="2" Margin="0,0,7,0">
+                    <StackPanel x:Name="DirectSitesPanel" Grid.Row="2" Margin="0,0,7,0">
                       <TextBlock Text="Напрямую — домены" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                       <TextBox x:Name="DirectSitesEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="7,0,0,0">
+                    <StackPanel x:Name="DirectIpPanel" Grid.Row="2" Grid.Column="1" Margin="7,0,0,0">
                       <TextBlock Text="Напрямую — IP/CIDR" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                       <TextBox x:Name="DirectIpEditor" MinHeight="76" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
                     </StackPanel>
