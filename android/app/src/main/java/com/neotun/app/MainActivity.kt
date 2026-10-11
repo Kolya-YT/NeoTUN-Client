@@ -45,6 +45,7 @@ class MainActivity : Activity() {
     private var trafficLastTx = -1L
     private var trafficLastAt = 0L
     private var lastWidgetRunning: Boolean? = null
+    private var profileSearchQuery: String = ""
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
     private var homeRxValue: TextView? = null
@@ -419,11 +420,41 @@ class MainActivity : Activity() {
 
     private fun renderProfiles() {
         content.removeAllViews()
-        addBackHeader("Серверы", store.all().size.toString() + " серверов • " + subscriptions.all().size + " подписок")
-        content.addView(button("＋  Импортировать сервер или подписку") { showImportMenu() }, margins(bottom = 14))
-        val profiles = store.all()
+        val allProfiles = store.all()
+        addBackHeader("Серверы", allProfiles.size.toString() + " серверов • " + subscriptions.all().size + " подписок")
+        content.addView(button("＋  Импортировать сервер или подписку") { showImportMenu() }, margins(bottom = 10))
+
+        val searchRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val searchInput = EditText(this).apply {
+            setSingleLine(true)
+            textSize = 14f * fontScaleFactor()
+            setTextColor(NeoTunDesign.TEXT_PRIMARY)
+            setHintTextColor(NeoTunDesign.TEXT_MUTED)
+            hint = "Поиск по имени, адресу или протоколу"
+            setPadding(dp(13), 0, dp(10), 0)
+            background = rounded(NeoTunDesign.SURFACE_INPUT, 13, NeoTunDesign.BORDER, 1)
+            setText(profileSearchQuery)
+        }
+        searchRow.addView(searchInput, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            setMargins(0, 0, dp(8), 0)
+        })
+        searchRow.addView(button(if (profileSearchQuery.isBlank()) "Найти" else "Сбросить") {
+            profileSearchQuery = if (profileSearchQuery.isBlank()) searchInput.text.toString().trim() else ""
+            renderProfiles()
+        }, LinearLayout.LayoutParams(dp(96), dp(48)))
+        content.addView(searchRow, margins(bottom = 14))
+
         val selected = selectedProfileId()
         val subs = subscriptions.all()
+        val query = profileSearchQuery.trim()
+        val profiles = if (query.isBlank()) allProfiles else allProfiles.filter { profile ->
+            profile.name.contains(query, ignoreCase = true) ||
+                profile.uri.contains(query, ignoreCase = true) ||
+                protocolLabel(profile).contains(query, ignoreCase = true)
+        }
 
         if (subs.isNotEmpty()) {
             val subCard = card()
@@ -457,7 +488,7 @@ class MainActivity : Activity() {
             content.addView(subCard, margins(bottom = 14))
         }
 
-        if (profiles.isEmpty()) {
+        if (allProfiles.isEmpty()) {
             val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(26), dp(20), dp(26)) }
             empty.addView(txt("Пока нет серверов", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
             empty.addView(txt(
@@ -467,6 +498,22 @@ class MainActivity : Activity() {
                 margins(top = 8, bottom = 16))
             empty.addView(button("＋  Добавить сервер или подписку") { showImportMenu() })
             content.addView(empty)
+            return
+        }
+
+        if (profiles.isEmpty()) {
+            val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(22), dp(20), dp(22)) }
+            empty.addView(txt("Ничего не найдено", 18f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
+            empty.addView(txt(
+                "Нет серверов, соответствующих запросу «$query». Проверьте название, адрес или протокол.",
+                12f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER
+            ), margins(top = 7))
+            empty.addView(button("Сбросить поиск") {
+                profileSearchQuery = ""
+                renderProfiles()
+            }, margins(top = 12))
+            content.addView(empty, margins(bottom = 10))
+            renderProfileBottomActions(allProfiles.firstOrNull { it.id == selected })
             return
         }
 
@@ -504,7 +551,7 @@ class MainActivity : Activity() {
         }
         renderProfileGroup("ДРУГИЕ СЕРВЕРЫ", "Источник подписки больше не существует · ${orphanedProfiles.size}", orphanedProfiles)
 
-        renderProfileBottomActions(profiles.firstOrNull { it.id == selected })
+        renderProfileBottomActions(allProfiles.firstOrNull { it.id == selected })
     }
 
     private fun renderProfileBottomActions(profile: NeoTunProfile?) {
