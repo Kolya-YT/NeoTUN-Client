@@ -627,11 +627,11 @@ public partial class MainWindow : Window
                 ["TextPrimaryBrush"]="#F7F8FF", ["TextSecondaryBrush"]="#B1B8CD", ["TextMutedBrush"]="#858EA8",
                 ["SuccessBrush"]="#65E7B0", ["SuccessSurfaceBrush"]="#09251D", ["DangerBrush"]="#FFB5C3", ["DangerSurfaceBrush"]="#26101A" },
             _ => new Dictionary<string, string> {
-                ["BackgroundBrush"]="#070910", ["NavigationBrush"]="#0C0F19", ["SurfaceBrush"]="#121521",
-                ["RaisedSurfaceBrush"]="#1C2033", ["InputSurfaceBrush"]="#0D111D", ["BorderBrushNeo"]="#2A2E44",
-                ["BrandVioletBrush"]="#8769FF", ["BrandBlueBrush"]="#5B5BF1", ["AccentSurfaceBrush"]="#23203B",
-                ["TextPrimaryBrush"]="#FFFFFF", ["TextSecondaryBrush"]="#A5ABC2", ["TextMutedBrush"]="#8F96AD",
-                ["SuccessBrush"]="#5FE6A6", ["SuccessSurfaceBrush"]="#12372E", ["DangerBrush"]="#FFB1C0", ["DangerSurfaceBrush"]="#311B27" }
+                ["BackgroundBrush"]="#080A12", ["NavigationBrush"]="#0D101B", ["SurfaceBrush"]="#131725",
+                ["RaisedSurfaceBrush"]="#1B2031", ["InputSurfaceBrush"]="#0E1220", ["BorderBrushNeo"]="#292F45",
+                ["BrandVioletBrush"]="#8068FF", ["BrandBlueBrush"]="#5B68F2", ["AccentSurfaceBrush"]="#211D38",
+                ["TextPrimaryBrush"]="#F7F8FF", ["TextSecondaryBrush"]="#B1B8CD", ["TextMutedBrush"]="#858EA8",
+                ["SuccessBrush"]="#65E7B0", ["SuccessSurfaceBrush"]="#12362F", ["DangerBrush"]="#FFB5C3", ["DangerSurfaceBrush"]="#321C29" }
         };
 
         foreach (var item in colors)
@@ -680,6 +680,46 @@ public partial class MainWindow : Window
             SettingsSummary.Text = "Не удалось изменить автозапуск: " + ex.Message;
             LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
         }
+    }
+
+    private void ResetSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var answer = MessageBox.Show(
+            "Сбросить настройки интерфейса и сетевые параметры по умолчанию? Серверы, подписки и правила маршрутизации в списках не удаляются. Автозапуск Windows останется без изменений.",
+            "NeoTUN — сброс настроек", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes) return;
+
+        _loadingUiSettings = true;
+        try
+        {
+            ThemeSelector.SelectedIndex = 0;
+            FontScaleSelector.SelectedIndex = 1;
+            UiAnimationsToggle.IsChecked = true;
+            AutoUpdateSubscriptionsToggle.IsChecked = true;
+            SubscriptionIntervalSelector.SelectedIndex = 2;
+
+            GlobalProxyToggle.IsChecked = true;
+            Ipv6Toggle.IsChecked = false;
+            MtuInput.Text = "1500";
+            RouteOrderSelector.SelectedIndex = 0;
+            RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
+            DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
+            DomesticDnsDomainsEditor.Text = "ru" + Environment.NewLine + "su" + Environment.NewLine + "рф";
+            BlockSitesEditor.Clear();
+            BlockIpEditor.Clear();
+            ProxySitesEditor.Clear();
+            ProxyIpEditor.Clear();
+            DirectSitesEditor.Clear();
+            DirectIpEditor.Clear();
+            ProcessExclusionsEditor.Clear();
+        }
+        finally { _loadingUiSettings = false; }
+
+        ApplyTheme("dark");
+        ApplyFontScale();
+        SaveRouting_Click(sender, e);
+        PersistUiSettings("Настройки сброшены. Серверы и подписки сохранены.");
+        AddLog("Настройки интерфейса и сетевые параметры сброшены к значениям по умолчанию.");
     }
 
     private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
