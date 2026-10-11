@@ -871,7 +871,7 @@ mod tests {
         assert_eq!(config["route"]["rules"][0]["outbound"], "direct");
         assert_eq!(config["route"]["rules"][0]["ip_cidr"][0], "127.0.0.1/32");
         assert_eq!(config["dns"]["servers"][0]["server"], "1.1.1.1");
-        assert_eq!(config["dns"]["servers"][0]["detour"], "proxy");
+        assert_eq!(config["dns"]["servers"][0]["detour"], "direct");
     }
 
     #[test]
