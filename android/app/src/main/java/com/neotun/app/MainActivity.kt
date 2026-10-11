@@ -3080,7 +3080,13 @@ class MainActivity : Activity() {
                 val dns = payload.optJSONObject("dns")
                 if (dns != null) {
                     val current = routingStore.active() ?: routingStore.all().firstOrNull()
-                        ?: error("Сначала создайте профиль маршрутизации, чтобы сохранить DNS")
+                        ?: routingStore.save(JSONObject()
+                            .put("Name", "Мой профиль")
+                            .put("GlobalProxy", "true")
+                            .put("RemoteDNS", "https://8.8.8.8/dns-query")
+                            .put("DomesticDNS", "https://77.88.8.8/dns-query")
+                            .put("DomesticDNSDomains", JSONArray().put("ru").put("su").put("рф"))
+                            .put("RouteOrder", "block-proxy-direct"), activate = true)
                     val remote = dns.optString("remote").trim()
                     val domestic = dns.optString("domestic").trim()
                     require(remote.isNotBlank() && remote.length <= 2048) { "Укажите удалённый DNS" }
@@ -3243,7 +3249,7 @@ class MainActivity : Activity() {
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
             .put("subscriptions", true)
-            .put("routing", false).put("dns", routingProfile != null).put("mtu", true).put("ipv6", true)
+            .put("routing", false).put("dns", true).put("mtu", true).put("ipv6", true)
             .put("autoConnect", false).put("autoUpdateSubscriptions", true)
             .put("diagnostics", true).put("appUpdates", true)
         val received = traffic.sessionRx.coerceAtLeast(0L)
