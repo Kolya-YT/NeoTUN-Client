@@ -203,6 +203,12 @@ public partial class MainWindow : Window
                 selected = profile.Id == _vm.SelectedProfile?.Id
             }).ToArray(),
             subscriptions,
+            appearance = new
+            {
+                theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" },
+                fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 },
+                animations = UiAnimationsToggle.IsChecked == true
+            },
             settings = new
             {
                 dns = new
@@ -299,6 +305,32 @@ public partial class MainWindow : Window
                 SaveRouting_Click(this, new RoutedEventArgs());
                 if (!RoutingSummary.Text.Contains("сохранены локально", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("Маршруты не сохранены. Проверьте DNS, MTU и исключения процессов.");
+                return true;
+            }
+            case "settings.appearance.save":
+            {
+                var theme = ReadString("theme");
+                if (theme is not ("dark" or "light" or "oled"))
+                    throw new InvalidDataException("Неизвестная тема оформления.");
+                if (!payload.TryGetProperty("fontScale", out var fontScaleElement) ||
+                    !fontScaleElement.TryGetInt32(out var fontScale) ||
+                    !new[] { 85, 100, 115, 130 }.Contains(fontScale))
+                    throw new InvalidDataException("Размер текста должен быть 85, 100, 115 или 130 процентов.");
+                if (!payload.TryGetProperty("animations", out var animationsElement) ||
+                    animationsElement.ValueKind is not (System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False))
+                    throw new InvalidDataException("Параметр анимации задан некорректно.");
+
+                _loadingUiSettings = true;
+                try
+                {
+                    ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
+                    FontScaleSelector.SelectedIndex = fontScale switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
+                    UiAnimationsToggle.IsChecked = animationsElement.GetBoolean();
+                    ApplyTheme(theme);
+                    ApplyFontScale();
+                }
+                finally { _loadingUiSettings = false; }
+                PersistUiSettings("Оформление сохранено через общий интерфейс.");
                 return true;
             }
             case "settings.save":
