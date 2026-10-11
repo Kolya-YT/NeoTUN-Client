@@ -91,19 +91,19 @@ jobs:
           key: ${{ runner.os }}-neotun-engines-sing-box-1.14.3-xray-26.3.27-wintun-0.14.1
 
       - name: Test shared Rust core
-        run: cargo test --manifest-path core/Cargo.toml
+        run: cargo test --manifest-path core/Cargo.toml --release --target x86_64-pc-windows-msvc
 
       - name: Build shared Rust core for Windows
         run: cargo build --manifest-path core/Cargo.toml --release --target x86_64-pc-windows-msvc
 
       - name: Restore Windows UI
-        run: dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj
+        run: dotnet restore windows/NeoTUN.Windows/NeoTUN.Windows.csproj -r win-x64
 
       - name: Build Windows UI
-        run: dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release --no-restore
+        run: dotnet build windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --no-restore -p:SelfContained=true -p:PublishSingleFile=true
 
       - name: Publish self-contained Windows application
-        run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist/NeoTUN-Windows
+        run: dotnet publish windows/NeoTUN.Windows/NeoTUN.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --no-restore --no-build -o dist/NeoTUN-Windows
 
       - name: Bundle shared UI into Windows application
         shell: pwsh
