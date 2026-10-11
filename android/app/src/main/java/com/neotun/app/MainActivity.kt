@@ -212,14 +212,7 @@ class MainActivity : Activity() {
 
         val connection = card().apply {
             setPadding(dp(18), dp(17), dp(18), dp(17))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                if (running) intArrayOf(NeoTunDesign.SUCCESS_SURFACE, NeoTunDesign.SURFACE)
-                else intArrayOf(NeoTunDesign.BRAND_SOFT, NeoTunDesign.SURFACE)
-            ).apply {
-                cornerRadius = dp(23).toFloat()
-                setStroke(dp(1), if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BORDER_ACCENT)
-            }
+            background = NeoTunDesign.connectionCardDrawable(resources.displayMetrics.density, running)
             elevation = 0f
         }
         homeConnectionCard = connection
@@ -258,12 +251,7 @@ class MainActivity : Activity() {
         }.apply {
             textSize = 15f * fontScaleFactor()
             minHeight = dp(52)
-            background = rounded(
-                if (running) NeoTunDesign.SUCCESS_SURFACE else NeoTunDesign.BRAND_VIOLET,
-                16,
-                if (running) NeoTunDesign.SUCCESS else null,
-                if (running) 1 else 0
-            )
+            background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
             setTextColor(if (running) NeoTunDesign.TEXT_PRIMARY else Color.WHITE)
         }
         homeConnectionButton = connectButton
@@ -418,24 +406,13 @@ class MainActivity : Activity() {
             else -> formatRate(maxOf(traffic.rxRate, traffic.txRate))
         }
         homeConnectionButton?.text = if (running) "Отключиться" else "Подключиться"
-        homeConnectionButton?.background = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            if (running) intArrayOf(NeoTunDesign.SUCCESS_SURFACE, NeoTunDesign.SUCCESS_SURFACE)
-            else intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
-        ).apply { cornerRadius = dp(17).toFloat() }
+        homeConnectionButton?.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
         homeConnectionLabel?.text = if (running) "ПОДКЛЮЧЕНО" else "ГОТОВО К ПОДКЛЮЧЕНИЮ"
         homeConnectionLabel?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT)
         homeStatusDot?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET)
         homeNetworkState?.text = if (running) "●  ONLINE" else "○  OFFLINE"
         homeNetworkState?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED)
-        homeConnectionCard?.background = GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            if (running) intArrayOf(NeoTunDesign.SUCCESS_SURFACE, NeoTunDesign.SURFACE)
-            else intArrayOf(NeoTunDesign.BRAND_SOFT, NeoTunDesign.SURFACE)
-        ).apply {
-            cornerRadius = dp(25).toFloat()
-            setStroke(dp(1), if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BORDER_ACCENT)
-        }
+        homeConnectionCard?.background = NeoTunDesign.connectionCardDrawable(resources.displayMetrics.density, running)
         updateHomeError(getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
             .getString(NeoTunVpnService.KEY_ERROR, null))
     }
