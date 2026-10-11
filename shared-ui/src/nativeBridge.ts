@@ -69,6 +69,35 @@ export interface NativeCapabilities {
   appUpdates: boolean;
 }
 
+/**
+ * Existing platform-native features that must remain reachable during the
+ * shared-UI rollout. The list is advisory; commands still require capability
+ * checks and native-side validation.
+ */
+export type NativeFeature =
+  | "profile-ping"
+  | "profile-qr-scan"
+  | "profile-qr-share"
+  | "profile-config-view"
+  | "profile-edit"
+  | "subscription-create"
+  | "subscription-edit"
+  | "subscription-delete"
+  | "subscription-scheduling"
+  | "routing-profiles"
+  | "routing-import"
+  | "routing-export"
+  | "routing-json-validation"
+  | "routing-process-exclusions"
+  | "appearance-settings"
+  | "ping-method-settings"
+  | "connection-widgets"
+  | "quick-settings-tile"
+  | "runtime-logs"
+  | "profile-grouping"
+  | "clipboard-import"
+  | "deep-link-import";
+
 export interface NativeAppSnapshot {
   bridgeVersion: typeof NATIVE_BRIDGE_VERSION;
   platform: Platform;
@@ -79,6 +108,8 @@ export interface NativeAppSnapshot {
   settings: NativeClientSettings;
   routingRules: NativeRoutingRule[];
   capabilities: NativeCapabilities;
+  /** Native-only features still available during migration; omitted means unknown. */
+  nativeFeatures?: NativeFeature[];
 }
 
 export type NativeCommand =
@@ -87,6 +118,24 @@ export type NativeCommand =
   | { type: "profiles.select"; payload: { profileId: string } }
   | { type: "profiles.rename"; payload: { profileId: string; name: string } }
   | { type: "profiles.delete"; payload: { profileId: string } }
+  | { type: "profiles.ping"; payload: { profileId: string } }
+  | { type: "profiles.showConfig"; payload: { profileId: string } }
+  | { type: "profiles.showQr"; payload: { profileId: string } }
+  | { type: "profiles.scanQr" }
+  | { type: "subscriptions.create"; payload: { name: string; url: string } }
+  | { type: "subscriptions.rename"; payload: { subscriptionId: string; name: string } }
+  | { type: "subscriptions.delete"; payload: { subscriptionId: string } }
+  | { type: "subscriptions.setSchedule"; payload: { enabled: boolean; intervalHours: number } }
+  | { type: "routingProfiles.list" }
+  | { type: "routingProfiles.import"; payload: { source: string } }
+  | { type: "routingProfiles.select"; payload: { profileId: string } }
+  | { type: "routingProfiles.setEnabled"; payload: { enabled: boolean } }
+  | { type: "routingProfiles.export"; payload: { profileId?: string } }
+  | { type: "routingProfiles.validate"; payload: { source: string } }
+  | { type: "settings.appearance.save"; payload: { theme: string; fontScale: number; animations: boolean } }
+  | { type: "settings.pingMethod.save"; payload: { method: "tcp" | "icmp" | "http" } }
+  | { type: "diagnostics.getLogs" }
+  | { type: "clipboard.import" }
   | { type: "connection.connect"; payload: { profileId?: string } }
   | { type: "connection.disconnect" }
   | { type: "subscriptions.refresh"; payload: { subscriptionId?: string } }
