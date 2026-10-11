@@ -30,6 +30,25 @@ Design-only features that do not exist in the current app belong in the future b
 - Existing appearance preferences (theme, font scale and animations), startup/subscription settings, updater and release checks.
 - Keep the current resizable, non-maximized WPF window behavior and keyboard/mouse interaction.
 
+## Current implementation status (2026-10-11)
+
+### Android shared UI preview
+
+The shared React UI is bundled into Android APK builds and can be opened manually from the native Settings screen. It is not the default launch screen; Android Back returns to the native UI.
+
+Implemented in the preview adapter:
+- Read real profile/subscription state from native stores; no browser persistence.
+- Select, import, rename and delete profiles, with a guard against deleting the profile actually used by the running tunnel.
+- Start/stop through the existing Android VPN services.
+- Read native connection status and traffic counters through the existing traffic sampler.
+- Create, rename, refresh and delete subscriptions; deleting a subscription from the preview leaves imported profiles intact.
+- Change the subscription refresh interval and toggle native auto-refresh.
+- Serve the bundled UI through AndroidX WebViewAssetLoader on a local HTTPS origin. External navigation and file access are disabled; prompts/confirmations use native dialogs.
+
+Still native-only and intentionally unavailable in the shared preview: routing profile editor and JSON/INCY import/export, DNS/MTU/IPv6 editing, ping, QR scan/share, per-profile config viewer, process exclusions, diagnostics/log viewer, updater, appearance/font settings, widgets, quick-settings tile and deep-link entry points. Continue using the native screens for these functions.
+
+The adapter is an incremental preview, not proof of full parity. Device-level testing is still required for WebView behavior, subscription refresh results, real TCP/UDP traffic and connect/disconnect failure paths before the shared UI can become the default.
+
 ## Shared UI rollout order
 
 1. **Contract and visual shell:** React/TypeScript type-check and production build pass. No mock networking state or fake counters.
