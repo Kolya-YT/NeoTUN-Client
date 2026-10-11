@@ -1,8 +1,9 @@
 <Window x:Class="NeoTUN.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NeoTUN" Width="1100" Height="720" MinWidth="820" MinHeight="560"
-        WindowStartupLocation="CenterScreen" WindowState="Normal" ResizeMode="CanResize" SizeToContent="Manual">
+        Title="NeoTUN" Width="1100" Height="720" MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterScreen" WindowState="Normal" ResizeMode="CanResize" SizeToContent="Manual"
+        SizeChanged="MainWindow_SizeChanged">
   <Grid x:Name="MainRoot" Background="{StaticResource BackgroundBrush}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="224"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Border Grid.Column="0" Background="{StaticResource NavigationBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="0,0,1,0">
@@ -39,7 +40,7 @@
       </DockPanel>
     </Border>
 
-    <Grid Grid.Column="1" Margin="30,24,30,22" Background="{StaticResource BackgroundBrush}">
+    <Grid x:Name="ContentArea" Grid.Column="1" Margin="30,24,30,22" Background="{StaticResource BackgroundBrush}">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <Grid Grid.Row="0" Margin="0,0,0,24">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -53,8 +54,8 @@
       <Grid Grid.Row="1">
         <Grid x:Name="HomePage">
           <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="24" Padding="28">
-            <Grid>
+          <Border x:Name="HomeHeroCard" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="24" Padding="28">
+            <Grid x:Name="HomeHeroLayout">
               <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="0.9*"/></Grid.ColumnDefinitions>
               <StackPanel VerticalAlignment="Center" Margin="4,0,20,0">
                 <Border Background="{StaticResource AccentSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="20" Padding="14" HorizontalAlignment="Left">
