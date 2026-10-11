@@ -329,17 +329,26 @@ internal sealed class EngineRuntime : IDisposable
             root["dns"] = dns;
         }
 
+        // Preserve engine-provided servers (notably the Xray bridge's "bootstrap"
+        // DNS server). Dropping them while keeping dns.final="bootstrap" leaves a
+        // dangling server reference and prevents sing-box from starting.
         var servers = new JsonArray();
         var existing = dns["servers"] as JsonArray;
         if (existing is not null)
         {
             foreach (var item in existing)
             {
-                if (item is JsonObject obj && string.Equals(obj["tag"]?.GetValue<string>(), "system", StringComparison.Ordinal))
+                if (item is JsonObject obj &&
+                    !string.IsNullOrWhiteSpace(obj["tag"]?.GetValue<string>()) &&
+                    !servers.OfType<JsonObject>().Any(server =>
+                        string.Equals(server["tag"]?.GetValue<string>(), obj["tag"]?.GetValue<string>(), StringComparison.Ordinal)))
+                {
                     servers.Add(item.DeepClone());
+                }
             }
         }
-        if (servers.Count == 0)
+        if (!servers.OfType<JsonObject>().Any(server =>
+                string.Equals(server["tag"]?.GetValue<string>(), "system", StringComparison.Ordinal)))
             servers.Add(new JsonObject { ["type"] = "local", ["tag"] = "system" });
 
         var remoteTag = AddDnsServer(servers, remote, "neotun-remote");
