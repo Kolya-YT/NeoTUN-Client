@@ -57,28 +57,40 @@ public partial class MainWindow : Window
 
     private void ApplyResponsiveLayout()
     {
-        // Keep the app usable at compact window sizes without removing pages or controls.
+        // Keep every feature reachable at compact sizes; the home page itself
+        // scrolls instead of clipping the traffic cards or the connection panel.
         var compact = ActualWidth < 1000;
+        var shortWindow = ActualHeight < 650;
+
         if (MainRoot.ColumnDefinitions.Count > 0)
             MainRoot.ColumnDefinitions[0].Width = new GridLength(compact ? 184 : 224);
 
         ContentArea.Margin = compact
             ? new Thickness(16, 16, 16, 14)
             : new Thickness(30, 24, 30, 22);
-        HomeHeroCard.Padding = compact
+        HomeHeroCard.Padding = compact || shortWindow
             ? new Thickness(16)
             : new Thickness(28);
-        ConnectButton.Width = compact ? 124 : 164;
-        ConnectButton.Height = compact ? 124 : 164;
-        ConnectButton.BorderThickness = compact ? new Thickness(3) : new Thickness(4);
+
+        ConnectButton.Width = compact || shortWindow ? 124 : 164;
+        ConnectButton.Height = compact || shortWindow ? 124 : 164;
+        ConnectButton.BorderThickness = compact || shortWindow ? new Thickness(3) : new Thickness(4);
+
+        if (HomeHeroLayout.ColumnDefinitions.Count >= 2)
+        {
+            HomeHeroLayout.ColumnDefinitions[0].Width = new GridLength(compact ? 1.15 : 1.1, GridUnitType.Star);
+            HomeHeroLayout.ColumnDefinitions[1].Width = new GridLength(compact ? 0.85 : 0.9, GridUnitType.Star);
+        }
 
         if (ServersPage.ColumnDefinitions.Count >= 2)
         {
+            // Give the profile list more room on smaller windows; the editor
+            // remains scrollable and its controls are never removed.
             ServersPage.ColumnDefinitions[0].Width = compact
-                ? new GridLength(1, GridUnitType.Star)
+                ? new GridLength(1.15, GridUnitType.Star)
                 : new GridLength(1.05, GridUnitType.Star);
             ServersPage.ColumnDefinitions[1].Width = compact
-                ? new GridLength(1, GridUnitType.Star)
+                ? new GridLength(0.85, GridUnitType.Star)
                 : new GridLength(0.95, GridUnitType.Star);
         }
     }
