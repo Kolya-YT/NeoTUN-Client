@@ -272,6 +272,50 @@ public partial class MainWindow : Window
                 _vm.SelectedProfile = profile;
                 return true;
             }
+            case "routing.save":
+            {
+                if (!payload.TryGetProperty("rules", out var ruleArray) || ruleArray.ValueKind != System.Text.Json.JsonValueKind.Array)
+                    throw new InvalidDataException("Список правил маршрутизации некорректен.");
+                var rules = ruleArray.EnumerateArray().ToDictionary(
+                    item => item.TryGetProperty("id", out var idValue) ? idValue.GetString() ?? "" : "",
+                    item => item,
+                    StringComparer.Ordinal);
+                string LinesFor(string id, string field)
+                {
+                    if (!rules.TryGetValue(id, out var rule) || !rule.TryGetProperty(field, out var values) || values.ValueKind != System.Text.Json.JsonValueKind.Array) return "";
+                    return string.Join(Environment.NewLine, values.EnumerateArray().Where(value => value.ValueKind == System.Text.Json.JsonValueKind.String).Select(value => value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value)));
+                }
+                ProxySitesEditor.Text = LinesFor("proxy", "domains");
+                ProxyIpEditor.Text = LinesFor("proxy", "ips");
+                DirectSitesEditor.Text = LinesFor("direct", "domains");
+                DirectIpEditor.Text = LinesFor("direct", "ips");
+                BlockSitesEditor.Text = LinesFor("block", "domains");
+                BlockIpEditor.Text = LinesFor("block", "ips");
+                RoutingSummary.Text = "";
+                SaveRouting_Click(this, new RoutedEventArgs());
+                if (!RoutingSummary.Text.Contains("сохранены локально", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Маршруты не сохранены. Проверьте DNS, MTU и исключения процессов.");
+                return true;
+            }
+            case "settings.save":
+            {
+                if (!payload.TryGetProperty("dns", out var dns) || !dns.TryGetProperty("remote", out var remoteDns) || !dns.TryGetProperty("domestic", out var domesticDns))
+                    throw new InvalidDataException("Параметры DNS отсутствуют.");
+                RemoteDnsInput.Text = remoteDns.GetString() ?? "";
+                DomesticDnsInput.Text = domesticDns.GetString() ?? "";
+                DomesticDnsDomainsEditor.Text = dns.TryGetProperty("domesticDomains", out var domains) && domains.ValueKind == System.Text.Json.JsonValueKind.Array
+                    ? string.Join(Environment.NewLine, domains.EnumerateArray().Where(value => value.ValueKind == System.Text.Json.JsonValueKind.String).Select(value => value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value)))
+                    : "";
+                if (payload.TryGetProperty("mtu", out var mtu)) MtuInput.Text = mtu.GetInt32().ToString();
+                if (payload.TryGetProperty("ipv6", out var ipv6)) Ipv6Toggle.IsChecked = ipv6.GetString() == "enabled";
+                if (payload.TryGetProperty("autoUpdateSubscriptions", out var autoUpdate)) AutoUpdateSubscriptionsToggle.IsChecked = autoUpdate.GetBoolean();
+                RoutingSummary.Text = "";
+                SaveRouting_Click(this, new RoutedEventArgs());
+                if (!RoutingSummary.Text.Contains("сохранены локально", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Настройки не сохранены. Проверьте DNS, MTU и исключения процессов.");
+                PersistUiSettings("Настройки сохранены через новый интерфейс.");
+                return true;
+            }
             case "subscriptions.refresh":
             {
                 string? source = null;
