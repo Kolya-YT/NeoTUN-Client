@@ -363,7 +363,18 @@ internal sealed class EngineRuntime : IDisposable
         var domesticTag = AddDnsServer(servers, domestic, "neotun-domestic");
         dns["servers"] = servers;
 
-        if (remoteTag is not null)
+        // Xray bridge runtime deliberately provides a bootstrap DNS server with
+        // detour=direct. Overwriting dns.final with a user DNS server can send DNS
+        // packets back through the SOCKS proxy (and stall startup / name resolution).
+        // Keep the engine's explicit final server; custom DNS is still available for
+        // domain-specific rules below. For profiles without an engine-selected final,
+        // use the configured remote DNS or the system resolver.
+        var engineFinal = dns["final"]?.GetValue<string>();
+        if (string.Equals(engineFinal, "bootstrap", StringComparison.Ordinal))
+        {
+            // Keep bootstrap as the default DNS path for the Xray + TUN bridge.
+        }
+        else if (remoteTag is not null)
             dns["final"] = remoteTag;
         else if (dns["final"] is null)
             dns["final"] = "system";
