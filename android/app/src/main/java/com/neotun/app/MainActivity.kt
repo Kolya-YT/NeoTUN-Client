@@ -3027,11 +3027,53 @@ class MainActivity : Activity() {
                 connect(profile)
             }
             "connection.disconnect" -> disconnect()
+            "subscriptions.create" -> {
+                val name = payload.optString("name").trim().take(100).ifBlank { "Подписка" }
+                val url = payload.optString("url").trim()
+                require(url.length <= 4096 && (url.startsWith("https://", true) || url.startsWith("http://", true))) {
+                    "Укажите корректную HTTP(S)-ссылку"
+                }
+                val existing = subscriptions.all().firstOrNull { it.url.trim().trimEnd('/') == url.trimEnd('/') }
+                val subscription = existing?.copy(name = name) ?: NeoTunSubscription(UUID.randomUUID().toString(), name, url)
+                refreshSubscription(subscription)
+            }
+            "subscriptions.rename" -> {
+                val id = payload.optString("subscriptionId")
+                val name = payload.optString("name").trim()
+                require(name.isNotBlank() && name.length <= 100) { "Название должно содержать от 1 до 100 символов" }
+                val subscription = subscriptions.all().firstOrNull { it.id == id } ?: error("Подписка не найдена")
+                subscriptions.save(subscription.copy(name = name))
+            }
+            "subscriptions.delete" -> {
+                val id = payload.optString("subscriptionId")
+                require(subscriptions.all().any { it.id == id }) { "Подписка не найдена" }
+                if (payload.optBoolean("deleteProfiles", false)) {
+                    store.saveAll(store.all().filterNot { it.sourceSubscriptionId == id })
+                    if (selectedProfileId() !in store.all().map { it.id }) {
+                        getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().remove(SELECTED).apply()
+                    }
+                }
+                subscriptions.delete(id)
+            }
+            "subscriptions.setSchedule" -> {
+                val enabled = payload.optBoolean("enabled", true)
+                val hours = payload.optInt("intervalHours", 12).coerceIn(1, 168)
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit()
+                    .putBoolean("subscriptions_auto_update", enabled)
+                    .putInt("subscription_update_hours", hours)
+                    .apply()
+            }
             "subscriptions.refresh" -> {
                 val id = payload.optString("subscriptionId")
                 val targets = subscriptions.all().filter { id.isBlank() || it.id == id }
                 require(targets.isNotEmpty()) { "Подписок для обновления нет" }
                 targets.forEach { refreshSubscription(it) }
+            }
+            "settings.save" -> {
+                val enabled = payload.optBoolean("autoUpdateSubscriptions", true)
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit()
+                    .putBoolean("subscriptions_auto_update", enabled)
+                    .apply()
             }
             else -> error("Команда пока не поддерживается в Android-интерфейсе: $type")
         }
@@ -3058,8 +3100,18 @@ class MainActivity : Activity() {
                 .put("selected", profile.id == selectedId)
                 .put("subscriptionId", profile.sourceSubscriptionId ?: JSONObject.NULL))
         }
+        val subscriptionArray = JSONArray()
+        val allSubscriptions = subscriptions.all()
+        allSubscriptions.forEach { sub ->
+            subscriptionArray.put(JSONObject()
+                .put("id", sub.id)
+                .put("name", sub.name)
+                .put("url", sub.url)
+                .put("lastUpdated", sub.lastUpdated)
+                .put("profileCount", profiles.count { it.sourceSubscriptionId == sub.id }))
+        }
         val settings = JSONObject()
-            .put("dns", JSONObject().put("remote", prefs.getString("dns_mode", "Автоматический") ?: "Автоматический")
+            .put("dns", JSONObject().put("remote", "")
                 .put("domestic", "").put("domesticDomains", JSONArray()))
             .put("mtu", prefs.getInt("mtu", 1500))
             .put("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
@@ -3068,9 +3120,9 @@ class MainActivity : Activity() {
         val capabilities = JSONObject()
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
-            .put("subscriptions", subscriptions.all().isNotEmpty())
+            .put("subscriptions", true)
             .put("routing", false).put("dns", false).put("mtu", false).put("ipv6", false)
-            .put("autoConnect", false).put("autoUpdateSubscriptions", false)
+            .put("autoConnect", false).put("autoUpdateSubscriptions", true)
             .put("diagnostics", false).put("appUpdates", false)
         val received = traffic.sessionRx.coerceAtLeast(0L)
         val sent = traffic.sessionTx.coerceAtLeast(0L)
@@ -3090,7 +3142,7 @@ class MainActivity : Activity() {
             .put("bridgeVersion", 1).put("platform", "android")
             .put("appVersion", packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown")
             .put("connection", connection).put("traffic", stats)
-            .put("profiles", profileArray).put("settings", settings)
+            .put("profiles", profileArray).put("subscriptions", subscriptionArray).put("settings", settings)
             .put("routingRules", JSONArray()).put("capabilities", capabilities)
             .put("nativeFeatures", JSONArray().put("profile-ping").put("profile-qr-scan")
                 .put("profile-qr-share").put("profile-config-view").put("profile-edit")
