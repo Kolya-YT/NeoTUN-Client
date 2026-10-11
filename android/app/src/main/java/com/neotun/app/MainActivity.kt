@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
     private var sharedUiView: WebView? = null
+    private var cachedSharedLaunchableApps: List<Pair<String, String>>? = null
     private var sharedUiPreviousScreen: Screen = Screen.SETTINGS
     private var homeRxValue: TextView? = null
     private var homeTxValue: TextView? = null
@@ -842,18 +843,23 @@ class MainActivity : Activity() {
 
 
 
-    private fun showAppExclusionSettings() {
+    private fun sharedLaunchableApps(): List<Pair<String, String>> {
+        cachedSharedLaunchableApps?.let { return it }
         val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val launchables = packageManager.queryIntentActivities(launcherIntent, 0)
+        return packageManager.queryIntentActivities(launcherIntent, 0)
             .mapNotNull { resolve ->
                 val appInfo = resolve.activityInfo?.applicationInfo ?: return@mapNotNull null
-                val packageName = appInfo.packageName
-                if (packageName == this.packageName) null
-                else packageName to (resolve.loadLabel(packageManager)?.toString() ?: packageName)
+                val appPackage = appInfo.packageName
+                if (appPackage == packageName) null
+                else appPackage to (resolve.loadLabel(packageManager)?.toString() ?: appPackage)
             }
             .distinctBy { it.first }
-            .filter { it.first != packageName }
             .sortedBy { it.second.lowercase() }
+            .also { cachedSharedLaunchableApps = it }
+    }
+
+    private fun showAppExclusionSettings() {
+        val launchables = sharedLaunchableApps()
         if (launchables.isEmpty()) {
             toast("Не удалось получить список приложений")
             return
@@ -3145,6 +3151,39 @@ class MainActivity : Activity() {
                 toast("Журнал диагностики очищен")
             }
             "app.checkUpdate" -> checkUpdates()
+            "settings.android.get" -> {
+                val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+                val excludedApps = prefs.getStringSet("excluded_apps", emptySet()).orEmpty()
+                return JSONObject()
+                    .put("dnsMode", prefs.getString("dns_mode", "Автоматический") ?: "Автоматический")
+                    .put("apps", JSONArray().apply {
+                        sharedLaunchableApps().forEach { (appPackage, label) ->
+                            put(JSONObject().put("packageName", appPackage).put("label", label)
+                                .put("excluded", appPackage in excludedApps))
+                        }
+                    })
+            }
+            "settings.android.save" -> {
+                val dnsMode = payload.optString("dnsMode", "Автоматический")
+                require(dnsMode in setOf("Автоматический", "Cloudflare • 1.1.1.1", "Google • 8.8.8.8", "Quad9 • 9.9.9.9")) {
+                    "Неизвестный DNS-провайдер"
+                }
+                val requestedPackages = payload.optJSONArray("excludedPackages")
+                    ?: error("Не передан список исключений приложений")
+                val installedPackages = sharedLaunchableApps().map { it.first }.toSet()
+                val excludedPackages = buildSet {
+                    for (index in 0 until requestedPackages.length()) {
+                        val appPackage = requestedPackages.optString(index).trim()
+                        require(appPackage in installedPackages) { "Приложение отсутствует в списке доступных: $appPackage" }
+                        add(appPackage)
+                    }
+                }
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit()
+                    .putString("dns_mode", dnsMode)
+                    .putStringSet("excluded_apps", excludedPackages)
+                    .apply()
+                toast("Настройки Android сохранены. Для применения исключений переподключитесь.")
+            }
             "settings.pingMethod.save" -> {
                 val method = payload.optString("method", "tcp")
                 val key = when (method) {
