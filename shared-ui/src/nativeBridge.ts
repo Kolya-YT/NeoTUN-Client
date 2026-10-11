@@ -109,6 +109,16 @@ export type NativeFeature =
   | "clipboard-import"
   | "deep-link-import";
 
+export interface NativeRoutingProfile {
+  id: string;
+  name: string;
+  selected: boolean;
+  enabled: boolean;
+  globalProxy: boolean;
+  updatedAt: number;
+  sourceUrl?: string | null;
+}
+
 export interface NativeAppSnapshot {
   bridgeVersion: typeof NATIVE_BRIDGE_VERSION;
   platform: Platform;
@@ -121,6 +131,8 @@ export interface NativeAppSnapshot {
   appearance?: { theme: "dark" | "light" | "oled"; fontScale: number; animations: boolean };
   pingMethod?: "tcp" | "icmp" | "http";
   routingRules: NativeRoutingRule[];
+  routingProfiles?: NativeRoutingProfile[];
+  routingEnabled?: boolean;
   capabilities: NativeCapabilities;
   /** Native-only features still available during migration; omitted means unknown. */
   nativeFeatures?: NativeFeature[];
