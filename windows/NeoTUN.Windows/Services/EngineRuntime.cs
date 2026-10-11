@@ -78,6 +78,7 @@ internal sealed class EngineRuntime : IDisposable
         var singBoxStarted = false;
         var singBoxRoot = JsonNode.Parse(runtime.SingBoxJson)?.AsObject()
             ?? throw new InvalidOperationException("Rust core вернул некорректный sing-box JSON.");
+        LogRealityDiagnostics(runtime, singBoxRoot);
         ApplyRoutingPreferences(singBoxRoot);
         var experimental = singBoxRoot["experimental"] as JsonObject;
         if (experimental is null)
@@ -182,6 +183,44 @@ internal sealed class EngineRuntime : IDisposable
         await StopXrayAsync();
         StateChanged?.Invoke(false, "Отключено");
         WriteLog("Runtime stopped");
+    }
+
+    private void LogRealityDiagnostics(RuntimeConfig runtime, JsonObject singBoxRoot)
+    {
+        // Log presence only: never write UUIDs, public keys, server addresses, or
+        // full share links to the diagnostic log.
+        static bool HasText(JsonNode? node) =>
+            !string.IsNullOrWhiteSpace(node?.GetValue<string>());
+
+        var singBoxOutbound = singBoxRoot["outbounds"] is JsonArray singBoxOutbounds
+            ? singBoxOutbounds.OfType<JsonObject>().FirstOrDefault(o =>
+                string.Equals(o["tag"]?.GetValue<string>(), "proxy", StringComparison.Ordinal))
+            : null;
+        var tls = singBoxOutbound?["tls"] as JsonObject;
+        var reality = tls?["reality"] as JsonObject;
+        var singBoxSecurity = tls is null ? "none" :
+            reality is not null ? "reality" : "tls";
+
+        if (runtime.Engine == "xray" && !string.IsNullOrWhiteSpace(runtime.XrayJson))
+        {
+            try
+            {
+                var root = JsonNode.Parse(runtime.XrayJson!) as JsonObject;
+                var outbound = (root?["outbounds"] as JsonArray)?.OfType<JsonObject>()
+                    .FirstOrDefault(o => string.Equals(o["tag"]?.GetValue<string>(), "proxy", StringComparison.Ordinal));
+                var stream = outbound?["streamSettings"] as JsonObject;
+                var xrayReality = stream?["realitySettings"] as JsonObject;
+                WriteLog($"Profile diagnostics: engine=xray; transport={stream?["network"]?.GetValue<string>() ?? "unknown"}; security={stream?["security"]?.GetValue<string>() ?? "unknown"}; reality.sniPresent={HasText(xrayReality?["serverName"])}; reality.publicKeyPresent={HasText(xrayReality?["publicKey"])}; reality.shortIdPresent={HasText(xrayReality?["shortId"])}; reality.fingerprintPresent={HasText(xrayReality?["fingerprint"])}; reality.spiderXPresent={HasText(xrayReality?["spiderX"])}.");
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                WriteLog("Profile diagnostics: unable to inspect Xray REALITY settings (" + ex.GetType().Name + ").");
+            }
+            return;
+        }
+
+        var utls = tls?["utls"] as JsonObject;
+        WriteLog($"Profile diagnostics: engine=sing-box; transport={singBoxOutbound?["transport"]?["type"]?.GetValue<string>() ?? "tcp"}; security={singBoxSecurity}; reality.sniPresent={HasText(tls?["server_name"])}; reality.publicKeyPresent={HasText(reality?["public_key"])}; reality.shortIdPresent={HasText(reality?["short_id"])}; reality.fingerprintPresent={HasText(utls?["fingerprint"])}.");
     }
 
     private void ApplyRoutingPreferences(JsonObject singBoxRoot)
