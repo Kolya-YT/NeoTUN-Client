@@ -705,13 +705,8 @@ public partial class MainWindow : Window
             RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
             DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
             DomesticDnsDomainsEditor.Text = "ru" + Environment.NewLine + "su" + Environment.NewLine + "рф";
-            BlockSitesEditor.Clear();
-            BlockIpEditor.Clear();
-            ProxySitesEditor.Clear();
-            ProxyIpEditor.Clear();
-            DirectSitesEditor.Clear();
-            DirectIpEditor.Clear();
-            ProcessExclusionsEditor.Clear();
+            // Keep user-defined routing rules and process exclusions, as Android keeps
+            // routing profiles when resetting app preferences.
         }
         finally { _loadingUiSettings = false; }
 
