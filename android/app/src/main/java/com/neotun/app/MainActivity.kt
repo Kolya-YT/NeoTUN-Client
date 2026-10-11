@@ -18,6 +18,9 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -2879,6 +2882,42 @@ class MainActivity : Activity() {
             settings.allowContentAccess = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             addJavascriptInterface(SharedUiAndroidBridge(), "NeoTunAndroid")
+            webChromeClient = object : WebChromeClient() {
+                override fun onJsPrompt(
+                    view: WebView?, url: String?, message: String?, defaultValue: String?, result: JsPromptResult?
+                ): Boolean {
+                    if (url?.startsWith("https://appassets.androidplatform.net/") != true) {
+                        result?.cancel()
+                        return true
+                    }
+                    val input = EditText(this@MainActivity).apply { setText(defaultValue.orEmpty()) }
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle(message?.take(100) ?: "NeoTUN")
+                        .setView(input)
+                        .setNegativeButton("Отмена") { _, _ -> result?.cancel() }
+                        .setPositiveButton("Продолжить") { _, _ -> result?.confirm(input.text.toString()) }
+                        .setOnCancelListener { result?.cancel() }
+                        .show()
+                    return true
+                }
+
+                override fun onJsConfirm(
+                    view: WebView?, url: String?, message: String?, result: JsResult?
+                ): Boolean {
+                    if (url?.startsWith("https://appassets.androidplatform.net/") != true) {
+                        result?.cancel()
+                        return true
+                    }
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Подтверждение")
+                        .setMessage(message?.take(500) ?: "Подтвердить действие?")
+                        .setNegativeButton("Отмена") { _, _ -> result?.cancel() }
+                        .setPositiveButton("Подтвердить") { _, _ -> result?.confirm() }
+                        .setOnCancelListener { result?.cancel() }
+                        .show()
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
                     assetLoader.shouldInterceptRequest(request.url)
