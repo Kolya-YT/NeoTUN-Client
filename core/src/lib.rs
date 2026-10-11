@@ -575,11 +575,25 @@ impl Profile {
             "uuid": uuid
         });
 
+        // VLESS Vision profiles require their flow to reach the selected engine.
+        // Silently dropping this field makes otherwise valid REALITY profiles fail.
+        if let Some(flow) = self.params.get("flow").filter(|value| !value.trim().is_empty()) {
+            vless["flow"] = serde_json::json!(flow);
+        }
+
         if security == "tls" {
-            vless["tls"] = serde_json::json!({
+            let mut tls = serde_json::json!({
                 "enabled": true,
                 "server_name": self.params.get("sni").or_else(|| self.params.get("host")).cloned()
             });
+            if let Some(alpn) = self.params.get("alpn").filter(|value| !value.trim().is_empty()) {
+                tls["alpn"] = serde_json::json!(alpn.split(',').map(str::trim).filter(|v| !v.is_empty()).collect::<Vec<_>>());
+            }
+            if self.params.get("allowInsecure").or_else(|| self.params.get("insecure"))
+                .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes")) {
+                tls["insecure"] = serde_json::json!(true);
+            }
+            vless["tls"] = tls;
         } else if security == "reality" {
             // sing-box requires uTLS to be explicitly enabled for Reality outbounds.
             // The fingerprint comes from the share URI (?fp=); Chrome is the
@@ -932,6 +946,19 @@ mod tests {
         assert_eq!(stream["xhttpSettings"]["path"], "/");
         assert_eq!(stream["xhttpSettings"]["mode"], "auto");
         assert_eq!(stream["xhttpSettings"]["xPaddingBytes"], "100-1000");
+    }
+
+    #[test]
+    fn sing_box_vless_preserves_flow_alpn_and_tls_insecure_option() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=tcp&flow=xtls-rprx-vision&alpn=h2%2Chttp%2F1.1&allowInsecure=1"
+        ).unwrap();
+        let config: serde_json::Value = serde_json::from_str(&profile.to_sing_box_json().unwrap()).unwrap();
+        let outbound = &config["outbounds"][0];
+        assert_eq!(outbound["flow"], "xtls-rprx-vision");
+        assert_eq!(outbound["tls"]["alpn"][0], "h2");
+        assert_eq!(outbound["tls"]["alpn"][1], "http/1.1");
+        assert_eq!(outbound["tls"]["insecure"], true);
     }
 
     #[test]
