@@ -126,7 +126,19 @@
                     <Grid>
                       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                       <StackPanel>
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="ProfileNameLabel" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                  <Setter Property="Foreground" Value="{StaticResource BrandVioletBrush}"/>
+                                  <Setter Property="FontWeight" Value="Bold"/>
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
                         <TextBlock Text="{Binding Endpoint}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,4,0,0"/>
                         <TextBlock Text="{Binding Protocol}" Foreground="{StaticResource BrandVioletBrush}" FontSize="10" Margin="0,6,0,0"/>
                       </StackPanel>
