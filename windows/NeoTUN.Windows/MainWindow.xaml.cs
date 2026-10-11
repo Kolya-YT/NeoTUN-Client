@@ -204,24 +204,36 @@ public partial class MainWindow : Window
             subscriptions,
             settings = new
             {
-                dns = new { remote = "", domestic = "", domesticDomains = Array.Empty<string>() },
-                mtu = 1500,
-                ipv6 = "disabled",
+                dns = new
+                {
+                    remote = RemoteDnsInput.Text.Trim(),
+                    domestic = DomesticDnsInput.Text.Trim(),
+                    domesticDomains = NormalizeLines(DomesticDnsDomainsEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                },
+                mtu = int.TryParse(MtuInput.Text, out var sharedMtu) ? sharedMtu : 1500,
+                ipv6 = Ipv6Toggle.IsChecked == true ? "enabled" : "disabled",
                 autoConnect = false,
-                autoUpdateSubscriptions = false
+                autoUpdateSubscriptions = AutoUpdateSubscriptionsToggle.IsChecked == true
             },
-            routingRules = Array.Empty<object>(),
+            routingRules = new[]
+            {
+                new { id = "proxy", action = "proxy", domains = NormalizeLines(ProxySitesEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), ips = NormalizeLines(ProxyIpEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), enabled = true },
+                new { id = "direct", action = "direct", domains = NormalizeLines(DirectSitesEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), ips = NormalizeLines(DirectIpEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), enabled = true },
+                new { id = "block", action = "block", domains = NormalizeLines(BlockSitesEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), ips = NormalizeLines(BlockIpEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), enabled = true }
+            },
             capabilities = new
             {
                 connectionLifecycle = true,
                 profileManagement = true,
                 subscriptions = false,
-                routing = false,
-                dns = false,
-                mtu = false,
-                ipv6 = false,
+                routing = true,
+                routingRuleActions = false,
+                routingRuleToggles = false,
+                dns = true,
+                mtu = true,
+                ipv6 = true,
                 autoConnect = false,
-                autoUpdateSubscriptions = false,
+                autoUpdateSubscriptions = true,
                 diagnostics = false,
                 appUpdates = false
             },
