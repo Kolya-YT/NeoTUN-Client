@@ -61,7 +61,10 @@ export default function App() {
     setMessage('');
     try {
       const response = await native.request(command);
-      if (!response.ok) setMessage(response.error.message);
+      if (!response.ok) {
+        setMessage(response.error.message);
+        return;
+      }
       await refresh();
     } catch {
       setMessage('Не удалось связаться с системным сервисом. Проверьте состояние приложения.');
