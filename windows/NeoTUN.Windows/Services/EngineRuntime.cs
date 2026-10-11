@@ -129,28 +129,45 @@ internal sealed class EngineRuntime : IDisposable
             if (xrayStarted) await StopXrayAsync();
             throw;
         }
-        _totalUpload = 0;
-        _totalDownload = 0;
-        await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), cancellationToken);
-        WriteLog("sing-box control API is responsive; TUN process startup confirmed (internet reachability is not yet proven).");
-        _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
-        _trafficMonitor.LogLine += WriteLog;
-        _trafficMonitor.SampleReceived += (upload, download) =>
+        try
         {
-            long totalUpload;
-            long totalDownload;
-            lock (_sync)
+            _totalUpload = 0;
+            _totalDownload = 0;
+            await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), cancellationToken);
+            WriteLog("sing-box control API is responsive; TUN process startup confirmed (internet reachability is not yet proven).");
+            _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
+            _trafficMonitor.LogLine += WriteLog;
+            _trafficMonitor.SampleReceived += (upload, download) =>
             {
-                _totalUpload += upload;
-                _totalDownload += download;
-                totalUpload = _totalUpload;
-                totalDownload = _totalDownload;
+                long totalUpload;
+                long totalDownload;
+                lock (_sync)
+                {
+                    _totalUpload += upload;
+                    _totalDownload += download;
+                    totalUpload = _totalUpload;
+                    totalDownload = _totalDownload;
+                }
+                TrafficUpdated?.Invoke(upload, download, totalUpload, totalDownload);
+            };
+            _trafficMonitor.Start();
+            StateChanged?.Invoke(true, "Движки запущены; проверяем стабильность TUN и доступность трафика…");
+            WriteLog("Runtime processes started; engine=" + runtime.Engine + "; TUN startup is provisional until the process remains alive.");
+        }
+        catch (Exception ex)
+        {
+            WriteLog("Runtime startup finalization failed; cleaning up started processes: " + ex);
+            if (_trafficMonitor is not null)
+            {
+                try { await _trafficMonitor.DisposeAsync(); }
+                catch (Exception cleanupError) { WriteLog("Traffic monitor cleanup warning: " + cleanupError.Message); }
+                _trafficMonitor = null;
             }
-            TrafficUpdated?.Invoke(upload, download, totalUpload, totalDownload);
-        };
-        _trafficMonitor.Start();
-        StateChanged?.Invoke(true, "Движки запущены; проверяем стабильность TUN и доступность трафика…");
-        WriteLog("Runtime processes started; engine=" + runtime.Engine + "; TUN startup is provisional until the process remains alive.");
+            await StopSingBoxAsync();
+            await StopXrayAsync();
+            StateChanged?.Invoke(false, "Ошибка запуска: " + ex.Message);
+            throw;
+        }
     }
 
     public async Task StopAsync()
