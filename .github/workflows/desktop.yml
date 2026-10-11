@@ -7,8 +7,7 @@ on:
     paths:
       - "windows/**"
       - "core/**"
-      - "android/**"
-      - "xraybridge/**"
+      - "android/app/build.gradle.kts"
       - ".github/workflows/desktop.yml"
       - "installer/**"
       - "README.md"
@@ -25,7 +24,7 @@ permissions:
 
 concurrency:
   group: windows-desktop-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   windows:
@@ -40,11 +39,30 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+          cache: true
+          cache-dependency-path: windows/NeoTUN.Windows/NeoTUN.Windows.csproj
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: ${{ runner.os }}-rust-windows-${{ hashFiles('core/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-windows-
+
+      - name: Cache pinned Windows engine archives
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/neotun-engines
+          key: ${{ runner.os }}-neotun-engines-sing-box-1.14.3-xray-26.3.27-wintun-0.14.1
 
       - name: Test shared Rust core
         run: cargo test --manifest-path core/Cargo.toml
@@ -87,6 +105,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
 
           function Get-PinnedArchive([string]$Url, [string]$Destination) {
+            if ((Test-Path $Destination) -and (Get-Item $Destination).Length -ge 1024) {
+              Write-Host "Using cached archive $Destination"
+              return
+            }
             $lastError = $null
             for ($attempt = 1; $attempt -le 4; $attempt++) {
               try {
