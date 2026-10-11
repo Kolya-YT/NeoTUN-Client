@@ -5,3 +5,18 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 .profile-actions{display:flex;gap:6px;align-items:center;margin-left:6px}.profile-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:var(--muted);font-size:11px}.secondary.small{display:inline-flex;align-items:center;gap:6px;background:var(--input);border:1px solid var(--border);color:var(--secondary);border-radius:10px;padding:8px 10px;font-size:11px}.secondary.small:hover{border-color:var(--violet);color:var(--text)}.danger-button:hover:not(:disabled){border-color:#6C3447;color:var(--red);background:var(--red-bg)}.rule-tools{display:flex;align-items:center;gap:10px}.rule-tools select{max-width:110px;background:var(--input);color:var(--secondary);border:1px solid var(--border);border-radius:8px;padding:7px;font-size:10px}@media(max-width:640px){.profile-card{flex-wrap:wrap}.profile-actions{margin-left:auto}.profile-footer{align-items:flex-start;flex-direction:column}.rule-tools{gap:6px}.rule-tools select{max-width:90px}}
+
+/* Responsive server list: long URLs and action buttons must never widen the page. */
+.app-shell,.main-area,.page-content,.server-list-wrap,.profile-list,.profile-card,.profile-info{min-width:0;max-width:100%}
+.main-area{width:auto;overflow-x:clip}
+.page-content{width:100%}
+.profile-card{flex-wrap:wrap;align-items:center}
+.profile-info{flex:1 1 180px;overflow:hidden}
+.profile-info span,.profile-info small{overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+.profile-info b{white-space:normal;overflow-wrap:anywhere}
+.profile-actions{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;max-width:100%;margin-left:auto}
+.subscription-card .profile-info small{font-family:inherit;line-height:1.4}
+.profile-footer,.section-heading,.topbar,.topbar-actions{min-width:0;flex-wrap:wrap}
+.section-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+@media(max-width:1000px){.sidebar{width:190px;padding-left:12px;padding-right:12px}.main-area{margin-left:190px;padding:22px 16px 34px}.profile-card{gap:10px}.profile-actions{flex-basis:100%;justify-content:flex-end;margin-left:0}.selected-badge{margin-left:auto}.subscription-card .profile-info{flex-basis:calc(100% - 58px)}}
+@media(max-width:640px){.profile-actions{width:100%;flex:1 1 100%;justify-content:flex-end}.subscription-card .profile-info{flex-basis:calc(100% - 58px)}.section-actions{justify-content:flex-start;width:100%}.section-actions .secondary.small{white-space:normal;text-align:left}.topbar-actions{gap:6px}.profile-footer .secondary.small{max-width:100%;white-space:normal}}
