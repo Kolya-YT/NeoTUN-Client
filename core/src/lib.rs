@@ -775,9 +775,16 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 
 impl Profile {
     pub fn engine(&self) -> &'static str {
-        // Route every VLESS transport through Xray. sing-box remains the engine
-        // for the other protocols (Hysteria2, TUIC, Shadowsocks, etc.).
-        if self.protocol == "vless" { "xray" } else { "sing-box" }
+        // Use sing-box natively for VLESS transports it supports. Keep Xray only
+        // for XHTTP/SplitHTTP, whose implementation is more compatible in Xray.
+        let transport = self.params.get("type")
+            .map(|value| value.to_ascii_lowercase())
+            .unwrap_or_default();
+        if self.protocol == "vless" && matches!(transport.as_str(), "xhttp" | "splithttp") {
+            "xray"
+        } else {
+            "sing-box"
+        }
     }
 }
 
@@ -840,38 +847,32 @@ mod tests {
         assert_eq!(profile.name.as_deref(), Some("My Server"));
         assert_eq!(profile.params.get("security").map(String::as_str), Some("tls"));
         assert_eq!(profile.params.get("path").map(String::as_str), Some("/neo"));
-        assert_eq!(profile.engine(), "xray");
+        assert_eq!(profile.engine(), "sing-box");
         let runtime: serde_json::Value =
             serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
-        assert_eq!(runtime["engine"], "xray");
-        assert_eq!(runtime["xray_config"]["outbounds"][0]["protocol"], "vless");
-        assert_eq!(runtime["xray_config"]["outbounds"][0]["settings"]["vnext"][0]["address"], "example.com");
+        assert_eq!(runtime["engine"], "sing-box");
+        assert!(runtime.get("xray_config").is_none());
         assert_eq!(runtime["sing_box_config"]["inbounds"][0]["type"], "tun");
-        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
-        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server"], "127.0.0.1");
-        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server_port"], 10808);
-        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["server"], "1.1.1.1");
-        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["detour"], "proxy");
-        assert_eq!(runtime["sing_box_config"]["dns"]["final"], "bootstrap");
-        assert_eq!(runtime["sing_box_config"]["dns"]["strategy"], "prefer_ipv4");
-        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["outbound"], "direct");
-        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["ip_cidr"].as_array().is_some(), true);
-        assert_eq!(runtime["sing_box_config"]["route"]["rules"][1]["action"], "hijack-dns");
-        assert_eq!(runtime["sing_box_config"]["route"]["rules"][1]["protocol"], "dns");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server"], "example.com");
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server_port"], 443);
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["transport"]["type"], "ws");
     }
 
     #[test]
-    fn windows_xray_runtime_excludes_remote_endpoint_and_uses_direct_bootstrap_dns() {
+    fn windows_native_vless_uses_sing_box_without_socks_bridge() {
         let profile = Profile::from_share_uri(
-            "vless://123e4567-e89b-12d3-a456-426614174000@127.0.0.1:443?security=tls&type=tcp"
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=tcp"
         ).unwrap();
         let runtime: serde_json::Value =
             serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        assert_eq!(runtime["engine"], "sing-box");
+        assert!(runtime.get("xray_config").is_none());
         let config = &runtime["sing_box_config"];
-        assert_eq!(config["route"]["rules"][0]["outbound"], "direct");
-        assert_eq!(config["route"]["rules"][0]["ip_cidr"][0], "127.0.0.1/32");
-        assert_eq!(config["dns"]["servers"][0]["server"], "1.1.1.1");
-        assert_eq!(config["dns"]["servers"][0]["detour"], "direct");
+        assert_eq!(config["outbounds"][0]["type"], "vless");
+        assert_eq!(config["outbounds"][0]["server"], "example.com");
+        assert_eq!(config["outbounds"][0]["server_port"], 443);
+        assert_eq!(config["route"]["final"], "proxy");
     }
 
     #[test]
@@ -909,21 +910,29 @@ mod tests {
     }
 
     #[test]
-    fn all_vless_transports_select_xray() {
-        for transport in ["tcp", "ws", "grpc", "httpupgrade", "xhttp"] {
+    fn supported_vless_transports_use_native_sing_box_and_xhttp_uses_xray() {
+        for transport in ["tcp", "ws", "grpc", "httpupgrade", "http"] {
+            let uri = format!("vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type={transport}&path=%2Fneo");
+            let profile = Profile::from_share_uri(&uri).unwrap();
+            assert_eq!(profile.engine(), "sing-box", "transport={transport}");
+            let runtime: serde_json::Value =
+                serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+            assert_eq!(runtime["engine"], "sing-box", "transport={transport}");
+            assert!(runtime.get("xray_config").is_none());
+            assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
+        }
+
+        for transport in ["xhttp", "splithttp"] {
             let uri = format!("vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type={transport}&path=%2Fneo");
             let profile = Profile::from_share_uri(&uri).unwrap();
             assert_eq!(profile.engine(), "xray", "transport={transport}");
             let runtime: serde_json::Value =
                 serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
             assert_eq!(runtime["engine"], "xray", "transport={transport}");
-            assert_eq!(runtime["xray_config"]["outbounds"][0]["streamSettings"]["network"],
-                       if transport == "xhttp" { "xhttp" } else { transport });
+            assert_eq!(runtime["xray_config"]["outbounds"][0]["protocol"], "vless");
             assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
         }
-        let hysteria = Profile::from_share_uri(
-            "hysteria2://password@example.com:443"
-        ).unwrap();
+        let hysteria = Profile::from_share_uri("hysteria2://password@example.com:443").unwrap();
         assert_eq!(hysteria.engine(), "sing-box");
     }
 
