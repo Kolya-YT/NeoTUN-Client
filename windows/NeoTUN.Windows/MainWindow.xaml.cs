@@ -44,6 +44,8 @@ public partial class MainWindow : Window
             _vm.IsConnected = running;
             _vm.Status = status;
             ConnectLabel.Text = running ? "ОТКЛЮЧИТЬ" : "ПОДКЛЮЧИТЬ";
+            ConnectionStatusDot.Fill = (Brush)FindResource(running ? "SuccessBrush" : "TextMutedBrush");
+            ConnectionBadgeText.Text = running ? "СОЕДИНЕНИЕ АКТИВНО" : "СОЕДИНЕНИЕ НЕ АКТИВНО";
         });
         AddLog("NeoTUN Windows UI initialized; runtime manager loaded.");
         ShowPage("Главная");
