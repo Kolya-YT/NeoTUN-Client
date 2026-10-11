@@ -99,7 +99,7 @@ internal sealed class EngineRuntime : IDisposable
             if (runtime.Engine == "xray")
             {
                 if (runtime.XrayJson is null) throw new InvalidOperationException("Для этого профиля не сформирована конфигурация Xray.");
-                WriteLog("Selected Xray + sing-box TUN bridge; validating Xray before starting TUN.");
+                WriteLog("Selected proxy engine: Xray (VLESS outbound). sing-box is used only as the Windows TUN/routing bridge; it is not the VLESS protocol engine. Validating Xray before starting TUN.");
                 if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
                 var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
                 await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
@@ -230,13 +230,20 @@ internal sealed class EngineRuntime : IDisposable
             route["final"] = ReadBool("GlobalProxy", true) ? "proxy" : "direct";
 
             var previousRules = route["rules"] as JsonArray ?? new JsonArray();
-            var priorityRules = new List<JsonNode>();
+            var endpointRules = new List<JsonNode>();
+            var dnsRules = new List<JsonNode>();
             var remainingRules = new List<JsonNode>();
             foreach (var rule in previousRules)
             {
                 if (rule is not JsonObject obj) continue;
-                if (string.Equals(obj["action"]?.GetValue<string>(), "hijack-dns", StringComparison.OrdinalIgnoreCase))
-                    priorityRules.Add(rule.DeepClone());
+                // Preserve the Xray remote-server bypass at the very top. If a user
+                // rule captures that IP into the proxy outbound, Xray loops back into
+                // its own local SOCKS listener and the connection stalls.
+                if (obj["outbound"]?.GetValue<string>() == "direct" &&
+                    obj["ip_cidr"] is JsonArray endpointCidrs && endpointCidrs.Count > 0)
+                    endpointRules.Add(rule.DeepClone());
+                else if (string.Equals(obj["action"]?.GetValue<string>(), "hijack-dns", StringComparison.OrdinalIgnoreCase))
+                    dnsRules.Add(rule.DeepClone());
                 else
                     remainingRules.Add(rule.DeepClone());
             }
@@ -277,7 +284,8 @@ internal sealed class EngineRuntime : IDisposable
                 _ => new[] { "block", "proxy", "direct" }
             };
             var mergedRules = new JsonArray();
-            foreach (var rule in priorityRules) mergedRules.Add(rule);
+            foreach (var rule in endpointRules) mergedRules.Add(rule);
+            foreach (var rule in dnsRules) mergedRules.Add(rule);
             var exclusionRule = MakeRule("process_name", processExclusions, "direct");
             if (exclusionRule is not null) mergedRules.Add(exclusionRule);
             foreach (var tag in order)
