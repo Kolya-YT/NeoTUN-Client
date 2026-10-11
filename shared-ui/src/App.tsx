@@ -236,8 +236,11 @@ export default function App() {
                             event.preventDefault();
                             const value = (draftDomain[rule.id] ?? '').trim();
                             if (!value) return;
-                            const isIpOrCidr = value.includes(':') || /^\\d{1,3}(?:\\.\\d{1,3}){3}(?:\\/\\d{1,2})?$/.test(value);
-                            const isValidDomain = /^(?:\\*\\.)?[\\p{L}\\p{N}_-]+(?:\\.[\\p{L}\\p{N}_-]+)*\\.?$/u.test(value);
+                            const isIpOrCidr = value.includes(':') || value.includes('/') ||
+                              (value.split('.').length === 4 && value.split('.').every(part => /^\d{1,3}$/.test(part)));
+                            const domainValue = value.startsWith('*.') ? value.slice(2) : value;
+                            const isValidDomain = domainValue.split('.').length >= 2 &&
+                              domainValue.split('.').every(label => /^[\p{L}\p{N}_-]+$/u.test(label));
                             if (isIpOrCidr) {
                               void saveRouting(snapshot.routingRules.map(item =>
                                 item.id === rule.id
