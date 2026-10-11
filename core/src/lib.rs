@@ -850,11 +850,14 @@ mod tests {
         assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
         assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server"], "127.0.0.1");
         assert_eq!(runtime["sing_box_config"]["outbounds"][0]["server_port"], 10808);
-        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["type"], "local");
-        assert_eq!(runtime["sing_box_config"]["dns"]["final"], "system");
+        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["server"], "1.1.1.1");
+        assert_eq!(runtime["sing_box_config"]["dns"]["servers"][0]["detour"], "direct");
+        assert_eq!(runtime["sing_box_config"]["dns"]["final"], "bootstrap");
         assert_eq!(runtime["sing_box_config"]["dns"]["strategy"], "prefer_ipv4");
-        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["action"], "hijack-dns");
-        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["protocol"], "dns");
+        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["outbound"], "direct");
+        assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["ip_cidr"].as_array().is_some(), true);
+        assert_eq!(runtime["sing_box_config"]["route"]["rules"][1]["action"], "hijack-dns");
+        assert_eq!(runtime["sing_box_config"]["route"]["rules"][1]["protocol"], "dns");
     }
 
     #[test]
