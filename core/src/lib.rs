@@ -518,7 +518,7 @@ impl Profile {
                 "inbounds": [{ "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true }],
                 "outbounds": [{ "type": "socks", "tag": "proxy", "server": "127.0.0.1", "server_port": 10808, "version": "5" }, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
                 "dns": {
-                    "servers": [{ "type": "udp", "tag": "bootstrap", "server": "1.1.1.1", "server_port": 53, "detour": "direct" }],
+                    "servers": [{ "type": "udp", "tag": "bootstrap", "server": "1.1.1.1", "server_port": 53, "detour": "proxy" }],
                     "final": "bootstrap",
                     "strategy": "prefer_ipv4"
                 },
