@@ -337,6 +337,7 @@ function EmptyState({title,text}:{title:string;text:string}) {return <div classN
 
 function SettingsPage({snapshot,onSave,onRun}:{snapshot:NativeAppSnapshot|null;onSave:(settings:NativeClientSettings)=>Promise<void>;onRun:(command:NativeCommand)=>Promise<void>}) {
   const [draft,setDraft] = useState<NativeClientSettings|null>(snapshot?.settings??null);
+  const [draftDirty,setDraftDirty] = useState(false);
   const [logs,setLogs] = useState<string|null>(null);
   const [logsLoading,setLogsLoading] = useState(false);
   const loadLogs = async () => {
@@ -373,7 +374,20 @@ function SettingsPage({snapshot,onSave,onRun}:{snapshot:NativeAppSnapshot|null;o
       setAndroidLoading(false);
     }
   };
-  useEffect(()=>setDraft(snapshot?.settings??null),[snapshot?.settings]);
+  useEffect(()=>{
+    const remote = snapshot?.settings;
+    if (!remote) return;
+    if (!draftDirty) {
+      setDraft(remote);
+      return;
+    }
+    // Native hosts publish periodic snapshots. Keep unsaved network edits
+    // until the host reports the values we submitted, instead of replacing
+    // the user's draft every second.
+    if (draft && JSON.stringify(remote) === JSON.stringify(draft)) {
+      setDraftDirty(false);
+    }
+  },[snapshot?.settings,draftDirty,draft]);
   useEffect(()=>{
     if (snapshot?.platform === "android") void loadAndroidSettings();
   },[snapshot?.platform]);
@@ -395,7 +409,10 @@ function SettingsPage({snapshot,onSave,onRun}:{snapshot:NativeAppSnapshot|null;o
   useEffect(()=>setLaunchWithWindows(snapshot?.launchWithWindows ?? false),[snapshot?.launchWithWindows]);
   useEffect(()=>setPingMethod(snapshot?.pingMethod ?? "tcp"),[snapshot?.pingMethod]);
   if (!draft || !snapshot) return <section className="page-content"><EmptyState title="Настройки недоступны" text="Сначала подключите нативный адаптер. Значения не будут подменяться демонстрационными."/></section>;
-  const update = (patch:Partial<NativeClientSettings>)=>setDraft(current=>current?{...current,...patch}:current);
+  const update = (patch:Partial<NativeClientSettings>)=>{
+    setDraftDirty(true);
+    setDraft(current=>current?{...current,...patch}:current);
+  };
   return <section className="page-content">
     <div className="section-heading"><div><h3>Параметры клиента</h3><p>Текущие значения, полученные от платформы</p></div><button className="primary small" disabled={!snapshot.capabilities.dns&&!snapshot.capabilities.mtu&&!snapshot.capabilities.ipv6&&!snapshot.capabilities.autoConnect&&!snapshot.capabilities.autoUpdateSubscriptions} onClick={()=>void onSave(draft)}>Сохранить</button></div>
     {<div className="settings-card"><div className="settings-card-title"><Activity size={18}/><div><b>Журнал диагностики</b><span>Системный журнал приложения</span></div></div><div className="action-row"><button className="secondary small" disabled={logsLoading} onClick={()=>void loadLogs()}>{logsLoading?"Загрузка…":"Открыть журнал"}</button><button className="secondary small" onClick={async()=>{await onRun({type:"diagnostics.clear"});setLogs("");}}>Очистить журнал</button></div>{logs!==null&&<><pre className="diagnostic-log">{logs||"Журнал пуст."}</pre><button className="secondary small" onClick={()=>void loadLogs()}>Обновить журнал</button></>}</div>}
