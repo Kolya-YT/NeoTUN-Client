@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -17,6 +18,7 @@ internal sealed class SharedUiPreviewWindow : Window
 
     private readonly MainWindow _owner;
     private readonly WebView2 _webView = new();
+    private readonly DispatcherTimer _stateTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     public SharedUiPreviewWindow(MainWindow owner)
     {
@@ -29,6 +31,18 @@ internal sealed class SharedUiPreviewWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Owner = owner;
         Content = _webView;
+        _stateTimer.Tick += (_, _) =>
+        {
+            if (_webView.CoreWebView2 is null) return;
+            var message = JsonSerializer.Serialize(new
+            {
+                bridgeVersion = 1,
+                type = "app.stateChanged",
+                snapshot = _owner.BuildSharedUiSnapshot()
+            }, JsonOptions);
+            _webView.CoreWebView2.PostWebMessageAsString(message);
+        };
+        Closed += (_, _) => _stateTimer.Stop();
         Loaded += InitializeAsync;
     }
 
@@ -52,6 +66,7 @@ internal sealed class SharedUiPreviewWindow : Window
             _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 "neotun.local", uiDirectory, CoreWebView2HostResourceAccessKind.DenyCors);
             _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            _webView.CoreWebView2.NavigationCompleted += (_, _) => _stateTimer.Start();
             await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript);
             _webView.Source = new Uri("https://neotun.local/index.html");
         }
