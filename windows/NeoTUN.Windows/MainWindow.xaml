@@ -110,7 +110,7 @@
               </StackPanel>
               <ListBox x:Name="ProfileList" ItemsSource="{Binding FilteredProfiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemTemplate><DataTemplate>
-                  <Border x:Name="ProfileCard" Background="{StaticResource RaisedSurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,8">
+                  <Border x:Name="ProfileCard" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,8">
                     <Border.Style>
                       <Style TargetType="Border">
                         <Setter Property="Background" Value="{StaticResource RaisedSurfaceBrush}"/>
