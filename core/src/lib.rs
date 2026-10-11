@@ -448,7 +448,9 @@ impl Profile {
             if let Some(alpn) = self.params.get("alpn") { stream["tlsSettings"]["alpn"] = serde_json::json!(alpn.split(',').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>()); }
             if self.params.get("allowInsecure").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false) { stream["tlsSettings"]["allowInsecure"] = serde_json::json!(true); }
         } else if security == "reality" {
-            stream["realitySettings"] = serde_json::json!({ "serverName": server_name, "publicKey": self.params.get("pbk").cloned().unwrap_or_default(), "shortId": self.params.get("sid").cloned().unwrap_or_default(), "fingerprint": self.params.get("fp").cloned().unwrap_or_else(|| "chrome".into()) });
+            let mut reality = serde_json::json!({ "serverName": server_name, "publicKey": self.params.get("pbk").cloned().unwrap_or_default(), "shortId": self.params.get("sid").cloned().unwrap_or_default(), "fingerprint": self.params.get("fp").cloned().unwrap_or_else(|| "chrome".into()) });
+            if let Some(spider_x) = self.params.get("spx").or_else(|| self.params.get("spiderX")).filter(|v| !v.trim().is_empty()) { reality["spiderX"] = serde_json::json!(spider_x); }
+            stream["realitySettings"] = reality;
         }
 
         let path = self.params.get("path").cloned().unwrap_or_else(|| "/".into());
@@ -484,6 +486,11 @@ impl Profile {
                 let mut settings = serde_json::json!({ "path": path });
                 if let Some(host) = host { settings["host"] = serde_json::json!(host); }
                 if let Some(mode) = self.params.get("mode").filter(|v| !v.trim().is_empty()) { settings["mode"] = serde_json::json!(mode); }
+                // Preserve XHTTP padding from common share-link spellings.
+                let padding = self.params.get("x_padding_bytes").or_else(|| self.params.get("xPaddingBytes"))
+                    .cloned()
+                    .or_else(|| self.params.get("extra").and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok()).and_then(|v| v.get("xPaddingBytes").and_then(|v| v.as_str()).map(str::to_owned)));
+                if let Some(padding) = padding.filter(|v| !v.trim().is_empty()) { settings["xPaddingBytes"] = serde_json::json!(padding); }
                 stream["xhttpSettings"] = settings;
             }
             "http" => {
@@ -908,6 +915,23 @@ mod tests {
         let config = profile.to_sing_box_json().unwrap();
         assert!(config.contains("\"engine\":\"xray\""));
         assert!(config.contains("\"transport\":\"xhttp\""));
+    }
+
+    #[test]
+    fn xhttp_reality_preserves_spider_x_and_padding_parameters() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:9443?security=reality&type=xhttp&fp=firefox&pbk=public-key&sid=a1baa1&sni=poliigon.com&spx=%2F7e6a5d54c0a16b4&path=%2F&mode=auto&x_padding_bytes=100-1000"
+        ).unwrap();
+        assert_eq!(profile.engine(), "xray");
+        let runtime: serde_json::Value = serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        let stream = &runtime["xray_config"]["outbounds"][0]["streamSettings"];
+        assert_eq!(stream["network"], "xhttp");
+        assert_eq!(stream["realitySettings"]["serverName"], "poliigon.com");
+        assert_eq!(stream["realitySettings"]["fingerprint"], "firefox");
+        assert_eq!(stream["realitySettings"]["spiderX"], "/7e6a5d54c0a16b4");
+        assert_eq!(stream["xhttpSettings"]["path"], "/");
+        assert_eq!(stream["xhttpSettings"]["mode"], "auto");
+        assert_eq!(stream["xhttpSettings"]["xPaddingBytes"], "100-1000");
     }
 
     #[test]
