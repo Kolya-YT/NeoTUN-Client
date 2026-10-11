@@ -213,7 +213,10 @@ public partial class MainWindow : Window
                 mtu = int.TryParse(MtuInput.Text, out var sharedMtu) ? sharedMtu : 1500,
                 ipv6 = Ipv6Toggle.IsChecked == true ? "enabled" : "disabled",
                 autoConnect = false,
-                autoUpdateSubscriptions = AutoUpdateSubscriptionsToggle.IsChecked == true
+                autoUpdateSubscriptions = AutoUpdateSubscriptionsToggle.IsChecked == true,
+                globalProxy = GlobalProxyToggle.IsChecked == true,
+                routeOrder = Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
+                processExclusions = NormalizeLines(ProcessExclusionsEditor.Text).Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             },
             routingRules = new[]
             {
@@ -306,9 +309,31 @@ public partial class MainWindow : Window
                 DomesticDnsDomainsEditor.Text = dns.TryGetProperty("domesticDomains", out var domains) && domains.ValueKind == System.Text.Json.JsonValueKind.Array
                     ? string.Join(Environment.NewLine, domains.EnumerateArray().Where(value => value.ValueKind == System.Text.Json.JsonValueKind.String).Select(value => value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value)))
                     : "";
-                if (payload.TryGetProperty("mtu", out var mtu)) MtuInput.Text = mtu.GetInt32().ToString();
-                if (payload.TryGetProperty("ipv6", out var ipv6)) Ipv6Toggle.IsChecked = ipv6.GetString() == "enabled";
+                if (payload.TryGetProperty("mtu", out var mtu))
+                {
+                    var requestedMtu = mtu.GetInt32();
+                    if (requestedMtu is < 1280 or > 1500) throw new InvalidDataException("MTU должен быть от 1280 до 1500.");
+                    MtuInput.Text = requestedMtu.ToString();
+                }
+                if (payload.TryGetProperty("ipv6", out var ipv6))
+                {
+                    var ipv6Value = ipv6.GetString();
+                    if (ipv6Value is not ("enabled" or "disabled")) throw new InvalidDataException("Недопустимое значение IPv6.");
+                    Ipv6Toggle.IsChecked = ipv6Value == "enabled";
+                }
                 if (payload.TryGetProperty("autoUpdateSubscriptions", out var autoUpdate)) AutoUpdateSubscriptionsToggle.IsChecked = autoUpdate.GetBoolean();
+                if (payload.TryGetProperty("globalProxy", out var globalProxy)) GlobalProxyToggle.IsChecked = globalProxy.GetBoolean();
+                if (payload.TryGetProperty("routeOrder", out var routeOrder))
+                {
+                    var order = routeOrder.GetInt32();
+                    if (order is < 0 or > 2) throw new InvalidDataException("Неизвестный порядок применения маршрутов.");
+                    RouteOrderSelector.SelectedIndex = order;
+                }
+                if (payload.TryGetProperty("processExclusions", out var processExclusions))
+                {
+                    if (processExclusions.ValueKind != System.Text.Json.JsonValueKind.Array) throw new InvalidDataException("Список исключений процессов некорректен.");
+                    ProcessExclusionsEditor.Text = string.Join(Environment.NewLine, processExclusions.EnumerateArray().Where(value => value.ValueKind == System.Text.Json.JsonValueKind.String).Select(value => value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value)));
+                }
                 RoutingSummary.Text = "";
                 SaveRouting_Click(this, new RoutedEventArgs());
                 if (!RoutingSummary.Text.Contains("сохранены локально", StringComparison.OrdinalIgnoreCase))
