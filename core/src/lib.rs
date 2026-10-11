@@ -49,6 +49,26 @@ impl Profile {
             params.insert(percent_decode(key)?, percent_decode(value)?);
         }
 
+        // Normalize common REALITY parameter aliases used by subscription
+        // exporters. The sing-box adapter consumes canonical VLESS URI keys.
+        for (canonical, aliases) in [
+            ("sni", &["serverName", "server_name"][..]),
+            ("fp", &["fingerprint", "utlsFingerprint"][..]),
+            ("pbk", &["publicKey", "public_key"][..]),
+            ("sid", &["shortId", "short_id"][..]),
+            ("spx", &["spiderX", "spider_x"][..]),
+        ] {
+            if params.get(canonical).is_none_or(|value| value.trim().is_empty()) {
+                if let Some(value) = aliases.iter()
+                    .find_map(|alias| params.get(*alias))
+                    .filter(|value| !value.trim().is_empty())
+                    .cloned()
+                {
+                    params.insert(canonical.to_string(), value);
+                }
+            }
+        }
+
         let name = fragment.map(percent_decode).transpose()?;
 
         Ok(Self {
@@ -1047,6 +1067,25 @@ mod tests {
         assert_eq!(outbound["tls"]["reality"]["enabled"], true);
         assert_eq!(outbound["tls"]["reality"]["public_key"], "public-key-value");
         assert_eq!(outbound["tls"]["reality"]["short_id"], "ab12cd34");
+    }
+
+    #[test]
+    fn normalizes_common_reality_parameter_aliases() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&serverName=www.example.org&fingerprint=firefox&publicKey=YWJjZA&shortId=ab12cd34&spiderX=%2F"
+        ).unwrap();
+
+        assert_eq!(profile.params.get("sni").map(String::as_str), Some("www.example.org"));
+        assert_eq!(profile.params.get("fp").map(String::as_str), Some("firefox"));
+        assert_eq!(profile.params.get("pbk").map(String::as_str), Some("YWJjZA"));
+        assert_eq!(profile.params.get("sid").map(String::as_str), Some("ab12cd34"));
+        assert_eq!(profile.params.get("spx").map(String::as_str), Some("/"));
+
+        let config: serde_json::Value =
+            serde_json::from_str(&profile.to_generic_sing_box_json().unwrap()).unwrap();
+        assert_eq!(config["outbounds"][0]["tls"]["server_name"], "www.example.org");
+        assert_eq!(config["outbounds"][0]["tls"]["reality"]["public_key"], "YWJjZA");
+        assert_eq!(config["outbounds"][0]["tls"]["reality"]["short_id"], "ab12cd34");
     }
 
     #[test]
