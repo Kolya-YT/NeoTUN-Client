@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Activity, ArrowDownToLine, ArrowUpFromLine, Check, ChevronRight, CircleHelp, Gauge, Globe2, Home, Network, Plus, RefreshCw, Router, Settings2, ShieldCheck, Smartphone, Trash2, Wifi, X } from 'lucide-react';
-import { getNativeBridge, type NativeAppSnapshot, type NativeRoutingRule, type NativeClientSettings } from './nativeBridge';
+import { getNativeBridge, type NativeAppSnapshot, type NativeRoutingRule, type NativeClientSettings, type NativeCommand } from './nativeBridge';
 
 type Page = 'home' | 'servers' | 'routing' | 'settings';
 const pages: { id: Page; label: string; icon: typeof Home }[] = [
@@ -55,7 +55,7 @@ export default function App() {
     });
   }, [refresh]);
 
-  const runCommand = async (command: Parameters<NonNullable<typeof bridge>['request']>[0]) => {
+  const runCommand = async (command: NativeCommand) => {
     const native = getNativeBridge();
     if (!native) { setMessage('Нативный адаптер недоступен. Действие не выполнено.'); return; }
     setMessage('');
@@ -132,11 +132,11 @@ export default function App() {
   );
 }
 
-function Stat({icon,label,value}:{icon:React.ReactNode;label:string;value:string}) {return <div className="stat-card"><div className="stat-icon">{icon}</div><span>{label}</span><b>{value}</b></div>;}
-function QuickCard({icon,title,description,onClick}:{icon:React.ReactNode;title:string;description:string;onClick:()=>void}) {return <button className="quick-card" onClick={onClick}><span className="quick-icon">{icon}</span><b>{title}</b><small>{description}</small><ChevronRight className="quick-chevron" size={16}/></button>;}
+function Stat({icon,label,value}:{icon:ReactNode;label:string;value:string}) {return <div className="stat-card"><div className="stat-icon">{icon}</div><span>{label}</span><b>{value}</b></div>;}
+function QuickCard({icon,title,description,onClick}:{icon:ReactNode;title:string;description:string;onClick:()=>void}) {return <button className="quick-card" onClick={onClick}><span className="quick-icon">{icon}</span><b>{title}</b><small>{description}</small><ChevronRight className="quick-chevron" size={16}/></button>;}
 function EmptyState({title,text}:{title:string;text:string}) {return <div className="empty-state"><div className="empty-icon"><Activity size={22}/></div><b>{title}</b><p>{text}</p></div>;}
 
-function SettingsPage({snapshot,onSave,onRun}:{snapshot:NativeAppSnapshot|null;onSave:(settings:NativeClientSettings)=>Promise<void>;onRun:(command:Parameters<NonNullable<ReturnType<typeof getNativeBridge>>['request']>[0])=>Promise<void>}) {
+function SettingsPage({snapshot,onSave,onRun}:{snapshot:NativeAppSnapshot|null;onSave:(settings:NativeClientSettings)=>Promise<void>;onRun:(command:NativeCommand)=>Promise<void>}) {
   const [draft,setDraft] = useState<NativeClientSettings|null>(snapshot?.settings??null);
   useEffect(()=>setDraft(snapshot?.settings??null),[snapshot?.settings]);
   if (!draft || !snapshot) return <section className="page-content"><EmptyState title="Настройки недоступны" text="Сначала подключите нативный адаптер. Значения не будут подменяться демонстрационными."/></section>;
