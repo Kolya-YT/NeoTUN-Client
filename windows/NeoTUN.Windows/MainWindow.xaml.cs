@@ -156,6 +156,7 @@ public partial class MainWindow : Window
 
     internal object BuildSharedUiSnapshot()
     {
+        var uiSettings = ReadUiSettings();
         var connected = _runtime.IsRunning;
         var subscriptionState = LoadSubscriptionUpdateState();
         var subscriptionNames = LoadSubscriptionNames();
@@ -211,9 +212,9 @@ public partial class MainWindow : Window
             },
             appearance = new
             {
-                theme = ReadUiSettings().Theme ?? "dark",
-                fontScale = ReadUiSettings().FontScale ?? 100,
-                animations = ReadUiSettings().UiAnimations ?? true
+                theme = uiSettings.Theme ?? "dark",
+                fontScale = uiSettings.FontScale ?? 100,
+                animations = uiSettings.UiAnimations ?? true
             },
             settings = new
             {
