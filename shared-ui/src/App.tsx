@@ -116,12 +116,132 @@ export default function App() {
               {!snapshot?.profiles.length ? <EmptyState title="Профилей пока нет" text="Импортируйте ссылку или конфигурацию, чтобы добавить сервер."/> : <div className="server-list-wrap"><div className="profile-list">{snapshot.profiles.map(profile => <div key={profile.id} role="button" tabIndex={0} className={profile.selected ? 'profile-card selected' : 'profile-card'} onClick={() => void runCommand({type:'profiles.select',payload:{profileId:profile.id}})} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')void runCommand({type:'profiles.select',payload:{profileId:profile.id}});}}><div className="profile-icon"><Globe2 size={20}/></div><div className="profile-info"><b>{profile.name}</b><span>{profile.endpoint}</span><small>{profile.protocol.toUpperCase()}</small></div>{profile.selected ? <span className="selected-badge"><Check size={14}/> Выбран</span> : <ChevronRight size={18}/>}<span className="profile-actions" onClick={e=>e.stopPropagation()}><button className="icon-button" title="Переименовать" disabled={!snapshot.capabilities.profileManagement} onClick={e=>{e.stopPropagation();const name=window.prompt('Новое название профиля',profile.name)?.trim();if(name&&name!==profile.name)void runCommand({type:'profiles.rename',payload:{profileId:profile.id,name}});}}><Pencil size={14}/></button><button className="icon-button danger-button" title="Удалить профиль" disabled={!snapshot.capabilities.profileManagement} onClick={e=>{e.stopPropagation();if(window.confirm(`Удалить профиль «${profile.name}»? Это действие нельзя отменить.`))void runCommand({type:'profiles.delete',payload:{profileId:profile.id}});}}><Trash2 size={14}/></button></span></div>)}</div><div className="profile-footer"><span>{snapshot.profiles.length} профилей</span><button className="secondary small" disabled={!snapshot.capabilities.subscriptions} onClick={()=>void runCommand({type:'subscriptions.refresh',payload:{}})}><RotateCw size={14}/> Обновить подписки</button></div></div>}
             </section>}
 
-            {page === 'routing' && <section className="page-content">
-              <div className="section-heading"><div><h3>Правила трафика</h3><p>Настройте, куда направлять совпавшие соединения</p></div><span className="capability-tag">{snapshot?.capabilities.routing ? 'Доступно' : 'Ожидает адаптер'}</span></div>
-              <div className="route-intro"><div className="route-action proxy"><Globe2/><div><b>Proxy</b><span>Через выбранный сервер</span></div></div><div className="route-action direct"><ArrowUpFromLine/><div><b>Direct</b><span>Напрямую через сеть</span></div></div><div className="route-action block"><X/><div><b>Block</b><span>Запретить соединение</span></div></div></div>
-              {!snapshot?.routingRules.length ? <EmptyState title="Правила не загружены" text="Когда нативный адаптер будет подключён, здесь появятся правила из активного профиля."/> : <div className="rules-list">{snapshot.routingRules.map(rule => <div className="rule-card" key={rule.id}><div className="rule-header"><div className="rule-title"><span className={`rule-dot ${rule.action}`}/><div><b>{rule.action.toUpperCase()}</b><small>{rule.domains.length} доменов · {rule.ips.length} IP/CIDR</small></div></div><div className="rule-tools"><select aria-label="Действие правила" value={rule.action} disabled={!snapshot.capabilities.routing} onChange={e=>void saveRouting(snapshot.routingRules.map(item=>item.id===rule.id?{...item,action:e.target.value as NativeRoutingRule['action']}:item))}><option value="proxy">Proxy</option><option value="direct">Direct</option><option value="block">Block</option></select><label className="switch"><input type="checkbox" checked={rule.enabled} disabled={!snapshot.capabilities.routing} onChange={e => void saveRouting(snapshot.routingRules.map(item => item.id === rule.id ? {...item,enabled:e.target.checked} : item))}/><span/></label></div><div className="rule-chips">{[...rule.domains,...rule.ips].map(value => <span key={value}>{value}</span>)}</div><form className="add-rule" onSubmit={e => {e.preventDefault();const value=(draftDomain[rule.id]??'').trim();if(!value)return;void saveRouting(snapshot.routingRules.map(item=>item.id===rule.id?{...item,domains:item.domains.includes(value)?item.domains:[...item.domains,value]}:item));setDraftDomain(prev=>({...prev,[rule.id]:''}));}}><input value={draftDomain[rule.id]??''} onChange={e=>setDraftDomain(prev=>({...prev,[rule.id]:e.target.value}))} placeholder="Добавить домен"/><button className="icon-button" type="submit" disabled={!snapshot.capabilities.routing}><Plus size={16}/></button><button className="icon-button danger-button" type="button" title="Удалить правило" disabled={!snapshot.capabilities.routing} onClick={()=>{if(window.confirm('Удалить это правило маршрутизации?'))void saveRouting(snapshot.routingRules.filter(item=>item.id!==rule.id));}}><Trash2 size={15}/></button></form></div>)}</div>}
-              <div className="inline-note"><ShieldCheck size={17}/><span>Изменения считаются применёнными только после подтверждения от нативного движка. Для некоторых движков может потребоваться переподключение.</span></div>
-            </section>}
+            {page === 'routing' && (
+              <section className="page-content">
+                <div className="section-heading">
+                  <div>
+                    <h3>Правила трафика</h3>
+                    <p>Настройте, куда направлять совпавшие соединения</p>
+                  </div>
+                  <span className="capability-tag">
+                    {snapshot?.capabilities.routing ? 'Доступно' : 'Ожидает адаптер'}
+                  </span>
+                </div>
+
+                <div className="route-intro">
+                  <div className="route-action proxy">
+                    <Globe2 />
+                    <div><b>Proxy</b><span>Через выбранный сервер</span></div>
+                  </div>
+                  <div className="route-action direct">
+                    <ArrowUpFromLine />
+                    <div><b>Direct</b><span>Напрямую через сеть</span></div>
+                  </div>
+                  <div className="route-action block">
+                    <X />
+                    <div><b>Block</b><span>Запретить соединение</span></div>
+                  </div>
+                </div>
+
+                {!snapshot?.routingRules.length ? (
+                  <EmptyState
+                    title="Правила не загружены"
+                    text="Когда нативный адаптер будет подключён, здесь появятся правила из активного профиля."
+                  />
+                ) : (
+                  <div className="rules-list">
+                    {snapshot.routingRules.map(rule => (
+                      <div className="rule-card" key={rule.id}>
+                        <div className="rule-header">
+                          <div className="rule-title">
+                            <span className={`rule-dot ${rule.action}`} />
+                            <div>
+                              <b>{rule.action.toUpperCase()}</b>
+                              <small>{rule.domains.length} доменов · {rule.ips.length} IP/CIDR</small>
+                            </div>
+                          </div>
+                          <div className="rule-tools">
+                            <select
+                              aria-label="Действие правила"
+                              value={rule.action}
+                              disabled={!snapshot.capabilities.routing}
+                              onChange={event => {
+                                const action = event.target.value as NativeRoutingRule['action'];
+                                void saveRouting(snapshot.routingRules.map(item =>
+                                  item.id === rule.id ? { ...item, action } : item
+                                ));
+                              }}
+                            >
+                              <option value="proxy">Proxy</option>
+                              <option value="direct">Direct</option>
+                              <option value="block">Block</option>
+                            </select>
+                            <label className="switch">
+                              <input
+                                type="checkbox"
+                                checked={rule.enabled}
+                                disabled={!snapshot.capabilities.routing}
+                                onChange={event => void saveRouting(snapshot.routingRules.map(item =>
+                                  item.id === rule.id ? { ...item, enabled: event.target.checked } : item
+                                ))}
+                              />
+                              <span />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="rule-chips">
+                          {[...rule.domains, ...rule.ips].map(value => <span key={value}>{value}</span>)}
+                        </div>
+
+                        <form
+                          className="add-rule"
+                          onSubmit={event => {
+                            event.preventDefault();
+                            const value = (draftDomain[rule.id] ?? '').trim();
+                            if (!value) return;
+                            void saveRouting(snapshot.routingRules.map(item =>
+                              item.id === rule.id
+                                ? { ...item, domains: item.domains.includes(value) ? item.domains : [...item.domains, value] }
+                                : item
+                            ));
+                            setDraftDomain(previous => ({ ...previous, [rule.id]: '' }));
+                          }}
+                        >
+                          <input
+                            value={draftDomain[rule.id] ?? ''}
+                            onChange={event => setDraftDomain(previous => ({ ...previous, [rule.id]: event.target.value }))}
+                            placeholder="Добавить домен"
+                          />
+                          <button className="icon-button" type="submit" disabled={!snapshot.capabilities.routing} aria-label="Добавить домен">
+                            <Plus size={16} />
+                          </button>
+                          <button
+                            className="icon-button danger-button"
+                            type="button"
+                            title="Удалить правило"
+                            aria-label="Удалить правило"
+                            disabled={!snapshot.capabilities.routing}
+                            onClick={() => {
+                              if (window.confirm('Удалить это правило маршрутизации?')) {
+                                void saveRouting(snapshot.routingRules.filter(item => item.id !== rule.id));
+                              }
+                            }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </form>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="inline-note">
+                  <ShieldCheck size={17} />
+                  <span>Изменения считаются применёнными только после подтверждения от нативного движка. Для некоторых движков может потребоваться переподключение.</span>
+                </div>
+              </section>
+            )}
 
             {page === 'settings' && <SettingsPage snapshot={snapshot} onSave={saveSettings} onRun={runCommand}/>}
           </>
