@@ -136,6 +136,10 @@ export interface NativeAppSnapshot {
   appearance?: { theme: "dark" | "light" | "oled"; fontScale: number; animations: boolean };
   launchWithWindows?: boolean;
   pingMethod?: "tcp" | "icmp" | "http";
+  androidSettings?: {
+    dnsMode: string;
+    apps: { packageName: string; label: string; excluded: boolean }[];
+  };
   routingRules: NativeRoutingRule[];
   routingProfiles?: NativeRoutingProfile[];
   routingEnabled?: boolean;
@@ -166,6 +170,7 @@ export type NativeCommand =
   | { type: "settings.appearance.save"; payload: { theme: string; fontScale: number; animations: boolean } }
   | { type: "settings.launchWithWindows.save"; payload: { enabled: boolean } }
   | { type: "settings.pingMethod.save"; payload: { method: "tcp" | "icmp" | "http" } }
+  | { type: "settings.android.save"; payload: { dnsMode: string; excludedPackages: string[] } }
   | { type: "diagnostics.getLogs" }
   | { type: "clipboard.import" }
   | { type: "connection.connect"; payload: { profileId?: string } }
