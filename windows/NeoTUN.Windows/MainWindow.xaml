@@ -31,11 +31,11 @@
         </StackPanel>
         <StackPanel Margin="12,0,12,0">
           <TextBlock Text="РАБОЧЕЕ ПРОСТРАНСТВО" Foreground="{StaticResource TextMutedBrush}" FontSize="10" FontWeight="SemiBold" Margin="10,0,0,10"/>
-          <Button x:Name="HomeNavButton" Content="⌂   Главная" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="HomeNav_Click"/>
-          <Button x:Name="ServersNavButton" Content="▤   Серверы" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="ServersNav_Click"/>
-          <Button x:Name="RoutingNavButton" Content="⤴   Маршрутизация" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="RoutingNav_Click"/>
-          <Button x:Name="SettingsNavButton" Content="⚙   Настройки" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="SettingsNav_Click"/>
-          <Button x:Name="LogsNavButton" Content="☷   Журнал" HorizontalContentAlignment="Left" Margin="0,0,0,6" Click="LogsNav_Click"/>
+          <Button x:Name="HomeNavButton" Content="⌂   Главная" HorizontalContentAlignment="Left" Padding="14,11" Margin="0,0,0,6" Click="HomeNav_Click"/>
+          <Button x:Name="ServersNavButton" Content="▤   Серверы" HorizontalContentAlignment="Left" Padding="14,11" Margin="0,0,0,6" Click="ServersNav_Click"/>
+          <Button x:Name="RoutingNavButton" Content="⤴   Маршрутизация" HorizontalContentAlignment="Left" Padding="14,11" Margin="0,0,0,6" Click="RoutingNav_Click"/>
+          <Button x:Name="SettingsNavButton" Content="⚙   Настройки" HorizontalContentAlignment="Left" Padding="14,11" Margin="0,0,0,6" Click="SettingsNav_Click"/>
+          <Button x:Name="LogsNavButton" Content="☷   Журнал" HorizontalContentAlignment="Left" Padding="14,11" Margin="0,0,0,6" Click="LogsNav_Click"/>
         </StackPanel>
       </DockPanel>
     </Border>
