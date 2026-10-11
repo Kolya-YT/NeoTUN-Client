@@ -3311,6 +3311,13 @@ class MainActivity : Activity() {
             "proxy_get", "proxy_head" -> "http"
             else -> "tcp"
         }
+        val routingProfiles = JSONArray()
+        routingStore.all().forEach { profile ->
+            routingProfiles.put(JSONObject().put("id", profile.id).put("name", profile.name)
+                .put("selected", profile.id == routingStore.active()?.id)
+                .put("enabled", routingStore.enabled()).put("globalProxy", profile.globalProxy)
+                .put("updatedAt", profile.updatedAt).put("sourceUrl", profile.sourceUrl ?: JSONObject.NULL))
+        }
         val routingRules = JSONArray()
         listOf(Triple("proxy", "ProxySites", "ProxyIp"), Triple("direct", "DirectSites", "DirectIp"), Triple("block", "BlockSites", "BlockIp")).forEach { (action, domainsKey, ipsKey) ->
             val domains = routingProfile?.values(domainsKey).orEmpty()
@@ -3348,7 +3355,7 @@ class MainActivity : Activity() {
             .put("connection", connection).put("traffic", stats)
             .put("profiles", profileArray).put("subscriptions", subscriptionArray).put("settings", settings)
             .put("appearance", appearance).put("pingMethod", pingMethod)
-            .put("routingRules", routingRules).put("capabilities", capabilities)
+            .put("routingRules", routingRules).put("routingProfiles", routingProfiles).put("routingEnabled", routingStore.enabled()).put("capabilities", capabilities)
             .put("nativeFeatures", JSONArray().put("profile-ping").put("profile-qr-scan")
                 .put("profile-qr-share").put("profile-config-view").put("profile-edit")
                 .put("subscription-create").put("subscription-edit").put("subscription-delete")
