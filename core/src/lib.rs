@@ -462,6 +462,15 @@ impl Profile {
         let network = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
         let security = self.params.get("security").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "none".into());
         let server_name = self.params.get("sni").or_else(|| self.params.get("host")).cloned().unwrap_or_else(|| self.address.clone());
+        if security == "reality" {
+            if self.params.get("sni").or_else(|| self.params.get("host"))
+                .is_none_or(|value| value.trim().is_empty()) {
+                return Err("VLESS REALITY: отсутствует SNI (параметр sni). Проверь ссылку или подписку.".into());
+            }
+            if self.params.get("pbk").is_none_or(|value| value.trim().is_empty()) {
+                return Err("VLESS REALITY: отсутствует публичный ключ (pbk/publicKey). Проверь ссылку или подписку.".into());
+            }
+        }
         let mut stream = serde_json::json!({ "network": network, "security": security });
         if security == "tls" {
             stream["tlsSettings"] = serde_json::json!({ "serverName": server_name });
@@ -579,9 +588,26 @@ impl Profile {
         }
 
         let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
-        let security = self.params.get("security").map(String::as_str).unwrap_or("none");
+        let security = self.params.get("security")
+            .map(|value| value.to_ascii_lowercase())
+            .unwrap_or_else(|| "none".into());
         let transport = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
         let engine = self.engine();
+
+        // REALITY requires the server's public key and the camouflage SNI.
+        // Do not silently emit an unusable outbound when a subscription omitted
+        // these values; report a safe, actionable error instead.
+        if security == "reality" {
+            let server_name = self.params.get("sni")
+                .or_else(|| self.params.get("host"))
+                .filter(|value| !value.trim().is_empty());
+            if server_name.is_none() {
+                return Err("VLESS REALITY: отсутствует SNI (параметр sni). Проверь ссылку или подписку.".into());
+            }
+            if self.params.get("pbk").is_none_or(|value| value.trim().is_empty()) {
+                return Err("VLESS REALITY: отсутствует публичный ключ (pbk/publicKey). Проверь ссылку или подписку.".into());
+            }
+        }
 
         if engine == "xray" {
             return Ok(serde_json::json!({"engine": "xray", "protocol": "vless", "transport": transport, "params": self.params}).to_string());
@@ -1086,6 +1112,19 @@ mod tests {
         assert_eq!(config["outbounds"][0]["tls"]["server_name"], "www.example.org");
         assert_eq!(config["outbounds"][0]["tls"]["reality"]["public_key"], "YWJjZA");
         assert_eq!(config["outbounds"][0]["tls"]["reality"]["short_id"], "ab12cd34");
+    }
+
+    #[test]
+    fn reality_profiles_fail_clearly_when_required_parameters_are_missing() {
+        let missing_sni = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&pbk=YWJjZA"
+        ).unwrap();
+        assert!(missing_sni.to_generic_sing_box_json().unwrap_err().contains("отсутствует SNI"));
+
+        let missing_key = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&sni=www.example.org"
+        ).unwrap();
+        assert!(missing_key.to_generic_sing_box_json().unwrap_err().contains("отсутствует публичный ключ"));
     }
 
     #[test]
