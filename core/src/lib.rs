@@ -508,14 +508,11 @@ impl Profile {
             // Xray's own connection to the proxy server can be captured by sing-box's
             // default route and loop back into Xray through the local SOCKS inbound.
             let server_cidrs = resolve_server_cidrs(&self.address, self.port)?;
-            let mut route_rules = vec![
+            // Keep the direct endpoint exception ahead of DNS hijacking/default proxy routing.
+            let route_rules = vec![
                 serde_json::json!({ "ip_cidr": server_cidrs, "outbound": "direct" }),
                 serde_json::json!({ "protocol": "dns", "action": "hijack-dns" })
             ];
-            // Keep the direct endpoint exception ahead of DNS hijacking/default proxy routing.
-            if route_rules.is_empty() {
-                route_rules.push(serde_json::json!({ "protocol": "dns", "action": "hijack-dns" }));
-            }
             let sing_box = serde_json::json!({
                 "log": { "level": "info" },
                 "inbounds": [{ "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true }],
