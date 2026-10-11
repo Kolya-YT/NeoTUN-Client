@@ -56,14 +56,21 @@ export default function App() {
       setMessage('Нативный адаптер ещё не подключён. Интерфейс не будет имитировать соединение или сетевую статистику.');
       return;
     }
-    const response = await native.request<NativeAppSnapshot>({ type: 'app.getState' });
-    if (response.ok) {
-      setSnapshot(response.result);
-      setMessage('');
-    } else {
-      setMessage(response.error.message);
+    try {
+      const response = await native.request<NativeAppSnapshot>({ type: 'app.getState' });
+      if (response.ok) {
+        setSnapshot(response.result);
+        setMessage('');
+      } else {
+        setMessage(response.error.message);
+      }
+    } catch {
+      // A WebView/native-host transport failure must not leave the entire
+      // shared interface stuck on its loading screen.
+      setMessage('Не удалось получить состояние нативного клиента. Проверьте работу приложения и повторите попытку.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
