@@ -129,7 +129,7 @@ public partial class MainWindow : Window
 
             for (var row = 0; row < RoutingRulesGrid.RowDefinitions.Count; row++)
                 RoutingRulesGrid.RowDefinitions[row].Height = row < (compact ? 6 : 3)
-                    ? new GridLength(1, GridUnitType.Auto)
+                    ? GridLength.Auto
                     : new GridLength(0);
 
             var routingPanels = new[]
