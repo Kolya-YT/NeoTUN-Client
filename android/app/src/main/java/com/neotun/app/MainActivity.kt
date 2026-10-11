@@ -2936,7 +2936,17 @@ class MainActivity : Activity() {
             "profiles.import" -> {
                 val source = payload.optString("source").trim()
                 require(source.isNotBlank() && source.length <= 100_000) { "Вставьте ссылку или конфигурацию" }
-                importText(source)
+                if (source.startsWith("https://", true) || source.startsWith("http://", true)) {
+                    // Reuse the existing subscription fetch/validation path. It only
+                    // persists a feed after at least one supported profile is parsed.
+                    refreshSubscription(NeoTunSubscription(
+                        UUID.randomUUID().toString(),
+                        "Подписка",
+                        source,
+                    ))
+                } else {
+                    importText(source)
+                }
             }
             "profiles.select" -> {
                 val id = payload.optString("profileId")
@@ -2953,6 +2963,9 @@ class MainActivity : Activity() {
             "profiles.delete" -> {
                 val id = payload.optString("profileId")
                 require(store.all().any { it.id == id }) { "Профиль не найден" }
+                require(!(isRunning() && selectedProfileId() == id)) {
+                    "Отключите соединение перед удалением активного профиля"
+                }
                 if (selectedProfileId() == id) {
                     getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().remove(SELECTED).apply()
                 }
