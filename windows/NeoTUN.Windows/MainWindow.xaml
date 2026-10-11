@@ -253,7 +253,7 @@
                     </StackPanel>
                     <Button Grid.Column="1" Content="Открыть" Click="RoutingNav_Click" VerticalAlignment="Center"/>
                   </Grid>
-                  <Divider/>
+                  <Separator Margin="0,2" Background="{StaticResource BorderBrushNeo}"/>
                   <Grid Margin="0,12,0,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <StackPanel>
