@@ -10,7 +10,13 @@ on:
       - "xraybridge/**"
       - ".github/workflows/android.yml"
       - "DESIGN_SYSTEM.md"
-      - "shared-ui/**"
+      - "shared-ui/src/**"
+      - "shared-ui/public/**"
+      - "shared-ui/index.html"
+      - "shared-ui/package.json"
+      - "shared-ui/package-lock.json"
+      - "shared-ui/vite.config.ts"
+      - "shared-ui/tsconfig*.json"
   pull_request:
     branches: [main]
     paths:
@@ -27,7 +33,7 @@ permissions:
 
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
