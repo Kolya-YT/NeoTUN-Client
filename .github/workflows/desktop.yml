@@ -55,6 +55,21 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
 
+      - name: Stage shared UI for Windows packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path (Get-Location) "shared-ui/dist"
+          $staged = Join-Path $env:RUNNER_TEMP "neotun-shared-ui"
+          if (!(Test-Path (Join-Path $source "index.html"))) {
+            throw "Shared UI build output is missing: $source"
+          }
+          Remove-Item $staged -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item $source $staged -Recurse -Force
+          if (!(Test-Path (Join-Path $staged "index.html"))) {
+            throw "Shared UI could not be staged for packaging."
+          }
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -111,7 +126,9 @@ jobs:
           $ErrorActionPreference = "Stop"
           $destination = "dist/NeoTUN-Windows/shared-ui"
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
-          Copy-Item -Path "shared-ui/dist/." -Destination $destination -Recurse -Force
+          $source = Join-Path $env:RUNNER_TEMP "neotun-shared-ui"
+          if (!(Test-Path (Join-Path $source "index.html"))) { throw "Staged shared UI index.html is missing." }
+          Copy-Item -Path (Join-Path $source "*") -Destination $destination -Recurse -Force
           if (!(Test-Path (Join-Path $destination "index.html"))) { throw "Shared UI index.html was not bundled." }
 
       - name: Download and stage pinned network engines
