@@ -294,6 +294,38 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish Windows installer to the version release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $versionLine = Select-String -Path "android/app/build.gradle.kts" -Pattern 'versionName = "([^"]+)"' | Select-Object -First 1
+          if (!$versionLine -or $versionLine.Matches.Count -eq 0) { throw "Unable to read versionName from Android Gradle config" }
+          $version = $versionLine.Matches[0].Groups[1].Value
+          $tag = "v$version"
+          $setup = "dist/NeoTUN-Setup-x64.exe"
+          if (!(Test-Path $setup)) { throw "Windows installer missing: $setup" }
+
+          # Let Android create the release first; if it does not, create it here.
+          $releaseFound = $false
+          for ($attempt = 1; $attempt -le 36; $attempt++) {
+            gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+            if ($LASTEXITCODE -eq 0) { $releaseFound = $true; break }
+            Start-Sleep -Seconds 10
+          }
+          if (!$releaseFound) {
+            gh release create $tag $setup --repo "$env:GITHUB_REPOSITORY" --title "NeoTUN $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) {
+              gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+              if ($LASTEXITCODE -ne 0) { throw "Could not create/access release $tag. Check Actions permissions." }
+            }
+          }
+          gh release upload $tag $setup --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload Windows installer to release $tag" }
+          Write-Host "Published $setup to release $tag"
+
       - name: Attach Windows installer to a manually selected release
         if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
         uses: softprops/action-gh-release@v3
