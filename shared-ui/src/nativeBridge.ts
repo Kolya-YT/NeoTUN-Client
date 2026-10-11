@@ -155,10 +155,6 @@ export type NativeCommand =
   | { type: "profiles.showConfig"; payload: { profileId: string } }
   | { type: "profiles.showQr"; payload: { profileId: string } }
   | { type: "profiles.scanQr" }
-  | { type: "subscriptions.create"; payload: { name: string; url: string } }
-  | { type: "subscriptions.rename"; payload: { subscriptionId: string; name: string } }
-  | { type: "subscriptions.delete"; payload: { subscriptionId: string } }
-  | { type: "subscriptions.setSchedule"; payload: { enabled: boolean; intervalHours: number } }
   | { type: "routingProfiles.list" }
   | { type: "routingProfiles.import"; payload: { source: string } }
   | { type: "routingProfiles.select"; payload: { profileId: string } }
