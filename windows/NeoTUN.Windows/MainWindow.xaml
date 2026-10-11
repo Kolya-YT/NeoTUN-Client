@@ -100,7 +100,8 @@
               <StackPanel><TextBlock Text="ОТПРАВЛЕНО" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/><TextBlock x:Name="HomeSentText" Text="0 B" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0"/><TextBlock Text="За текущий сеанс" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/></StackPanel>
             </Border>
           </Grid>
-        </Grid>
+          </Grid>
+        </ScrollViewer>
 
         <Grid x:Name="ServersPage" Visibility="Collapsed">
           <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions>
