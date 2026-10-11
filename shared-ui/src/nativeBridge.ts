@@ -16,6 +16,7 @@ export interface NativeProfile {
   name: string;
   protocol: string;
   endpoint: string;
+  uri?: string;
   selected: boolean;
   subscriptionId?: string;
 }
@@ -126,6 +127,9 @@ export type NativeCommand =
   | { type: "profiles.import"; payload: { source: string } }
   | { type: "profiles.select"; payload: { profileId: string } }
   | { type: "profiles.rename"; payload: { profileId: string; name: string } }
+  | { type: "profiles.update"; payload: { profileId: string; name: string; uri: string } }
+  | { type: "profiles.copy"; payload: { profileId: string } }
+  | { type: "native.openPage"; payload: { page: string } }
   | { type: "profiles.delete"; payload: { profileId: string } }
   | { type: "profiles.ping"; payload: { profileId: string } }
   | { type: "profiles.showConfig"; payload: { profileId: string } }

@@ -55,12 +55,12 @@ The shared React UI is now bundled into the Windows installer and can be opened 
 
 Implemented in the Windows preview adapter:
 - Read the actual Windows profile list and engine connection state.
-- Import supported profile links/text, select, rename and delete profiles through the existing profile store.
+- Import supported profile links/text, select, rename, edit connection URI, copy URI and delete profiles through the existing profile store.
 - Connect and disconnect through the existing `EngineRuntime`.
 - Receive live traffic and connection snapshots from the native host.
 - Keep the preview in a separate resizable window so the classic WPF interface remains available.
 
-Not yet mapped to the shared UI on Windows: subscription management/scheduling, routing editor, DNS/MTU/IPv6 controls, diagnostics/log viewer and updater. These controls remain disabled in the preview where the adapter does not advertise support; use the classic WPF pages for those functions. The preview is not yet the default UI, and real device/traffic acceptance is still required.
+Not yet implemented directly inside the shared UI on Windows: subscription management/scheduling, routing editor, DNS/MTU/IPv6 controls, diagnostics/log viewer and updater. Shortcuts in Settings and Routing open the corresponding existing WPF pages, preserving access to those real features while the shared controls are being migrated. The preview is not yet the default UI, and real device/traffic acceptance is still required.
 
 ## Shared UI rollout order
 

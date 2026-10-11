@@ -59,6 +59,8 @@ public partial class MainWindow : Window
         Loaded += async (_, _) => await AutoRefreshSubscriptionsOnStartupAsync();
     }
 
+    internal void OpenClassicPageFromSharedUi(string page) => ShowPage(page);
+
     private void ShowPage(string page)
     {
         _vm.ActivePage = page;
@@ -182,6 +184,7 @@ public partial class MainWindow : Window
                 name = profile.Name,
                 protocol = profile.Protocol,
                 endpoint = profile.Endpoint,
+                uri = profile.Uri,
                 selected = profile.Id == _vm.SelectedProfile?.Id
             }).ToArray(),
             subscriptions = Array.Empty<object>(),
@@ -241,6 +244,40 @@ public partial class MainWindow : Window
                 var id = Guid.Parse(ReadString("profileId"));
                 var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
                 _vm.SelectedProfile = profile;
+                return true;
+            }
+            case "profiles.update":
+            {
+                var id = Guid.Parse(ReadString("profileId"));
+                var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
+                var name = ReadString("name");
+                var uri = ReadString("uri");
+                if (name.Length > 80) throw new InvalidDataException("Название профиля слишком длинное.");
+                if (!System.Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ||
+                    !new[] { "vless", "vmess", "trojan", "hysteria2", "hy2", "tuic", "ss" }.Contains(parsed.Scheme, StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Укажите корректную ссылку поддерживаемого протокола.");
+                profile.Name = name;
+                profile.Uri = uri;
+                profile.UpdatedAt = DateTimeOffset.UtcNow;
+                _vm.SaveProfiles();
+                ProfileList.Items.Refresh();
+                _vm.Notice = "Профиль сохранён.";
+                return true;
+            }
+            case "profiles.copy":
+            {
+                var id = Guid.Parse(ReadString("profileId"));
+                var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
+                Clipboard.SetText(profile.Uri);
+                _vm.Notice = "Ссылка скопирована в буфер обмена.";
+                return true;
+            }
+            case "native.openPage":
+            {
+                var page = ReadString("page");
+                if (!new[] { "Главная", "Серверы", "Импорт", "Маршрутизация", "Настройки", "Журнал" }.Contains(page, StringComparer.Ordinal))
+                    throw new InvalidDataException("Неизвестная страница классического интерфейса.");
+                OpenClassicPageFromSharedUi(page);
                 return true;
             }
             case "profiles.rename":
