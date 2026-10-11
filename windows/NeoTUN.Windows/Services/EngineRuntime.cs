@@ -111,12 +111,15 @@ internal sealed class EngineRuntime : IDisposable
             }
 
             await ValidateAsync(singBoxPath, cancellationToken, "check", "-c", singBoxConfigPath);
-            _singBox = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
+            var singBoxProcess = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
+            lock (_sync) _singBox = singBoxProcess;
             singBoxStarted = true;
             await Task.Delay(900, cancellationToken);
-            if (_singBox.HasExited)
+            // Keep a local process reference: a concurrent disconnect may clear _singBox
+            // while startup is waiting, and must not turn a startup failure into NullReferenceException.
+            if (singBoxProcess.HasExited)
             {
-                var exit = _singBox.ExitCode;
+                var exit = SafeExitCode(singBoxProcess);
                 throw new InvalidOperationException($"sing-box завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
             }
         }
