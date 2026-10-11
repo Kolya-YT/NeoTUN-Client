@@ -31,9 +31,13 @@ object NeoTunGeoData {
     // jsDelivr DNS can fail on some networks. Use the same published files
     // through GitHub's raw host as a fallback, without changing routing data.
     private const val FALLBACK_GEOIP_URL =
-        "https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/release/geoip.dat"
+        "https://github.com/hydraponique/roscomvpn-geoip/releases/latest/download/geoip.dat"
     private const val FALLBACK_GEOSITE_URL =
-        "https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/release/geosite.dat"
+        "https://github.com/hydraponique/roscomvpn-geosite/releases/latest/download/geosite.dat"
+    private const val RAW_GEOIP_URL =
+        "https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/master/release/geoip.dat"
+    private const val RAW_GEOSITE_URL =
+        "https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/master/release/geosite.dat"
 
     @Synchronized
     fun ensure(context: Context, directory: File, profile: JSONObject?, forceRefresh: Boolean = false): NeoTunGeoDataResult {
@@ -51,7 +55,7 @@ object NeoTunGeoData {
         if (forceRefresh || needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L))) {
             changed = downloadFromSources(
                 context,
-                listOf(geoIpUrl, DEFAULT_GEOIP_URL, FALLBACK_GEOIP_URL).distinct(),
+                listOf(geoIpUrl, DEFAULT_GEOIP_URL, FALLBACK_GEOIP_URL, RAW_GEOIP_URL).distinct(),
                 geoIp,
                 GEOIP,
             ) || changed
@@ -62,7 +66,7 @@ object NeoTunGeoData {
         if (forceRefresh || needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L))) {
             changed = downloadFromSources(
                 context,
-                listOf(geoSiteUrl, DEFAULT_GEOSITE_URL, FALLBACK_GEOSITE_URL).distinct(),
+                listOf(geoSiteUrl, DEFAULT_GEOSITE_URL, FALLBACK_GEOSITE_URL, RAW_GEOSITE_URL).distinct(),
                 geoSite,
                 GEOSITE,
             ) || changed
