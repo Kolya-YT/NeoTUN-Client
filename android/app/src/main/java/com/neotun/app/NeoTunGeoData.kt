@@ -28,6 +28,13 @@ object NeoTunGeoData {
     private const val DEFAULT_GEOSITE_URL =
         "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/geosite.dat"
 
+    // jsDelivr DNS can fail on some networks. Use the same published files
+    // through GitHub's raw host as a fallback, without changing routing data.
+    private const val FALLBACK_GEOIP_URL =
+        "https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/release/geoip.dat"
+    private const val FALLBACK_GEOSITE_URL =
+        "https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/release/geosite.dat"
+
     @Synchronized
     fun ensure(context: Context, directory: File, profile: JSONObject?, forceRefresh: Boolean = false): NeoTunGeoDataResult {
         if (!directory.exists() && !directory.mkdirs()) error("Не удалось создать каталог геоданных")
@@ -42,13 +49,23 @@ object NeoTunGeoData {
             ?: DEFAULT_GEOSITE_URL
 
         if (forceRefresh || needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L))) {
-            changed = download(context, geoIpUrl, geoIp, GEOIP) || changed
+            changed = downloadFromSources(
+                context,
+                listOf(geoIpUrl, DEFAULT_GEOIP_URL, FALLBACK_GEOIP_URL).distinct(),
+                geoIp,
+                GEOIP,
+            ) || changed
             if (geoIp.isFile && geoIp.length() > 0L) {
                 prefs.edit().putLong("geoip_updated", geoIp.lastModified()).apply()
             }
         }
         if (forceRefresh || needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L))) {
-            changed = download(context, geoSiteUrl, geoSite, GEOSITE) || changed
+            changed = downloadFromSources(
+                context,
+                listOf(geoSiteUrl, DEFAULT_GEOSITE_URL, FALLBACK_GEOSITE_URL).distinct(),
+                geoSite,
+                GEOSITE,
+            ) || changed
             if (geoSite.isFile && geoSite.length() > 0L) {
                 prefs.edit().putLong("geosite_updated", geoSite.lastModified()).apply()
             }
@@ -75,6 +92,28 @@ object NeoTunGeoData {
             if (value.startsWith("https://", true)) return value
         }
         return null
+    }
+
+    private fun downloadFromSources(
+        context: Context,
+        sources: List<String>,
+        target: File,
+        label: String,
+    ): Boolean {
+        var lastFailure: String? = null
+        for ((index, source) in sources.withIndex()) {
+            if (source.isBlank()) continue
+            NeoTunDiagnostics.log(context, "$label: источник ${index + 1}/${sources.size}")
+            try {
+                if (download(context, source, target, label)) return true
+                lastFailure = "загрузка не удалась"
+            } catch (t: Throwable) {
+                lastFailure = t.message ?: t.javaClass.simpleName
+                NeoTunDiagnostics.log(context, "$label: источник ${index + 1} недоступен: $lastFailure")
+            }
+        }
+        NeoTunDiagnostics.log(context, "$label: все источники недоступны; сохранённая геобаза будет использована, если она есть")
+        return false
     }
 
     private fun download(context: Context, source: String, target: File, label: String): Boolean {
