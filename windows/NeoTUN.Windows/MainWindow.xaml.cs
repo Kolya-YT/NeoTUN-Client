@@ -19,6 +19,11 @@ public partial class MainWindow : Window
     private readonly EngineRuntime _runtime = new();
     private bool _loadingUiSettings;
     private readonly Dictionary<DependencyObject, double> _fontBaselines = new();
+    private Guid? _activeSharedProfileId;
+    private long _sharedUploadRate;
+    private long _sharedDownloadRate;
+    private long _sharedTotalUpload;
+    private long _sharedTotalDownload;
 
     public MainWindow()
     {
@@ -35,6 +40,10 @@ public partial class MainWindow : Window
         _runtime.LogLine += line => Dispatcher.BeginInvoke(() => AddLog(line));
         _runtime.TrafficUpdated += (up, down, totalUp, totalDown) => Dispatcher.BeginInvoke(() =>
         {
+            _sharedUploadRate = up;
+            _sharedDownloadRate = down;
+            _sharedTotalUpload = totalUp;
+            _sharedTotalDownload = totalDown;
             HomeSpeedText.Text = $"{FormatSpeed(down)} ↓ / {FormatSpeed(up)} ↑";
             HomeReceivedText.Text = FormatBytes(totalDown);
             HomeSentText.Text = FormatBytes(totalUp);
@@ -90,6 +99,11 @@ public partial class MainWindow : Window
     }
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) => ShowPage("Главная");
+    private void OpenSharedUi_Click(object sender, RoutedEventArgs e)
+    {
+        var preview = new SharedUiPreviewWindow(this);
+        preview.Show();
+    }
     private void ServersNav_Click(object sender, RoutedEventArgs e) => ShowPage("Серверы");
     private void RoutingNav_Click(object sender, RoutedEventArgs e) => ShowPage("Маршрутизация");
     private void SettingsNav_Click(object sender, RoutedEventArgs e) => ShowPage("Настройки");
@@ -105,6 +119,7 @@ public partial class MainWindow : Window
             {
                 _vm.Status = "Останавливаем сетевой движок…";
                 await _runtime.StopAsync();
+                _activeSharedProfileId = null;
                 _vm.IsConnected = false;
                 ConnectLabel.Text = "ПОДКЛЮЧИТЬ";
                 return;
@@ -120,6 +135,7 @@ public partial class MainWindow : Window
             _vm.Status = "Проверяем профиль и запускаем сетевой движок…";
             AddLog(_vm.Status);
             await _runtime.StartAsync(profile.Uri);
+            _activeSharedProfileId = profile.Id;
             // EngineRuntime owns connection state. Do not overwrite its status here:
             // an engine can exit immediately after startup and publish a failure state.
             AddLog("Запуск движка завершён; актуальное состояние получено от runtime.");
@@ -127,12 +143,149 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _vm.IsConnected = false;
+            _activeSharedProfileId = null;
             _vm.Status = ex.Message;
             ConnectButton.Content = "⏻  ПОДКЛЮЧИТЬ";
             AddLog("Connection failed: " + ex);
             MessageBox.Show(ex.Message, "NeoTUN — ошибка подключения", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { ConnectButton.IsEnabled = true; }
+    }
+
+    internal object BuildSharedUiSnapshot()
+    {
+        var connected = _runtime.IsRunning;
+        var activeId = connected ? _activeSharedProfileId?.ToString() : null;
+        return new
+        {
+            bridgeVersion = 1,
+            platform = "windows",
+            appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.1.1",
+            connection = new
+            {
+                status = connected ? "connected" : "disconnected",
+                profileId = activeId,
+                since = (long?)null,
+                error = (string?)null
+            },
+            traffic = new
+            {
+                receivedBytes = _sharedTotalDownload,
+                sentBytes = _sharedTotalUpload,
+                downloadBytesPerSecond = _sharedDownloadRate,
+                uploadBytesPerSecond = _sharedUploadRate,
+                sampledAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            },
+            profiles = _vm.Profiles.Select(profile => new
+            {
+                id = profile.Id.ToString(),
+                name = profile.Name,
+                protocol = profile.Protocol,
+                endpoint = profile.Endpoint,
+                selected = profile.Id == _vm.SelectedProfile?.Id
+            }).ToArray(),
+            subscriptions = Array.Empty<object>(),
+            settings = new
+            {
+                dns = new { remote = "", domestic = "", domesticDomains = Array.Empty<string>() },
+                mtu = 1500,
+                ipv6 = "disabled",
+                autoConnect = false,
+                autoUpdateSubscriptions = false
+            },
+            routingRules = Array.Empty<object>(),
+            capabilities = new
+            {
+                connectionLifecycle = true,
+                profileManagement = true,
+                subscriptions = false,
+                routing = false,
+                dns = false,
+                mtu = false,
+                ipv6 = false,
+                autoConnect = false,
+                autoUpdateSubscriptions = false,
+                diagnostics = false,
+                appUpdates = false
+            },
+            nativeFeatures = new[] { "routing-profiles", "routing-import", "routing-export", "routing-process-exclusions", "appearance-settings", "runtime-logs", "clipboard-import" }
+        };
+    }
+
+    internal async Task<object?> HandleSharedUiCommand(System.Text.Json.JsonElement command)
+    {
+        if (!command.TryGetProperty("type", out var typeElement))
+            throw new InvalidDataException("Не указан тип команды.");
+        var type = typeElement.GetString() ?? "";
+        var payload = command.TryGetProperty("payload", out var payloadElement) ? payloadElement : default;
+        string ReadString(string key)
+        {
+            if (!payload.ValueKind.Equals(System.Text.Json.JsonValueKind.Object) || !payload.TryGetProperty(key, out var value))
+                throw new InvalidDataException("В команде отсутствует поле " + key + ".");
+            var text = value.GetString();
+            if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("Поле " + key + " не может быть пустым.");
+            return text.Trim();
+        }
+        switch (type)
+        {
+            case "app.getState": return BuildSharedUiSnapshot();
+            case "profiles.import":
+            {
+                var imported = await SubscriptionImporter.ImportAsync(ReadString("source"));
+                if (imported.Count == 0) throw new InvalidDataException("Поддерживаемые профили не найдены.");
+                _vm.AddProfiles(imported);
+                return new { imported = imported.Count };
+            }
+            case "profiles.select":
+            {
+                var id = Guid.Parse(ReadString("profileId"));
+                var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
+                _vm.SelectedProfile = profile;
+                return true;
+            }
+            case "profiles.rename":
+            {
+                var id = Guid.Parse(ReadString("profileId"));
+                var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
+                var name = ReadString("name");
+                if (name.Length > 80) throw new InvalidDataException("Название профиля слишком длинное.");
+                profile.Name = name;
+                _vm.SaveProfiles();
+                _vm.OnPropertyChangedForSharedUi();
+                return true;
+            }
+            case "profiles.delete":
+            {
+                var id = Guid.Parse(ReadString("profileId"));
+                if (_runtime.IsRunning && _activeSharedProfileId == id) throw new InvalidOperationException("Нельзя удалить активный профиль. Сначала отключитесь.");
+                var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
+                _vm.SelectedProfile = profile;
+                if (!_vm.RemoveSelected()) throw new InvalidOperationException("Не удалось удалить профиль.");
+                return true;
+            }
+            case "connection.connect":
+            {
+                if (_runtime.IsRunning) return true;
+                var id = payload.ValueKind == System.Text.Json.JsonValueKind.Object && payload.TryGetProperty("profileId", out var profileIdElement) && Guid.TryParse(profileIdElement.GetString(), out var requestedId)
+                    ? requestedId : _vm.SelectedProfile?.Id ?? Guid.Empty;
+                var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidOperationException("Сначала выберите или импортируйте профиль.");
+                _vm.SelectedProfile = profile;
+                _vm.Status = "Запускаем сетевой движок…";
+                await _runtime.StartAsync(profile.Uri);
+                _activeSharedProfileId = profile.Id;
+                _vm.IsConnected = _runtime.IsRunning;
+                _vm.Status = _runtime.IsRunning ? "Подключено" : "Движок остановлен";
+                return true;
+            }
+            case "connection.disconnect":
+                await _runtime.StopAsync();
+                _activeSharedProfileId = null;
+                _vm.IsConnected = false;
+                _vm.Status = "Отключено";
+                return true;
+            default:
+                throw new NotSupportedException("Эта функция пока доступна только в классическом интерфейсе Windows.");
+        }
     }
 
     protected override void OnClosed(EventArgs e)
