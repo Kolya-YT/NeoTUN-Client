@@ -1,6 +1,22 @@
 name: NeoTUN Windows Desktop
 
 on:
+  pull_request:
+    paths:
+      - "windows/**"
+      - "core/**"
+      - "android/app/build.gradle.kts"
+      - ".github/workflows/desktop.yml"
+      - "installer/**"
+      - "README.md"
+      - "DESIGN_SYSTEM.md"
+      - "shared-ui/src/**"
+      - "shared-ui/public/**"
+      - "shared-ui/index.html"
+      - "shared-ui/package.json"
+      - "shared-ui/package-lock.json"
+      - "shared-ui/vite.config.ts"
+      - "shared-ui/tsconfig*.json"
   push:
     branches: [main]
     tags: ["v*"]
