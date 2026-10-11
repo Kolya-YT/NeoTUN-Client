@@ -22,6 +22,13 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     steps:
+      # workflow_run jobs start without a checked-out repository. The release
+      # step reads versionName from Gradle, so checkout the exact source commit.
+      - name: Checkout source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
       - name: Find successful builds for this exact commit
         id: builds
         env:
