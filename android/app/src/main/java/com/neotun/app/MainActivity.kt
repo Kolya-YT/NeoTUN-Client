@@ -17,6 +17,9 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -47,6 +50,8 @@ class MainActivity : Activity() {
     private var lastWidgetRunning: Boolean? = null
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
+    private var sharedUiView: WebView? = null
+    private var sharedUiPreviousScreen: Screen = Screen.SETTINGS
     private var homeRxValue: TextView? = null
     private var homeTxValue: TextView? = null
     private var homeSpeedValue: TextView? = null
@@ -706,6 +711,14 @@ class MainActivity : Activity() {
             "Профили, подписки, обновление и удаление"
         ) { showScreen(Screen.PROFILES) })
         content.addView(subscriptionsSection, margins(bottom = 12))
+
+        val sharedUi = settingsSection("НОВЫЙ ИНТЕРФЕЙС")
+        sharedUi.addView(settingsRow(
+            "✨ Открыть новый интерфейс",
+            "Предварительный просмотр",
+            "Тестовый экран на реальных данных. Вернуться можно системной кнопкой «Назад»."
+        ) { openSharedUiPreview() })
+        content.addView(sharedUi, margins(bottom = 12))
 
         val tools = settingsSection("ДИАГНОСТИКА И ОБНОВЛЕНИЯ")
         tools.addView(settingsRow(
@@ -2302,6 +2315,12 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(poll)
+        sharedUiView?.let { view ->
+            view.stopLoading()
+            view.removeJavascriptInterface("NeoTunAndroid")
+            view.destroy()
+        }
+        sharedUiView = null
         super.onDestroy()
     }
 
@@ -2832,6 +2851,210 @@ class MainActivity : Activity() {
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     private fun fontScaleFactor(): Float =
         getSharedPreferences(UI_PREFS, MODE_PRIVATE).getInt("font_scale", 100).coerceIn(85, 130) / 100f
+
+
+    /**
+     * Opens the packaged shared React UI as an opt-in preview. The native screens
+     * remain the default and remain available with Android Back until parity is proven.
+     */
+    private fun openSharedUiPreview() {
+        val entry = "file:///android_asset/shared-ui/index.html"
+        val hasAssets = runCatching { assets.open("shared-ui/index.html").use { true } }.getOrDefault(false)
+        if (!hasAssets) {
+            toast("Новый интерфейс пока не включён в эту сборку")
+            return
+        }
+        sharedUiPreviousScreen = screen
+        val web = WebView(this).apply {
+            setBackgroundColor(NeoTunDesign.BACKGROUND)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = false
+            settings.allowFileAccess = true
+            settings.allowContentAccess = false
+            settings.allowFileAccessFromFileURLs = false
+            settings.allowUniversalAccessFromFileURLs = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            addJavascriptInterface(SharedUiAndroidBridge(), "NeoTunAndroid")
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = true
+            }
+        }
+        sharedUiView = web
+        setContentView(web)
+        web.loadUrl(entry)
+    }
+
+    private inner class SharedUiAndroidBridge {
+        @JavascriptInterface
+        fun request(rawRequest: String) {
+            // WebView callbacks run off the UI thread. Parse and dispatch only a
+            // strict allowlist, then deliver a JSON response to the bundled page.
+            val request = runCatching { JSONObject(rawRequest) }.getOrNull() ?: return
+            val requestId = request.optString("requestId").take(128)
+            val version = request.optInt("bridgeVersion", -1)
+            val command = request.optJSONObject("command")
+            if (requestId.isBlank() || version != 1 || command == null) {
+                respondSharedUi(requestId, failureSharedUi("INVALID_REQUEST", "Некорректный запрос интерфейса"))
+                return
+            }
+            handler.post {
+                val response = runCatching { executeSharedUiCommand(command) }
+                    .fold(
+                        onSuccess = { result ->
+                            JSONObject().put("bridgeVersion", 1).put("requestId", requestId)
+                                .put("ok", true).put("result", result)
+                        },
+                        onFailure = { error ->
+                            failureSharedUi("COMMAND_FAILED", error.message ?: "Команда не выполнена")
+                                .put("requestId", requestId)
+                        }
+                    )
+                respondSharedUi(requestId, response)
+            }
+        }
+    }
+
+    private fun failureSharedUi(code: String, message: String) = JSONObject()
+        .put("bridgeVersion", 1).put("ok", false)
+        .put("error", JSONObject().put("code", code).put("message", message).put("retryable", false))
+
+    private fun respondSharedUi(requestId: String, response: JSONObject) {
+        val safeId = JSONObject.quote(requestId)
+        val responseJson = JSONObject.quote(response.toString())
+        runOnUiThread {
+            sharedUiView?.evaluateJavascript(
+                "window.__neoTunResolve && window.__neoTunResolve($safeId, $responseJson)", null
+            )
+        }
+    }
+
+    private fun executeSharedUiCommand(command: JSONObject): JSONObject {
+        val type = command.optString("type")
+        val payload = command.optJSONObject("payload") ?: JSONObject()
+        when (type) {
+            "app.getState" -> return sharedUiSnapshot()
+            "profiles.import" -> {
+                val source = payload.optString("source").trim()
+                require(source.isNotBlank() && source.length <= 100_000) { "Вставьте ссылку или конфигурацию" }
+                importText(source)
+            }
+            "profiles.select" -> {
+                val id = payload.optString("profileId")
+                val profile = store.all().firstOrNull { it.id == id } ?: error("Профиль не найден")
+                setSelectedProfile(profile.id)
+            }
+            "profiles.rename" -> {
+                val id = payload.optString("profileId")
+                val name = payload.optString("name").trim()
+                require(name.isNotBlank() && name.length <= 100) { "Название должно содержать от 1 до 100 символов" }
+                require(store.all().any { it.id == id }) { "Профиль не найден" }
+                store.rename(id, name)
+            }
+            "profiles.delete" -> {
+                val id = payload.optString("profileId")
+                require(store.all().any { it.id == id }) { "Профиль не найден" }
+                if (selectedProfileId() == id) {
+                    getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().remove(SELECTED).apply()
+                }
+                store.delete(id)
+            }
+            "connection.connect" -> {
+                val requestedId = payload.optString("profileId")
+                val profile = if (requestedId.isNotBlank()) store.all().firstOrNull { it.id == requestedId }
+                    else selectedProfile(store.all())
+                require(profile != null) { "Сначала импортируйте и выберите профиль" }
+                setSelectedProfile(profile.id)
+                connect(profile)
+            }
+            "connection.disconnect" -> disconnect()
+            "subscriptions.refresh" -> {
+                val id = payload.optString("subscriptionId")
+                val targets = subscriptions.all().filter { id.isBlank() || it.id == id }
+                require(targets.isNotEmpty()) { "Подписок для обновления нет" }
+                targets.forEach { refreshSubscription(it) }
+            }
+            else -> error("Команда пока не поддерживается в Android-интерфейсе: $type")
+        }
+        return sharedUiSnapshot()
+    }
+
+    private fun sharedUiSnapshot(): JSONObject {
+        val profiles = store.all()
+        val selectedId = selectedProfileId() ?: selectedProfile(profiles)?.id
+        val traffic = readVpnTraffic()
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val error = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            .getString(NeoTunVpnService.KEY_ERROR, null)
+        val profileArray = JSONArray()
+        profiles.forEach { profile ->
+            val uri = profile.uri
+            val authority = uri.substringAfter("://", "").substringBefore('?').substringBefore('#')
+            val endpoint = authority.substringAfter('@', authority).substringBeforeLast(':').ifBlank { "Сервер" }
+            profileArray.put(JSONObject()
+                .put("id", profile.id)
+                .put("name", profile.name)
+                .put("protocol", uri.substringBefore("://").ifBlank { profile.engine })
+                .put("endpoint", endpoint)
+                .put("selected", profile.id == selectedId)
+                .put("subscriptionId", profile.sourceSubscriptionId ?: JSONObject.NULL))
+        }
+        val settings = JSONObject()
+            .put("dns", JSONObject().put("remote", prefs.getString("dns_mode", "Автоматический") ?: "Автоматический")
+                .put("domestic", "").put("domesticDomains", JSONArray()))
+            .put("mtu", prefs.getInt("mtu", 1500))
+            .put("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
+            .put("autoConnect", false)
+            .put("autoUpdateSubscriptions", prefs.getBoolean("subscriptions_auto_update", true))
+        val capabilities = JSONObject()
+            .put("connectionLifecycle", true)
+            .put("profileManagement", true)
+            .put("subscriptions", subscriptions.all().isNotEmpty())
+            .put("routing", false).put("dns", false).put("mtu", false).put("ipv6", false)
+            .put("autoConnect", false).put("autoUpdateSubscriptions", false)
+            .put("diagnostics", false).put("appUpdates", false)
+        val received = traffic.sessionRx.coerceAtLeast(0L)
+        val sent = traffic.sessionTx.coerceAtLeast(0L)
+        val now = System.currentTimeMillis()
+        val running = isRunning()
+        val connection = JSONObject()
+            .put("status", if (running) "connected" else if (!error.isNullOrBlank()) "error" else "disconnected")
+            .put("profileId", if (running) selectedId ?: JSONObject.NULL else JSONObject.NULL)
+            .put("since", JSONObject.NULL)
+            .put("error", error ?: JSONObject.NULL)
+        val stats = JSONObject()
+            .put("receivedBytes", received).put("sentBytes", sent)
+            .put("downloadBytesPerSecond", if (running) traffic.rxRate.coerceAtLeast(0L) else 0)
+            .put("uploadBytesPerSecond", if (running) traffic.txRate.coerceAtLeast(0L) else 0)
+            .put("sampledAt", now)
+        return JSONObject()
+            .put("bridgeVersion", 1).put("platform", "android")
+            .put("appVersion", packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown")
+            .put("connection", connection).put("traffic", stats)
+            .put("profiles", profileArray).put("settings", settings)
+            .put("routingRules", JSONArray()).put("capabilities", capabilities)
+            .put("nativeFeatures", JSONArray().put("profile-ping").put("profile-qr-scan")
+                .put("profile-qr-share").put("profile-config-view").put("profile-edit")
+                .put("subscription-create").put("subscription-edit").put("subscription-delete")
+                .put("subscription-scheduling").put("routing-profiles").put("routing-import")
+                .put("routing-export").put("routing-json-validation").put("routing-process-exclusions")
+                .put("appearance-settings").put("ping-method-settings").put("connection-widgets")
+                .put("quick-settings-tile").put("runtime-logs").put("profile-grouping")
+                .put("clipboard-import").put("deep-link-import"))
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        val web = sharedUiView
+        if (web != null) {
+            sharedUiView = null
+            web.stopLoading()
+            web.removeJavascriptInterface("NeoTunAndroid")
+            web.destroy()
+            showScreen(sharedUiPreviousScreen)
+            return
+        }
+        super.onBackPressed()
+    }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
