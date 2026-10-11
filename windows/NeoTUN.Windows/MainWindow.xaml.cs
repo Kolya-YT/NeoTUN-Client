@@ -54,9 +54,43 @@ public partial class MainWindow : Window
             _vm.Status = status;
             ConnectLabel.Text = running ? "ОТКЛЮЧИТЬ" : "ПОДКЛЮЧИТЬ";
         });
-        AddLog("NeoTUN Windows UI initialized; runtime manager loaded.");
-        ShowPage("Главная");
-        Loaded += async (_, _) => await AutoRefreshSubscriptionsOnStartupAsync();
+        AddLog("NeoTUN Windows native host initialized.");
+        Icon = CreateAppIcon();
+        Loaded += async (_, _) =>
+        {
+            await AutoRefreshSubscriptionsOnStartupAsync();
+            // Make the shared UI the only user-facing window. The hidden owner keeps
+            // the native runtime and existing command handlers alive for the bridge.
+            var shared = new SharedUiPreviewWindow(this);
+            Application.Current.MainWindow = shared;
+            shared.Closed += (_, _) => Close();
+            shared.Show();
+            Hide();
+        };
+    }
+
+    private static ImageSource CreateAppIcon()
+    {
+        var group = new DrawingGroup();
+        group.Children.Add(new GeometryDrawing(
+            new SolidColorBrush(Color.FromRgb(13, 15, 31)), null,
+            new RectangleGeometry(new Rect(0, 0, 64, 64), 15, 15)));
+        group.Children.Add(new GeometryDrawing(null,
+            new Pen(new SolidColorBrush(Color.FromRgb(132, 101, 255)), 3.5),
+            Geometry.Parse("M 15,33 C 15,21 24,13 35,13 C 44,13 51,19 54,27")));
+        group.Children.Add(new GeometryDrawing(null,
+            new Pen(new SolidColorBrush(Color.FromRgb(48, 139, 255)), 3.5),
+            Geometry.Parse("M 49,37 C 47,47 39,52 29,51 C 21,50 16,45 14,39")));
+        group.Children.Add(new GeometryDrawing(
+            new SolidColorBrush(Color.FromRgb(248, 247, 255)), null,
+            Geometry.Parse("M 22,44 L 22,22 C 22,19 25,18 27,20 L 39,34 L 39,22 C 39,19 44,19 44,22 L 44,43 C 44,46 41,47 39,45 L 27,31 L 27,43 C 27,46 22,47 22,44 Z")));
+        group.Children.Add(new GeometryDrawing(
+            new SolidColorBrush(Color.FromRgb(50, 214, 197)), null,
+            Geometry.Parse("M 14,38 A 3,3 0 1 0 20,38 A 3,3 0 1 0 14,38")));
+        group.Children.Add(new GeometryDrawing(
+            new SolidColorBrush(Color.FromRgb(155, 130, 255)), null,
+            Geometry.Parse("M 48,27 A 3,3 0 1 0 54,27 A 3,3 0 1 0 48,27")));
+        return new DrawingImage(group);
     }
 
     internal void OpenClassicPageFromSharedUi(string page) => ShowPage(page);
