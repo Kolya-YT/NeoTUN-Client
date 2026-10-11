@@ -102,6 +102,62 @@ internal object NeoTunDesign {
     }
 
     fun color(value: Int): Int = value
+
     fun gradient(start: Int = BRAND_VIOLET, end: Int = BRAND_BLUE) =
         GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(start, end))
+
+    /** Rounded surfaces used by the connection, server and settings cards. */
+    fun rounded(
+        color: Int,
+        radiusDp: Float,
+        strokeColor: Int? = null,
+        strokeWidthDp: Float = 0f,
+        density: Float = 1f
+    ): GradientDrawable = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = radiusDp * density
+        if (strokeColor != null && strokeWidthDp > 0f) {
+            setStroke((strokeWidthDp * density).toInt().coerceAtLeast(1), strokeColor)
+        }
+    }
+
+    fun cardDrawable(density: Float, raised: Boolean = false, strokeAccent: Boolean = false): GradientDrawable =
+        rounded(
+            color = if (raised) SURFACE_RAISED else SURFACE,
+            radiusDp = 18f,
+            strokeColor = if (strokeAccent) BORDER_ACCENT else BORDER,
+            strokeWidthDp = 1f,
+            density = density
+        )
+
+    fun connectionCardDrawable(density: Float, isRunning: Boolean): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            if (isRunning) intArrayOf(SUCCESS_SURFACE, SURFACE)
+            else intArrayOf(BRAND_SOFT, SURFACE)
+        ).apply {
+            cornerRadius = 24f * density
+            setStroke((1f * density).toInt().coerceAtLeast(1), if (isRunning) SUCCESS else BORDER_ACCENT)
+        }
+
+    fun connectButtonDrawable(density: Float, isRunning: Boolean): GradientDrawable =
+        if (isRunning) {
+            rounded(SUCCESS_SURFACE, 16f, SUCCESS, 1f, density)
+        } else {
+            GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(BRAND_VIOLET, BRAND_BLUE)
+            ).apply { cornerRadius = 16f * density }
+        }
+
+    fun pingColor(ping: String): Int {
+        val value = ping.filter { it.isDigit() }.toIntOrNull() ?: return TEXT_MUTED
+        return when {
+            value <= 0 -> TEXT_MUTED
+            value < 80 -> SUCCESS
+            value < 150 -> BRAND_VIOLET_LIGHT
+            value < 300 -> 0xFFFFCA7A.toInt()
+            else -> DANGER
+        }
+    }
 }
