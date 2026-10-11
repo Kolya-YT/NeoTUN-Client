@@ -23,3 +23,16 @@
 
 /* Android WebView: keep mobile layout overrides after the tablet breakpoint. */
 @media(max-width:640px){.sidebar{display:none!important}.main-area{width:100%;max-width:100%;margin:0!important;padding:20px 14px calc(88px + env(safe-area-inset-bottom))!important}.page-content{width:100%;max-width:100%;margin-left:auto;margin-right:auto}.hero-copy,.hero-card p,.server-chip{min-width:0;max-width:100%}.hero-card p{overflow-wrap:anywhere;word-break:break-word}.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.stat-card{min-width:0}.topbar{width:100%;max-width:100%}}
+
+/* Shared UI appearance preferences backed by Android native settings. */
+.app-shell.theme-light{--bg:#F3F5FB;--nav:#FFFFFF;--surface:#FFFFFF;--raised:#E9ECF5;--input:#F7F8FC;--border:#D7DCEC;--text:#171B2A;--secondary:#4E566D;--muted:#737D95;color:var(--text);background:var(--bg)}
+.app-shell.theme-light .brand-mark,.app-shell.theme-light .nav-item.active,.app-shell.theme-light .connection-pill,.app-shell.theme-light .server-chip{background:#E9E5FF;color:#42328F}
+.app-shell.theme-light .nav-item.active{border-color:#C8BFFF;color:#30255F}
+.app-shell.theme-light .hero-card{background:linear-gradient(135deg,#FFFFFF,#EAE6FF)}
+.app-shell.theme-light .power-button{color:#fff}
+.app-shell.theme-oled{--bg:#000000;--nav:#000000;--surface:#050505;--raised:#101010;--input:#050505;--border:#242424;--text:#FFFFFF;--secondary:#C6C6C6;--muted:#858585;background:#000;color:#fff}
+.app-shell.reduce-motion *, .app-shell.reduce-motion *::before, .app-shell.reduce-motion *::after{animation-duration:0.001ms!important;animation-iteration-count:1!important;transition-duration:0.001ms!important;scroll-behavior:auto!important}
+
+.diagnostic-log{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--input);border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--secondary);font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;margin:12px 0}
+
+.routing-profile-manager{margin:0 0 18px}.routing-profile-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}.routing-profile-row select{flex:1;min-width:160px}.routing-import-box{display:grid;gap:10px;margin-top:12px}.routing-import-box textarea{width:100%;min-height:130px;resize:vertical}.routing-import-box .action-row{display:flex;gap:8px;flex-wrap:wrap}.routing-profile-manager .action-row{display:flex;gap:8px;flex-wrap:wrap}

@@ -3071,6 +3071,63 @@ class MainActivity : Activity() {
                 require(targets.isNotEmpty()) { "Подписок для обновления нет" }
                 targets.forEach { refreshSubscription(it) }
             }
+            "routingProfiles.list" -> return routingProfilesSnapshot()
+            "routingProfiles.select" -> {
+                val id = payload.optString("profileId")
+                require(routingStore.all().any { it.id == id }) { "Профиль маршрутизации не найден" }
+                routingStore.select(id)
+                routingStore.setEnabled(true)
+            }
+            "routingProfiles.setEnabled" -> routingStore.setEnabled(payload.optBoolean("enabled", true))
+            "routingProfiles.validate" -> {
+                val source = payload.optString("source")
+                val decoded = RoutingProfileStore.decode(source) ?: error("Не удалось распознать JSON/INCY/Happ")
+                require(decoded.has("Name") || decoded.has("ProxySites") || decoded.has("DirectSites") ||
+                    decoded.has("BlockSites") || decoded.has("RouteOrder")) { "В файле нет полей профиля маршрутизации" }
+                return JSONObject().put("valid", true).put("name", decoded.optString("Name", "Мой профиль"))
+            }
+            "routingProfiles.import" -> {
+                val source = payload.optString("source").trim()
+                require(source.isNotBlank() && source.length <= 1_000_000) { "Вставьте JSON или ссылку INCY/Happ" }
+                val decoded = RoutingProfileStore.decode(source) ?: error("Неверный формат. Поддерживаются JSON и Base64/INCY/Happ.")
+                if (decoded.optString("Name").isBlank()) decoded.put("Name", "Импорт маршрутизации")
+                routingStore.save(decoded, activate = true)
+                routingStore.setEnabled(true)
+            }
+            "routingProfiles.export" -> {
+                val id = payload.optString("profileId")
+                val profile = if (id.isBlank()) routingStore.active() ?: routingStore.all().firstOrNull()
+                    else routingStore.all().firstOrNull { it.id == id }
+                require(profile != null) { "Нет профиля маршрутизации для экспорта" }
+                val encoded = android.util.Base64.encodeToString(
+                    profile.json.toString(2).toByteArray(Charsets.UTF_8),
+                    android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE
+                )
+                val exportText = "happ://routing/${profile.name}/$encoded"
+                val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NeoTUN routing", exportText))
+                toast("Ссылка профиля скопирована")
+                return JSONObject().put("text", exportText)
+            }
+            "routing.save" -> {
+                val current = routingStore.active() ?: routingStore.all().firstOrNull()
+                    ?: error("Сначала импортируйте профиль маршрутизации")
+                val rules = payload.optJSONArray("rules") ?: JSONArray()
+                val updated = JSONObject(current.json.toString())
+                val mapping = mapOf("proxy" to Pair("ProxySites", "ProxyIp"), "direct" to Pair("DirectSites", "DirectIp"), "block" to Pair("BlockSites", "BlockIp"))
+                mapping.forEach { (action, keys) ->
+                    val domains = JSONArray()
+                    val ips = JSONArray()
+                    for (i in 0 until rules.length()) {
+                        val rule = rules.optJSONObject(i) ?: continue
+                        if (rule.optString("action") != action) continue
+                        rule.optJSONArray("domains")?.let { values -> for (j in 0 until values.length()) domains.put(values.optString(j)) }
+                        rule.optJSONArray("ips")?.let { values -> for (j in 0 until values.length()) ips.put(values.optString(j)) }
+                    }
+                    updated.put(keys.first, domains).put(keys.second, ips)
+                }
+                routingStore.save(updated, current.sourceUrl, activate = true)
+            }
             "settings.save" -> {
                 val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
                 val mtu = payload.optInt("mtu", prefs.getInt("mtu", 1500))
@@ -3245,11 +3302,34 @@ class MainActivity : Activity() {
             .put("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
             .put("autoConnect", false)
             .put("autoUpdateSubscriptions", prefs.getBoolean("subscriptions_auto_update", true))
+        val appearance = JSONObject()
+            .put("theme", prefs.getString("appearance_theme", "dark") ?: "dark")
+            .put("fontScale", prefs.getInt("font_scale", 100))
+            .put("animations", prefs.getBoolean("ui_animations", true))
+        val pingMethod = when (prefs.getString("ping_mode", "tcp") ?: "tcp") {
+            "icmp" -> "icmp"
+            "proxy_get", "proxy_head" -> "http"
+            else -> "tcp"
+        }
+        val routingProfiles = JSONArray()
+        routingStore.all().forEach { profile ->
+            routingProfiles.put(JSONObject().put("id", profile.id).put("name", profile.name)
+                .put("selected", profile.id == routingStore.active()?.id)
+                .put("enabled", routingStore.enabled()).put("globalProxy", profile.globalProxy)
+                .put("updatedAt", profile.updatedAt).put("sourceUrl", profile.sourceUrl ?: JSONObject.NULL))
+        }
+        val routingRules = JSONArray()
+        listOf(Triple("proxy", "ProxySites", "ProxyIp"), Triple("direct", "DirectSites", "DirectIp"), Triple("block", "BlockSites", "BlockIp")).forEach { (action, domainsKey, ipsKey) ->
+            val domains = routingProfile?.values(domainsKey).orEmpty()
+            val ips = routingProfile?.values(ipsKey).orEmpty()
+            routingRules.put(JSONObject().put("id", action).put("action", action)
+                .put("domains", JSONArray(domains)).put("ips", JSONArray(ips)).put("enabled", true))
+        }
         val capabilities = JSONObject()
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
             .put("subscriptions", true)
-            .put("routing", false).put("dns", true).put("mtu", true).put("ipv6", true)
+            .put("routing", true).put("routingRuleActions", false).put("routingRuleToggles", false).put("dns", true).put("mtu", true).put("ipv6", true)
             .put("autoConnect", false).put("autoUpdateSubscriptions", true)
             .put("diagnostics", true).put("appUpdates", true)
         val received = traffic.sessionRx.coerceAtLeast(0L)
@@ -3274,7 +3354,8 @@ class MainActivity : Activity() {
             .put("appVersion", packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown")
             .put("connection", connection).put("traffic", stats)
             .put("profiles", profileArray).put("subscriptions", subscriptionArray).put("settings", settings)
-            .put("routingRules", JSONArray()).put("capabilities", capabilities)
+            .put("appearance", appearance).put("pingMethod", pingMethod)
+            .put("routingRules", routingRules).put("routingProfiles", routingProfiles).put("routingEnabled", routingStore.enabled()).put("capabilities", capabilities)
             .put("nativeFeatures", JSONArray().put("profile-ping").put("profile-qr-scan")
                 .put("profile-qr-share").put("profile-config-view").put("profile-edit")
                 .put("subscription-create").put("subscription-edit").put("subscription-delete")
@@ -3283,6 +3364,19 @@ class MainActivity : Activity() {
                 .put("appearance-settings").put("ping-method-settings").put("connection-widgets")
                 .put("quick-settings-tile").put("runtime-logs").put("profile-grouping")
                 .put("clipboard-import").put("deep-link-import"))
+    }
+
+    private fun routingProfilesSnapshot(): JSONObject {
+        val profiles = JSONArray()
+        routingStore.all().forEach { profile ->
+            profiles.put(JSONObject().put("id", profile.id).put("name", profile.name)
+                .put("selected", profile.id == routingStore.active()?.id)
+                .put("enabled", routingStore.enabled()).put("globalProxy", profile.globalProxy)
+                .put("updatedAt", profile.updatedAt).put("sourceUrl", profile.sourceUrl ?: JSONObject.NULL)
+                .put("json", JSONObject(profile.json.toString())))
+        }
+        return JSONObject().put("enabled", routingStore.enabled())
+            .put("activeId", routingStore.active()?.id ?: JSONObject.NULL).put("profiles", profiles)
     }
 
     @Suppress("DEPRECATION")

@@ -25,6 +25,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('Подключаемся к системному сервису…');
   const [draftDomain, setDraftDomain] = useState<Record<string, string>>({});
+  const [routingImportText, setRoutingImportText] = useState('');
+  const [routingImportResult, setRoutingImportResult] = useState('');
   const bridge = getNativeBridge();
 
   const refresh = useCallback(async () => {
@@ -86,7 +88,7 @@ export default function App() {
     connection?.status === 'error' ? 'Ошибка соединения' : 'Отключено';
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell theme-${snapshot?.appearance?.theme ?? "dark"} ${snapshot?.appearance?.animations === false ? "reduce-motion" : ""}`} style={{fontSize:`${snapshot?.appearance?.fontScale ?? 100}%`}}>
       <aside className="sidebar">
         <div className="brand"><div className="brand-mark">N</div><div><b>NeoTUN</b><span>CLIENT</span></div></div>
         <div className="nav-caption">РАБОЧЕЕ ПРОСТРАНСТВО</div>
@@ -130,8 +132,15 @@ export default function App() {
                   </div>
                   <div className="section-actions"><span className="capability-tag">
                     {snapshot?.capabilities.routing ? 'Доступно' : 'Только в классическом интерфейсе'}
-                  </span>{snapshot?.platform==='android'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть настройки маршрутизации</button>}{snapshot?.platform==='windows'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть все настройки маршрутизации</button>}</div>
+                  </span>{snapshot?.platform==='windows'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть все настройки маршрутизации</button>}</div>
                 </div>
+                {snapshot?.platform==='android'&&<div className="settings-card routing-profile-manager">
+                  <div className="settings-card-title"><Network size={18}/><div><b>Профиль маршрутизации</b><span>Сохраняемые профили JSON / INCY / Happ</span></div></div>
+                  <div className="routing-profile-row"><select aria-label="Активный профиль маршрутизации" value={snapshot.routingProfiles?.find(p=>p.selected)?.id??''} onChange={e=>void runCommand({type:'routingProfiles.select',payload:{profileId:e.target.value}})}><option value="">Выберите профиль</option>{(snapshot.routingProfiles??[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><label className="switch"><input type="checkbox" checked={snapshot.routingEnabled??true} onChange={e=>void runCommand({type:'routingProfiles.setEnabled',payload:{enabled:e.target.checked}})}/><span/></label><small>{snapshot.routingEnabled===false?'Выключено':'Включено'}</small></div>
+                  <div className="action-row"><button className="secondary small" onClick={()=>{const text=window.prompt('Вставьте JSON, Base64 или ссылку INCY/Happ');if(text?.trim()){setRoutingImportText(text);setRoutingImportResult('');}}}><Plus size={14}/> Вставить профиль</button><button className="secondary small" onClick={()=>{void runCommand({type:'routingProfiles.export',payload:{}});setRoutingImportResult('Ссылка профиля скопирована в буфер обмена.');}}><Copy size={14}/> Экспортировать</button><button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Редактор маршрутизации'}})}>Расширенный редактор</button></div>
+                  {routingImportText&&<div className="routing-import-box"><textarea value={routingImportText} onChange={e=>setRoutingImportText(e.target.value)} placeholder="JSON / Base64 / INCY / Happ"/><div className="action-row"><button className="secondary small" onClick={async()=>{const native=getNativeBridge();if(!native)return;const result=await native.request<{valid:boolean;name:string}>({type:'routingProfiles.validate',payload:{source:routingImportText}});setRoutingImportResult(result.ok?'Проверка успешна: '+result.result.name:result.error.message);}}>Проверить</button><button className="primary small" onClick={()=>void runCommand({type:'routingProfiles.import',payload:{source:routingImportText}})}>Импортировать и выбрать</button><button className="secondary small" onClick={()=>{setRoutingImportText('');setRoutingImportResult('');}}>Отмена</button></div></div>}
+                  {routingImportResult&&<p className="inline-note">{routingImportResult}</p>}
+                </div>}
 
                 <div className="route-intro">
                   <div className="route-action proxy">
@@ -263,11 +272,29 @@ function EmptyState({title,text}:{title:string;text:string}) {return <div classN
 
 function SettingsPage({snapshot,onSave,onRun}:{snapshot:NativeAppSnapshot|null;onSave:(settings:NativeClientSettings)=>Promise<void>;onRun:(command:NativeCommand)=>Promise<void>}) {
   const [draft,setDraft] = useState<NativeClientSettings|null>(snapshot?.settings??null);
+  const [logs,setLogs] = useState<string|null>(null);
+  const [logsLoading,setLogsLoading] = useState(false);
+  const loadLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const native = getNativeBridge();
+      if (!native) { setLogs("Нативный адаптер недоступен."); return; }
+      const result = await native.request<{text:string}>({type:"diagnostics.getLogs"});
+      setLogs(result.ok ? result.result.text : result.error.message);
+    } catch { setLogs("Не удалось загрузить журнал диагностики."); }
+    finally { setLogsLoading(false); }
+  };
+  const [appearance,setAppearance] = useState(snapshot?.appearance ?? {theme:"dark" as const,fontScale:100,animations:true});
+  const [pingMethod,setPingMethod] = useState<"tcp"|"icmp"|"http">(snapshot?.pingMethod ?? "tcp");
   useEffect(()=>setDraft(snapshot?.settings??null),[snapshot?.settings]);
+  useEffect(()=>setAppearance(snapshot?.appearance ?? {theme:"dark",fontScale:100,animations:true}),[snapshot?.appearance]);
+  useEffect(()=>setPingMethod(snapshot?.pingMethod ?? "tcp"),[snapshot?.pingMethod]);
   if (!draft || !snapshot) return <section className="page-content"><EmptyState title="Настройки недоступны" text="Сначала подключите нативный адаптер. Значения не будут подменяться демонстрационными."/></section>;
   const update = (patch:Partial<NativeClientSettings>)=>setDraft(current=>current?{...current,...patch}:current);
   return <section className="page-content">
     <div className="section-heading"><div><h3>Параметры клиента</h3><p>Текущие значения, полученные от платформы</p></div><button className="primary small" disabled={!snapshot.capabilities.dns&&!snapshot.capabilities.mtu&&!snapshot.capabilities.ipv6&&!snapshot.capabilities.autoConnect&&!snapshot.capabilities.autoUpdateSubscriptions} onClick={()=>void onSave(draft)}>Сохранить</button></div>
+    {snapshot.platform==='android'&&<div className="settings-card"><div className="settings-card-title"><Activity size={18}/><div><b>Журнал диагностики</b><span>Сообщения существующего Android-сервиса</span></div></div><div className="action-row"><button className="secondary small" disabled={logsLoading} onClick={()=>void loadLogs()}>{logsLoading?"Загрузка…":"Открыть журнал"}</button><button className="secondary small" onClick={async()=>{await onRun({type:"diagnostics.clear"});setLogs("");}}>Очистить журнал</button></div>{logs!==null&&<><pre className="diagnostic-log">{logs||"Журнал пуст."}</pre><button className="secondary small" onClick={()=>void loadLogs()}>Обновить журнал</button></>}</div>}
+    {snapshot.platform==='android'&&<div className="settings-card"><div className="settings-card-title"><Settings2 size={18}/><div><b>Оформление</b><span>Настройки старого клиента, теперь доступны здесь</span></div></div><label className="field-label">Тема<select value={appearance.theme} onChange={e=>setAppearance(v=>({...v,theme:e.target.value as typeof v.theme}))}><option value="dark">Тёмная</option><option value="light">Светлая</option><option value="oled">OLED-чёрная</option></select></label><label className="field-label">Размер текста <strong>{appearance.fontScale}%</strong><input type="range" min={85} max={130} step={5} value={appearance.fontScale} onChange={e=>setAppearance(v=>({...v,fontScale:Number(e.target.value)}))}/></label><SettingToggle title="Анимации интерфейса" description="Плавные переходы и эффекты" checked={appearance.animations} disabled={false} onChange={value=>setAppearance(v=>({...v,animations:value}))}/><button className="primary small" onClick={()=>void onRun({type:'settings.appearance.save',payload:appearance})}>Сохранить оформление</button><label className="field-label">Метод проверки пинга<select value={pingMethod} onChange={e=>setPingMethod(e.target.value as typeof pingMethod)}><option value="tcp">TCP</option><option value="icmp">ICMP</option><option value="http">Через прокси · HTTP</option></select></label><button className="secondary small" onClick={()=>void onRun({type:'settings.pingMethod.save',payload:{method:pingMethod}})}>Сохранить метод пинга</button></div>}
     <div className="settings-card"><div className="settings-card-title"><Globe2 size={18}/><div><b>DNS</b><span>Разрешение доменных имён</span></div></div><label className="field-label">Удалённый DNS<input disabled={!snapshot.capabilities.dns} value={draft.dns.remote} onChange={e=>update({dns:{...draft.dns,remote:e.target.value}})} placeholder="https://8.8.8.8/dns-query"/></label><label className="field-label">Домашний DNS<input disabled={!snapshot.capabilities.dns} value={draft.dns.domestic} onChange={e=>update({dns:{...draft.dns,domestic:e.target.value}})} placeholder="https://77.88.8.8/dns-query"/></label><label className="field-label">Домены домашнего DNS<textarea disabled={!snapshot.capabilities.dns} value={draft.dns.domesticDomains.join('\n')} onChange={e=>update({dns:{...draft.dns,domesticDomains:e.target.value.split('\n').map(s=>s.trim()).filter(Boolean)}})} rows={3} placeholder="ru\nsu\nрф"/></label></div>
     <div className="settings-card"><div className="settings-card-title"><Network size={18}/><div><b>Сеть</b><span>Параметры сетевого интерфейса</span></div></div><label className="field-label">MTU <strong>{draft.mtu} байт</strong><input disabled={!snapshot.capabilities.mtu} type="range" min={1280} max={1500} step={10} value={draft.mtu} onChange={e=>update({mtu:Number(e.target.value)})}/></label><label className="field-label">IPv6<select disabled={!snapshot.capabilities.ipv6} value={draft.ipv6} onChange={e=>update({ipv6:e.target.value as NativeClientSettings['ipv6']})}>{snapshot.platform !== 'windows' && <option value="prefer-ipv4">Предпочитать IPv4</option>}<option value="enabled">Включён</option><option value="disabled">Отключён</option></select></label><SettingToggle title="Автоподключение" description="Подключаться при запуске клиента" checked={draft.autoConnect} disabled={!snapshot.capabilities.autoConnect} onChange={value=>update({autoConnect:value})}/><SettingToggle title="Автообновление подписок" description="Обновлять профили по расписанию" checked={draft.autoUpdateSubscriptions} disabled={!snapshot.capabilities.autoUpdateSubscriptions} onChange={value=>update({autoUpdateSubscriptions:value})}/></div>
     <div className="settings-card"><div className="settings-card-title"><RefreshCw size={18}/><div><b>Обслуживание</b><span>Диагностика и обновления</span></div></div><button className="settings-action" disabled={!snapshot.capabilities.diagnostics} onClick={()=>void onRun({type:'diagnostics.run'})}><Activity size={17}/><span><b>Проверить соединение</b><small>Запустить системную диагностику</small></span><ChevronRight size={17}/></button><button className="settings-action" disabled={!snapshot.capabilities.appUpdates} onClick={()=>void onRun({type:'app.checkUpdate'})}><RefreshCw size={17}/><span><b>Проверить обновления</b><small>Версия {snapshot.appVersion}</small></span><ChevronRight size={17}/></button></div>
