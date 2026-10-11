@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::net::ToSocketAddrs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoreInfo {
@@ -503,16 +504,25 @@ impl Profile {
     pub fn to_windows_runtime_json(&self) -> Result<String, String> {
         if self.engine() == "xray" {
             let xray = serde_json::from_str::<serde_json::Value>(&self.to_xray_json()?).map_err(|e| e.to_string())?;
+            // Resolve the remote endpoint before the TUN interface starts. Otherwise,
+            // Xray's own connection to the proxy server can be captured by sing-box's
+            // default route and loop back into Xray through the local SOCKS inbound.
+            let server_cidrs = resolve_server_cidrs(&self.address, self.port)?;
+            // Keep the direct endpoint exception ahead of DNS hijacking/default proxy routing.
+            let route_rules = vec![
+                serde_json::json!({ "ip_cidr": server_cidrs, "outbound": "direct" }),
+                serde_json::json!({ "protocol": "dns", "action": "hijack-dns" })
+            ];
             let sing_box = serde_json::json!({
                 "log": { "level": "info" },
                 "inbounds": [{ "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true }],
                 "outbounds": [{ "type": "socks", "tag": "proxy", "server": "127.0.0.1", "server_port": 10808, "version": "5" }, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
                 "dns": {
-                    "servers": [{ "type": "local", "tag": "system" }],
-                    "final": "system",
+                    "servers": [{ "type": "udp", "tag": "bootstrap", "server": "1.1.1.1", "server_port": 53, "detour": "direct" }],
+                    "final": "bootstrap",
                     "strategy": "prefer_ipv4"
                 },
-                "route": { "auto_detect_interface": true, "final": "proxy", "rules": [{ "protocol": "dns", "action": "hijack-dns" }] }
+                "route": { "auto_detect_interface": true, "final": "proxy", "rules": route_rules }
             });
             return Ok(serde_json::json!({ "engine": "xray", "sing_box_config": sing_box, "xray_config": xray }).to_string());
         }
@@ -643,6 +653,24 @@ impl Profile {
 
         serde_json::to_string_pretty(&config).map_err(|e| e.to_string())
     }
+}
+
+
+/// Resolve every address for the proxy endpoint before the Windows TUN route is installed.
+/// This prevents Xray's upstream socket from being routed back into its own local SOCKS chain.
+fn resolve_server_cidrs(address: &str, port: u16) -> Result<Vec<String>, String> {
+    let resolved = (address, port).to_socket_addrs()
+        .map_err(|e| format!("Не удалось разрешить адрес сервера {} до запуска Windows TUN: {}", address, e))?;
+    let mut cidrs = Vec::new();
+    for socket in resolved {
+        let ip = socket.ip();
+        let cidr = format!("{}/{}", ip, if ip.is_ipv4() { 32 } else { 128 });
+        if !cidrs.contains(&cidr) { cidrs.push(cidr); }
+    }
+    if cidrs.is_empty() {
+        return Err(format!("DNS не вернул IP-адрес для сервера {}", address));
+    }
+    Ok(cidrs)
 }
 
 fn normalize_vless_uri(input: &str) -> Result<String, String> {
@@ -827,6 +855,20 @@ mod tests {
         assert_eq!(runtime["sing_box_config"]["dns"]["strategy"], "prefer_ipv4");
         assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["action"], "hijack-dns");
         assert_eq!(runtime["sing_box_config"]["route"]["rules"][0]["protocol"], "dns");
+    }
+
+    #[test]
+    fn windows_xray_runtime_excludes_remote_endpoint_and_uses_direct_bootstrap_dns() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@127.0.0.1:443?security=tls&type=tcp"
+        ).unwrap();
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        let config = &runtime["sing_box_config"];
+        assert_eq!(config["route"]["rules"][0]["outbound"], "direct");
+        assert_eq!(config["route"]["rules"][0]["ip_cidr"][0], "127.0.0.1/32");
+        assert_eq!(config["dns"]["servers"][0]["server"], "1.1.1.1");
+        assert_eq!(config["dns"]["servers"][0]["detour"], "direct");
     }
 
     #[test]
