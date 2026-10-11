@@ -210,6 +210,7 @@ public partial class MainWindow : Window
                 fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 },
                 animations = UiAnimationsToggle.IsChecked == true
             },
+            launchWithWindows = LaunchWithWindowsToggle.IsChecked == true,
             settings = new
             {
                 dns = new
@@ -248,7 +249,7 @@ public partial class MainWindow : Window
                 diagnostics = true,
                 appUpdates = true
             },
-            nativeFeatures = new[] { "routing-profiles", "routing-import", "routing-export", "routing-process-exclusions", "appearance-settings", "runtime-logs", "clipboard-import" }
+            nativeFeatures = new[] { "routing-profiles", "routing-import", "routing-export", "routing-process-exclusions", "appearance-settings", "launch-on-startup", "runtime-logs", "clipboard-import" }
         };
     }
 
@@ -306,6 +307,18 @@ public partial class MainWindow : Window
                 SaveRouting_Click(this, new RoutedEventArgs());
                 if (!RoutingSummary.Text.Contains("сохранены локально", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("Маршруты не сохранены. Проверьте DNS, MTU и исключения процессов.");
+                return true;
+            }
+            case "settings.launchWithWindows.save":
+            {
+                if (!payload.TryGetProperty("enabled", out var enabledElement) ||
+                    enabledElement.ValueKind is not (System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False))
+                    throw new InvalidDataException("Параметр автозапуска задан некорректно.");
+                var enabled = enabledElement.GetBoolean();
+                LaunchWithWindowsToggle.IsChecked = enabled;
+                LaunchWithWindows_Changed(this, new RoutedEventArgs());
+                if (IsLaunchWithWindowsEnabled() != enabled)
+                    throw new InvalidOperationException(SettingsSummary.Text);
                 return true;
             }
             case "settings.appearance.save":
