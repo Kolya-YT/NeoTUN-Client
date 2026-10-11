@@ -3012,7 +3012,7 @@ class MainActivity : Activity() {
                 require(store.all().any { it.id == id }) { "Профиль не найден" }
                 val activeUri = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
                     .getString(NeoTunVpnService.KEY_URI, null)
-                require(!(isRunning() && (selectedProfileId() == id || store.all().any { it.id == id && it.uri == activeUri }))) {
+                require(!(isRunning() && store.all().any { it.id == id && it.uri == activeUri })) {
                     "Отключите соединение перед удалением активного профиля"
                 }
                 if (selectedProfileId() == id) {
