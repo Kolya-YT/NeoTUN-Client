@@ -49,6 +49,19 @@ Still native-only and intentionally unavailable in the shared preview: routing p
 
 The adapter is an incremental preview, not proof of full parity. Device-level testing is still required for WebView behavior, subscription refresh results, real TCP/UDP traffic and connect/disconnect failure paths before the shared UI can become the default.
 
+### Windows shared UI preview
+
+The shared React UI is now bundled into the Windows installer and can be opened from the native WPF header using **«Новый интерфейс»**. It runs in WebView2 on a mapped local HTTPS origin; the WPF window and native engine remain in control.
+
+Implemented in the Windows preview adapter:
+- Read the actual Windows profile list and engine connection state.
+- Import supported profile links/text, select, rename and delete profiles through the existing profile store.
+- Connect and disconnect through the existing `EngineRuntime`.
+- Receive live traffic and connection snapshots from the native host.
+- Keep the preview in a separate resizable window so the classic WPF interface remains available.
+
+Not yet mapped to the shared UI on Windows: subscription management/scheduling, routing editor, DNS/MTU/IPv6 controls, diagnostics/log viewer and updater. These controls remain disabled in the preview where the adapter does not advertise support; use the classic WPF pages for those functions. The preview is not yet the default UI, and real device/traffic acceptance is still required.
+
 ## Shared UI rollout order
 
 1. **Contract and visual shell:** React/TypeScript type-check and production build pass. No mock networking state or fake counters.
