@@ -3207,6 +3207,19 @@ class MainActivity : Activity() {
                 toast("Журнал диагностики очищен")
             }
             "app.checkUpdate" -> checkUpdates()
+            "settings.android.get" -> {
+                val excludedApps = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+                    .getStringSet("excluded_apps", emptySet()).orEmpty()
+                return JSONObject()
+                    .put("dnsMode", getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+                        .getString("dns_mode", "Автоматический") ?: "Автоматический")
+                    .put("apps", JSONArray().apply {
+                        sharedLaunchableApps().forEach { (appPackage, label) ->
+                            put(JSONObject().put("packageName", appPackage).put("label", label)
+                                .put("excluded", appPackage in excludedApps))
+                        }
+                    })
+            }
             "settings.android.save" -> {
                 val dnsMode = payload.optString("dnsMode", "Автоматический")
                 require(dnsMode in setOf("Автоматический", "Cloudflare • 1.1.1.1", "Google • 8.8.8.8", "Quad9 • 9.9.9.9")) {
@@ -3340,15 +3353,6 @@ class MainActivity : Activity() {
             "proxy_get", "proxy_head" -> "http"
             else -> "tcp"
         }
-        val excludedApps = prefs.getStringSet("excluded_apps", emptySet()).orEmpty()
-        val androidAppSettings = JSONObject()
-            .put("dnsMode", prefs.getString("dns_mode", "Автоматический") ?: "Автоматический")
-            .put("apps", JSONArray().apply {
-                sharedLaunchableApps().forEach { (appPackage, label) ->
-                    put(JSONObject().put("packageName", appPackage).put("label", label)
-                        .put("excluded", appPackage in excludedApps))
-                }
-            })
         val routingProfiles = JSONArray()
         routingStore.all().forEach { profile ->
             routingProfiles.put(JSONObject().put("id", profile.id).put("name", profile.name)
@@ -3393,7 +3397,6 @@ class MainActivity : Activity() {
             .put("connection", connection).put("traffic", stats)
             .put("profiles", profileArray).put("subscriptions", subscriptionArray).put("settings", settings)
             .put("appearance", appearance).put("pingMethod", pingMethod)
-            .put("androidSettings", androidAppSettings)
             .put("routingRules", routingRules).put("routingProfiles", routingProfiles).put("routingEnabled", routingStore.enabled()).put("capabilities", capabilities)
             .put("nativeFeatures", JSONArray().put("profile-ping").put("profile-qr-scan")
                 .put("profile-qr-share").put("profile-config-view").put("profile-edit")
