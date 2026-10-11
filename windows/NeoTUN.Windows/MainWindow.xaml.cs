@@ -350,14 +350,29 @@ public partial class MainWindow : Window
                 if (!Uri.TryCreate(source, UriKind.Absolute, out var parsedSource) ||
                     (parsedSource.Scheme != Uri.UriSchemeHttps && parsedSource.Scheme != Uri.UriSchemeHttp))
                     throw new InvalidDataException("Подписка должна быть ссылкой HTTP или HTTPS.");
+                // Match the Android client's URL normalization so adding the same
+                // subscription with or without a trailing slash cannot create a
+                // second subscription entry or duplicate imported profiles.
+                static string NormalizeSource(string value) => value.Trim().TrimEnd('/');
+                var normalizedSource = NormalizeSource(source);
                 var existingProfiles = _vm.Profiles
-                    .Where(profile => string.Equals(profile.Source, source, StringComparison.OrdinalIgnoreCase))
+                    .Where(profile => !string.IsNullOrWhiteSpace(profile.Source) &&
+                        string.Equals(NormalizeSource(profile.Source), normalizedSource, StringComparison.OrdinalIgnoreCase))
                     .ToList();
                 var names = LoadSubscriptionNames();
+                if (existingProfiles.Count > 0)
+                {
+                    // Keep the original URL as the canonical subscription ID because
+                    // existing profiles and refresh/delete commands reference it.
+                    var canonicalSource = existingProfiles[0].Source!;
+                    names.Remove(source);
+                    names[canonicalSource] = name;
+                    SaveSubscriptionNames(names);
+                    return new { imported = 0, existing = existingProfiles.Count };
+                }
+
                 names[source] = name;
                 SaveSubscriptionNames(names);
-                if (existingProfiles.Count > 0)
-                    return new { imported = 0, existing = existingProfiles.Count };
 
                 var imported = await SubscriptionImporter.ImportAsync(source);
                 if (imported.Count == 0) throw new InvalidDataException("По этой ссылке не найдено поддерживаемых серверов.");
