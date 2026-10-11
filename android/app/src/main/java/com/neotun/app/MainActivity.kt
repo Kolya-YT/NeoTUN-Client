@@ -758,6 +758,8 @@ class MainActivity : Activity() {
             top.addView(txt(value, 11f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                background = rounded(NeoTunDesign.BRAND_SOFT, 8)
             }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(8), 0, 0, 0) })
         }
         top.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER),
