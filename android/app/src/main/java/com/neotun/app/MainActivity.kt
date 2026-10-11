@@ -18,8 +18,10 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
 import android.widget.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -2858,25 +2860,31 @@ class MainActivity : Activity() {
      * remain the default and remain available with Android Back until parity is proven.
      */
     private fun openSharedUiPreview() {
-        val entry = "file:///android_asset/shared-ui/index.html"
+        val entry = "https://appassets.androidplatform.net/assets/shared-ui/index.html"
         val hasAssets = runCatching { assets.open("shared-ui/index.html").use { true } }.getOrDefault(false)
         if (!hasAssets) {
             toast("Новый интерфейс пока не включён в эту сборку")
             return
         }
         sharedUiPreviousScreen = screen
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
         val web = WebView(this).apply {
             setBackgroundColor(NeoTunDesign.BACKGROUND)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = false
-            settings.allowFileAccess = true
+            // Serve the bundle from one synthetic HTTPS origin. Do not grant file:// universal access.
+            settings.allowFileAccess = false
             settings.allowContentAccess = false
-            settings.allowFileAccessFromFileURLs = false
-            settings.allowUniversalAccessFromFileURLs = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             addJavascriptInterface(SharedUiAndroidBridge(), "NeoTunAndroid")
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = true
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
+                    assetLoader.shouldInterceptRequest(request.url)
+
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                    request.url.scheme != "https" || request.url.host != "appassets.androidplatform.net"
             }
         }
         sharedUiView = web
