@@ -3329,7 +3329,7 @@ class MainActivity : Activity() {
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
             .put("subscriptions", true)
-            .put("routing", true).put("dns", true).put("mtu", true).put("ipv6", true)
+            .put("routing", true).put("routingRuleActions", false).put("routingRuleToggles", false).put("dns", true).put("mtu", true).put("ipv6", true)
             .put("autoConnect", false).put("autoUpdateSubscriptions", true)
             .put("diagnostics", true).put("appUpdates", true)
         val received = traffic.sessionRx.coerceAtLeast(0L)
