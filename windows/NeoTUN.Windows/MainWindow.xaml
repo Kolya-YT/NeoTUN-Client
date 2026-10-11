@@ -243,6 +243,29 @@
             <StackPanel>
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
                 <StackPanel>
+                  <TextBlock Text="Соединение" FontSize="19" FontWeight="Bold"/>
+                  <TextBlock Text="Основные сетевые параметры и правила обработки трафика — как в Android-версии NeoTUN." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,12"/>
+                  <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="Маршрутизация, DNS, MTU и IPv6" FontWeight="SemiBold"/>
+                      <TextBlock Text="Правила доменов/IP, DNS-серверы и исключения процессов" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,12,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Открыть" Click="RoutingNav_Click" VerticalAlignment="Center"/>
+                  </Grid>
+                  <Divider/>
+                  <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="Серверы и подписки" FontWeight="SemiBold"/>
+                      <TextBlock Text="Профили, импорт ссылок и управление подписками" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,12,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Открыть" Click="ServersNav_Click" VerticalAlignment="Center"/>
+                  </Grid>
+                </StackPanel>
+              </Border>
+              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+                <StackPanel>
                   <TextBlock Text="Внешний вид" FontSize="19" FontWeight="Bold"/>
                   <TextBlock Text="Цветовая тема приложения" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,10"/>
                   <ComboBox x:Name="ThemeSelector" SelectedIndex="0" SelectionChanged="ThemeSelector_SelectionChanged" MinHeight="38" Margin="0,0,0,14">
@@ -258,7 +281,8 @@
                     <ComboBoxItem Content="Очень крупный · 130%"/>
                   </ComboBox>
                   <CheckBox x:Name="UiAnimationsToggle" Content="Плавные переходы интерфейса" IsChecked="True" Checked="UiAnimations_Changed" Unchecked="UiAnimations_Changed" Margin="0,0,0,6"/>
-                  <TextBlock Text="Размер текста и анимации сохраняются отдельно для этого пользователя." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap"/>
+                  <TextBlock Text="Размер текста и анимации сохраняются отдельно для этого пользователя." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                  <Button Content="Сбросить настройки" Click="ResetSettings_Click" HorizontalAlignment="Left"/>
                 </StackPanel>
               </Border>
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
