@@ -23,9 +23,15 @@ object NeoTunGeoData {
     private const val GEOIP = "geoip.dat"
     private const val GEOSITE = "geosite.dat"
 
+    // GitHub Releases is the primary source; jsDelivr is a fallback because
+    // some networks cannot resolve or reach its CDN.
     private const val DEFAULT_GEOIP_URL =
+        "https://github.com/hydraponique/roscomvpn-geoip/releases/latest/download/geoip.dat"
+    private const val FALLBACK_GEOIP_URL =
         "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geoip/release/geoip.dat"
     private const val DEFAULT_GEOSITE_URL =
+        "https://github.com/hydraponique/roscomvpn-geosite/releases/latest/download/geosite.dat"
+    private const val FALLBACK_GEOSITE_URL =
         "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/geosite.dat"
 
     @Synchronized
@@ -36,19 +42,19 @@ object NeoTunGeoData {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         var changed = false
 
-        val geoIpUrl = profileUrl(profile, listOf("Geoipurl", "GeoIPurl", "GeoipUrl", "GeoIPURL"))
-            ?: DEFAULT_GEOIP_URL
-        val geoSiteUrl = profileUrl(profile, listOf("Geositeurl", "GeoSiteurl", "GeositeUrl", "GeoSiteURL"))
-            ?: DEFAULT_GEOSITE_URL
+        val profileGeoIpUrl = profileUrl(profile, listOf("Geoipurl", "GeoIPurl", "GeoipUrl", "GeoIPURL"))
+        val profileGeoSiteUrl = profileUrl(profile, listOf("Geositeurl", "GeoSiteurl", "GeositeUrl", "GeoSiteURL"))
+        val geoIpUrls = listOfNotNull(profileGeoIpUrl, DEFAULT_GEOIP_URL, FALLBACK_GEOIP_URL).distinct()
+        val geoSiteUrls = listOfNotNull(profileGeoSiteUrl, DEFAULT_GEOSITE_URL, FALLBACK_GEOSITE_URL).distinct()
 
         if (forceRefresh || needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L))) {
-            changed = download(context, geoIpUrl, geoIp, GEOIP) || changed
+            changed = downloadAny(context, geoIpUrls, geoIp, GEOIP) || changed
             if (geoIp.isFile && geoIp.length() > 0L) {
                 prefs.edit().putLong("geoip_updated", geoIp.lastModified()).apply()
             }
         }
         if (forceRefresh || needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L))) {
-            changed = download(context, geoSiteUrl, geoSite, GEOSITE) || changed
+            changed = downloadAny(context, geoSiteUrls, geoSite, GEOSITE) || changed
             if (geoSite.isFile && geoSite.length() > 0L) {
                 prefs.edit().putLong("geosite_updated", geoSite.lastModified()).apply()
             }
@@ -61,6 +67,26 @@ object NeoTunGeoData {
             error("Не удалось получить geosite.dat. Проверьте интернет и URL GeoSite в профиле маршрутизации.")
         }
         return NeoTunGeoDataResult(geoIp.length(), geoSite.length(), changed)
+    }
+
+    private fun downloadAny(context: Context, sources: List<String>, target: File, label: String): Boolean {
+        var lastError: Throwable? = null
+        for ((index, source) in sources.withIndex()) {
+            try {
+                if (download(context, source, target, label)) return true
+            } catch (t: Throwable) {
+                lastError = t
+            }
+            if (index < sources.lastIndex) {
+                NeoTunDiagnostics.log(context, "$label: основной источник недоступен; пробую резервный")
+            }
+        }
+        // A previously downloaded, non-empty database remains usable when all
+        // refresh sources are unavailable. Never delete it just because DNS failed.
+        if (!target.isFile || target.length() < 1024L) {
+            throw lastError ?: IllegalStateException("$label: все источники недоступны")
+        }
+        return false
     }
 
     private fun needsRefresh(file: File, lastUpdated: Long): Boolean =
