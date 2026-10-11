@@ -157,6 +157,20 @@ public partial class MainWindow : Window
     internal object BuildSharedUiSnapshot()
     {
         var connected = _runtime.IsRunning;
+        var subscriptionState = LoadSubscriptionUpdateState();
+        var subscriptionSources = _vm.Profiles
+            .Select(profile => profile.Source?.Trim() ?? "")
+            .Where(source => Uri.TryCreate(source, UriKind.Absolute, out var parsed) && (parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var subscriptions = subscriptionSources.Select(source => new
+        {
+            id = source,
+            name = new Uri(source).Host,
+            url = source,
+            lastUpdated = subscriptionState.TryGetValue(source, out var updated) ? updated.ToUnixTimeMilliseconds() : 0,
+            profileCount = _vm.Profiles.Count(profile => string.Equals(profile.Source, source, StringComparison.OrdinalIgnoreCase))
+        }).ToArray();
         var activeId = connected ? _activeSharedProfileId?.ToString() : null;
         return new
         {
@@ -187,7 +201,7 @@ public partial class MainWindow : Window
                 uri = profile.Uri,
                 selected = profile.Id == _vm.SelectedProfile?.Id
             }).ToArray(),
-            subscriptions = Array.Empty<object>(),
+            subscriptions,
             settings = new
             {
                 dns = new { remote = "", domestic = "", domesticDomains = Array.Empty<string>() },
@@ -244,6 +258,16 @@ public partial class MainWindow : Window
                 var id = Guid.Parse(ReadString("profileId"));
                 var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
                 _vm.SelectedProfile = profile;
+                return true;
+            }
+            case "subscriptions.refresh":
+            {
+                string? source = null;
+                if (payload.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    payload.TryGetProperty("subscriptionId", out var subscriptionIdElement) &&
+                    subscriptionIdElement.ValueKind == System.Text.Json.JsonValueKind.String)
+                    source = subscriptionIdElement.GetString();
+                await RefreshSubscriptionSourcesAsync(automatic: false, onlySource: source);
                 return true;
             }
             case "profiles.update":
@@ -413,13 +437,14 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshSubscriptionSourcesAsync(bool automatic)
+    private async Task RefreshSubscriptionSourcesAsync(bool automatic, string? onlySource = null)
     {
         var allSources = _vm.Profiles
             .Select(profile => profile.Source?.Trim() ?? "")
             .Where(source => Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
                 (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(source => onlySource is null || string.Equals(source, onlySource, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         if (allSources.Length == 0)
