@@ -51,9 +51,7 @@
         <Button Grid.Column="1" Content="＋  Импорт" Background="{StaticResource BrandVioletBrush}" BorderBrush="{StaticResource BrandVioletBrush}" Click="ImportNav_Click" VerticalAlignment="Center"/>
       </Grid>
 
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False" PanningMode="VerticalOnly">
-        <Grid>
+      <Grid Grid.Row="1">
         <ScrollViewer x:Name="HomePage" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False" PanningMode="VerticalOnly">
           <Grid>
@@ -364,9 +362,7 @@
             </DockPanel>
           </Border>
         </Grid>
-        </ScrollViewer>
-        </Grid>
-      </ScrollViewer>
+      </Grid>
 
       <TextBlock Grid.Row="2" Text="{Binding Notice}" Foreground="{StaticResource TextMutedBrush}" Margin="2,14,0,0" TextTrimming="CharacterEllipsis"/>
     </Grid>
