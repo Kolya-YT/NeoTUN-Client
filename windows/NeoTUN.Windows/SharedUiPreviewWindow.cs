@@ -24,6 +24,7 @@ internal sealed class SharedUiPreviewWindow : Window
     {
         _owner = owner;
         Title = "NeoTUN";
+        Icon = owner.Icon;
         Width = 1100;
         Height = 720;
         MinWidth = 720;
