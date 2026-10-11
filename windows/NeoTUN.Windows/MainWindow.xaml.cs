@@ -50,6 +50,39 @@ public partial class MainWindow : Window
         Loaded += async (_, _) => await AutoRefreshSubscriptionsOnStartupAsync();
     }
 
+    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ApplyResponsiveLayout();
+    }
+
+    private void ApplyResponsiveLayout()
+    {
+        // Keep the app usable at compact window sizes without removing pages or controls.
+        var compact = ActualWidth < 1000;
+        if (MainRoot.ColumnDefinitions.Count > 0)
+            MainRoot.ColumnDefinitions[0].Width = new GridLength(compact ? 184 : 224);
+
+        ContentArea.Margin = compact
+            ? new Thickness(16, 16, 16, 14)
+            : new Thickness(30, 24, 30, 22);
+        HomeHeroCard.Padding = compact
+            ? new Thickness(16)
+            : new Thickness(28);
+        ConnectButton.Width = compact ? 124 : 164;
+        ConnectButton.Height = compact ? 124 : 164;
+        ConnectButton.BorderThickness = compact ? new Thickness(3) : new Thickness(4);
+
+        if (ServersPage.ColumnDefinitions.Count >= 2)
+        {
+            ServersPage.ColumnDefinitions[0].Width = compact
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(1.05, GridUnitType.Star);
+            ServersPage.ColumnDefinitions[1].Width = compact
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0.95, GridUnitType.Star);
+        }
+    }
+
     private void ShowPage(string page)
     {
         _vm.ActivePage = page;
