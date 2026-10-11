@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     private void ShowPage(string page)
     {
         _vm.ActivePage = page;
+        UpdateNavigationState(page);
         HomePage.Visibility = page == "Главная" ? Visibility.Visible : Visibility.Collapsed;
         ServersPage.Visibility = page == "Серверы" ? Visibility.Visible : Visibility.Collapsed;
         ImportPage.Visibility = page == "Импорт" ? Visibility.Visible : Visibility.Collapsed;
@@ -80,6 +81,34 @@ public partial class MainWindow : Window
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
         }
         if (IsLoaded && FontScaleSelector is not null) ApplyFontScale();
+    }
+
+
+    private void UpdateNavigationState(string page)
+    {
+        var items = new (Button Button, string Page)[]
+        {
+            (HomeNavButton, "Главная"),
+            (ServersNavButton, "Серверы"),
+            (RoutingNavButton, "Маршрутизация"),
+            (SettingsNavButton, "Настройки"),
+            (LogsNavButton, "Журнал")
+        };
+
+        foreach (var (button, targetPage) in items)
+        {
+            var selected = targetPage == page;
+            button.Background = selected
+                ? (Brush)FindResource("AccentSurfaceBrush")
+                : Brushes.Transparent;
+            button.BorderBrush = selected
+                ? (Brush)FindResource("AccentSurfaceBrush")
+                : Brushes.Transparent;
+            button.Foreground = selected
+                ? (Brush)FindResource("BrandVioletBrush")
+                : (Brush)FindResource("TextSecondaryBrush");
+            button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+        }
     }
 
     private void SyncSelectedProfileToEditor()
