@@ -118,6 +118,8 @@ export interface NativeAppSnapshot {
   profiles: NativeProfile[];
   subscriptions: NativeSubscription[];
   settings: NativeClientSettings;
+  appearance?: { theme: "dark" | "light" | "oled"; fontScale: number; animations: boolean };
+  pingMethod?: "tcp" | "icmp" | "http";
   routingRules: NativeRoutingRule[];
   capabilities: NativeCapabilities;
   /** Native-only features still available during migration; omitted means unknown. */
