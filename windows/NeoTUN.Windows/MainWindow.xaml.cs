@@ -158,6 +158,7 @@ public partial class MainWindow : Window
     {
         var connected = _runtime.IsRunning;
         var subscriptionState = LoadSubscriptionUpdateState();
+        var subscriptionNames = LoadSubscriptionNames();
         var subscriptionSources = _vm.Profiles
             .Select(profile => profile.Source?.Trim() ?? "")
             .Where(source => Uri.TryCreate(source, UriKind.Absolute, out var parsed) && (parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp))
@@ -166,7 +167,7 @@ public partial class MainWindow : Window
         var subscriptions = subscriptionSources.Select(source => new
         {
             id = source,
-            name = new Uri(source).Host,
+            name = subscriptionNames.TryGetValue(source, out var subscriptionName) ? subscriptionName : new Uri(source).Host,
             url = source,
             lastUpdated = subscriptionState.TryGetValue(source, out var updated) ? updated.ToUnixTimeMilliseconds() : 0,
             profileCount = _vm.Profiles.Count(profile => string.Equals(profile.Source, source, StringComparison.OrdinalIgnoreCase))
@@ -228,7 +229,7 @@ public partial class MainWindow : Window
             {
                 connectionLifecycle = true,
                 profileManagement = true,
-                subscriptions = false,
+                subscriptions = true,
                 routing = true,
                 routingRuleActions = false,
                 routingRuleToggles = false,
@@ -339,6 +340,71 @@ public partial class MainWindow : Window
                 if (!RoutingSummary.Text.Contains("сохранены локально", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("Настройки не сохранены. Проверьте DNS, MTU и исключения процессов.");
                 PersistUiSettings("Настройки сохранены через новый интерфейс.");
+                return true;
+            }
+            case "subscriptions.create":
+            {
+                var name = ReadString("name");
+                var source = ReadString("url");
+                if (name.Length > 80) throw new InvalidDataException("Название подписки не должно превышать 80 символов.");
+                if (!Uri.TryCreate(source, UriKind.Absolute, out var parsedSource) ||
+                    (parsedSource.Scheme != Uri.UriSchemeHttps && parsedSource.Scheme != Uri.UriSchemeHttp))
+                    throw new InvalidDataException("Подписка должна быть ссылкой HTTP или HTTPS.");
+                var imported = await SubscriptionImporter.ImportAsync(source);
+                if (imported.Count == 0) throw new InvalidDataException("По этой ссылке не найдено поддерживаемых серверов.");
+                _vm.AddProfiles(imported);
+                var names = LoadSubscriptionNames();
+                names[source] = name;
+                SaveSubscriptionNames(names);
+                await RefreshSubscriptionSourcesAsync(automatic: false, onlySource: source);
+                return new { imported = imported.Count };
+            }
+            case "subscriptions.rename":
+            {
+                var source = ReadString("subscriptionId");
+                var name = ReadString("name");
+                if (name.Length > 80) throw new InvalidDataException("Название подписки не должно превышать 80 символов.");
+                if (!_vm.Profiles.Any(profile => string.Equals(profile.Source, source, StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException("Подписка не найдена.");
+                var names = LoadSubscriptionNames();
+                names[source] = name;
+                SaveSubscriptionNames(names);
+                return true;
+            }
+            case "subscriptions.delete":
+            {
+                var source = ReadString("subscriptionId");
+                var deleteProfiles = payload.TryGetProperty("deleteProfiles", out var deleteValue) &&
+                    deleteValue.ValueKind == System.Text.Json.JsonValueKind.True;
+                var related = _vm.Profiles.Where(profile => string.Equals(profile.Source, source, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (related.Count == 0) throw new InvalidDataException("Подписка не найдена.");
+                if (deleteProfiles && _runtime.IsRunning && related.Any(profile => profile.Id == _activeSharedProfileId))
+                    throw new InvalidOperationException("Сначала отключитесь от сервера из этой подписки.");
+                foreach (var profile in related)
+                {
+                    if (deleteProfiles) _vm.Profiles.Remove(profile);
+                    else profile.Source = null;
+                }
+                _vm.SaveProfiles();
+                var names = LoadSubscriptionNames();
+                names.Remove(source);
+                SaveSubscriptionNames(names);
+                if (deleteProfiles && related.Any(profile => profile.Id == _activeSharedProfileId))
+                {
+                    _activeSharedProfileId = null;
+                    _vm.IsConnected = false;
+                }
+                return true;
+            }
+            case "subscriptions.setSchedule":
+            {
+                if (!payload.TryGetProperty("intervalHours", out var intervalElement) || !intervalElement.TryGetInt32(out var hours) ||
+                    !new[] { 1, 6, 12, 24, 72, 168 }.Contains(hours))
+                    throw new InvalidDataException("Интервал должен быть 1, 6, 12, 24, 72 или 168 часов.");
+                var enabled = payload.TryGetProperty("enabled", out var enabledElement) && enabledElement.ValueKind == System.Text.Json.JsonValueKind.True;
+                SubscriptionIntervalSelector.SelectedIndex = hours switch { 1 => 0, 6 => 1, 24 => 3, 72 => 4, 168 => 5, _ => 2 };
+                AutoUpdateSubscriptionsToggle.IsChecked = enabled;
+                PersistUiSettings("Расписание обновления подписок сохранено.");
                 return true;
             }
             case "subscriptions.refresh":
@@ -669,6 +735,29 @@ public partial class MainWindow : Window
     private string RoutingSettingsPath => Path.Combine(DataDirectory, "routing-settings.json");
     private string UiSettingsPath => Path.Combine(DataDirectory, "ui-settings.json");
     private string RuntimeLogPath => Path.Combine(DataDirectory, "windows-runtime.log");
+    private string SubscriptionNamesPath => Path.Combine(DataDirectory, "subscription-names.json");
+
+    private Dictionary<string, string> LoadSubscriptionNames()
+    {
+        try
+        {
+            if (!File.Exists(SubscriptionNamesPath)) return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var saved = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SubscriptionNamesPath));
+            return saved is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(saved, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            AddLog("Не удалось прочитать названия подписок: " + ex.Message);
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private void SaveSubscriptionNames(Dictionary<string, string> names)
+    {
+        Directory.CreateDirectory(DataDirectory);
+        File.WriteAllText(SubscriptionNamesPath, JsonSerializer.Serialize(names, new JsonSerializerOptions { WriteIndented = true }));
+    }
 
     private sealed record RoutingSettings(
         bool GlobalProxy, bool Ipv6Enabled, int Mtu, int RouteOrder, string RemoteDns, string DomesticDns, string DomesticDnsDomains,
