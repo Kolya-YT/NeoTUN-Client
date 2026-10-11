@@ -3077,6 +3077,36 @@ class MainActivity : Activity() {
                 require(mtu in 1280..1500) { "MTU должен быть от 1280 до 1500" }
                 val ipv6 = payload.optString("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
                 require(ipv6 == "enabled" || ipv6 == "disabled") { "Некорректное значение IPv6" }
+                val dns = payload.optJSONObject("dns")
+                if (dns != null) {
+                    val current = routingStore.active() ?: routingStore.all().firstOrNull()
+                        ?: error("Сначала создайте профиль маршрутизации, чтобы сохранить DNS")
+                    val remote = dns.optString("remote").trim()
+                    val domestic = dns.optString("domestic").trim()
+                    require(remote.isNotBlank() && remote.length <= 2048) { "Укажите удалённый DNS" }
+                    require(domestic.isNotBlank() && domestic.length <= 2048) { "Укажите домашний DNS" }
+                    listOf(remote, domestic).forEach { address ->
+                        val parsed = java.net.URI(address)
+                        require(parsed.scheme in listOf("https", "http") && !parsed.host.isNullOrBlank()) {
+                            "DNS должен быть корректным HTTP(S) URL"
+                        }
+                    }
+                    val domains = dns.optJSONArray("domesticDomains") ?: JSONArray()
+                    val normalizedDomains = JSONArray()
+                    for (i in 0 until domains.length()) {
+                        val domain = domains.optString(i).trim().trim('.')
+                        if (domain.isEmpty()) continue
+                        require(domain.length <= 253 && domain.matches(Regex("[\\p{L}\\p{N}*_-]+(\\.[\\p{L}\\p{N}_-]+)*"))) {
+                            "Некорректный домен домашнего DNS: $domain"
+                        }
+                        normalizedDomains.put(domain)
+                    }
+                    val updatedRouting = JSONObject(current.json.toString())
+                        .put("RemoteDNS", remote)
+                        .put("DomesticDNS", domestic)
+                        .put("DomesticDNSDomains", normalizedDomains)
+                    routingStore.save(updatedRouting, current.sourceUrl, activate = routingStore.active()?.id == current.id)
+                }
                 prefs.edit()
                     .putInt("mtu", mtu)
                     .putBoolean("ipv6_enabled", ipv6 == "enabled")
@@ -3184,9 +3214,27 @@ class MainActivity : Activity() {
                 .put("lastUpdated", sub.lastUpdated)
                 .put("profileCount", profiles.count { it.sourceSubscriptionId == sub.id }))
         }
+        val routingProfile = routingStore.active() ?: routingStore.all().firstOrNull()
+        val routingJson = routingProfile?.json
+        val remoteDns = routingJson?.optString("RemoteDNS").orEmpty().ifBlank {
+            routingJson?.optString("RemoteDns").orEmpty().ifBlank { "https://8.8.8.8/dns-query" }
+        }
+        val domesticDns = routingJson?.optString("DomesticDNS").orEmpty().ifBlank {
+            routingJson?.optString("DomesticDns").orEmpty().ifBlank { "https://77.88.8.8/dns-query" }
+        }
+        val domesticDomains = JSONArray()
+        when (val raw = routingJson?.opt("DomesticDNSDomains")) {
+            is JSONArray -> for (i in 0 until raw.length()) {
+                val domain = raw.optString(i).trim()
+                if (domain.isNotEmpty()) domesticDomains.put(domain)
+            }
+            is String -> raw.split(Regex("[\\r\\n,;]+")).map(String::trim)
+                .filter(String::isNotEmpty).forEach(domesticDomains::put)
+        }
+        if (domesticDomains.length() == 0) domesticDomains.put("ru").put("su").put("рф")
         val settings = JSONObject()
-            .put("dns", JSONObject().put("remote", "")
-                .put("domestic", "").put("domesticDomains", JSONArray()))
+            .put("dns", JSONObject().put("remote", remoteDns)
+                .put("domestic", domesticDns).put("domesticDomains", domesticDomains))
             .put("mtu", prefs.getInt("mtu", 1500))
             .put("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
             .put("autoConnect", false)
@@ -3195,7 +3243,7 @@ class MainActivity : Activity() {
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
             .put("subscriptions", true)
-            .put("routing", false).put("dns", false).put("mtu", true).put("ipv6", true)
+            .put("routing", false).put("dns", routingProfile != null).put("mtu", true).put("ipv6", true)
             .put("autoConnect", false).put("autoUpdateSubscriptions", true)
             .put("diagnostics", true).put("appUpdates", true)
         val received = traffic.sessionRx.coerceAtLeast(0L)
