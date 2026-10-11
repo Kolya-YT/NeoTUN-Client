@@ -327,7 +327,7 @@ public partial class MainWindow : Window
                     FontScaleSelector.SelectedIndex = fontScale switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
                     UiAnimationsToggle.IsChecked = animationsElement.GetBoolean();
                     ApplyTheme(theme);
-                    ApplyFontScale(fontScale);
+                    ApplyFontScale();
                 }
                 finally { _loadingUiSettings = false; }
                 PersistUiSettings("Оформление сохранено через общий интерфейс.");
