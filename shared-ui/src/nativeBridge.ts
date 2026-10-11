@@ -62,6 +62,10 @@ export interface NativeClientSettings {
   ipv6: "disabled" | "enabled" | "prefer-ipv4";
   autoConnect: boolean;
   autoUpdateSubscriptions: boolean;
+  /** Windows-only options; omitted by platforms that do not support them. */
+  globalProxy?: boolean;
+  routeOrder?: number;
+  processExclusions?: string[];
 }
 
 export interface NativeCapabilities {
