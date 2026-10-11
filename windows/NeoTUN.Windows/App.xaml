@@ -3,22 +3,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
   <Application.Resources>
-    <Color x:Key="BackgroundColor">#070910</Color>
-    <Color x:Key="NavigationColor">#0C0F19</Color>
-    <Color x:Key="SurfaceColor">#121521</Color>
-    <Color x:Key="RaisedSurfaceColor">#1C2033</Color>
-    <Color x:Key="InputSurfaceColor">#0D111D</Color>
-    <Color x:Key="BorderColor">#2A2E44</Color>
-    <Color x:Key="BrandVioletColor">#8769FF</Color>
-    <Color x:Key="BrandBlueColor">#5B5BF1</Color>
-    <Color x:Key="AccentSurfaceColor">#23203B</Color>
-    <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
-    <Color x:Key="TextSecondaryColor">#A5ABC2</Color>
-    <Color x:Key="TextMutedColor">#8F96AD</Color>
-    <Color x:Key="SuccessColor">#5FE6A6</Color>
-    <Color x:Key="SuccessSurfaceColor">#12372E</Color>
-    <Color x:Key="DangerColor">#FFB1C0</Color>
-    <Color x:Key="DangerSurfaceColor">#311B27</Color>
+    <Color x:Key="BackgroundColor">#080A12</Color>
+    <Color x:Key="NavigationColor">#0D101B</Color>
+    <Color x:Key="SurfaceColor">#131725</Color>
+    <Color x:Key="RaisedSurfaceColor">#1B2031</Color>
+    <Color x:Key="InputSurfaceColor">#0E1220</Color>
+    <Color x:Key="BorderColor">#292F45</Color>
+    <Color x:Key="BrandVioletColor">#8068FF</Color>
+    <Color x:Key="BrandBlueColor">#5B68F2</Color>
+    <Color x:Key="AccentSurfaceColor">#211D38</Color>
+    <Color x:Key="TextPrimaryColor">#F7F8FF</Color>
+    <Color x:Key="TextSecondaryColor">#B1B8CD</Color>
+    <Color x:Key="TextMutedColor">#858EA8</Color>
+    <Color x:Key="SuccessColor">#65E7B0</Color>
+    <Color x:Key="SuccessSurfaceColor">#12362F</Color>
+    <Color x:Key="DangerColor">#FFB5C3</Color>
+    <Color x:Key="DangerSurfaceColor">#321C29</Color>
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
     <SolidColorBrush x:Key="NavigationBrush" Color="{StaticResource NavigationColor}" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
