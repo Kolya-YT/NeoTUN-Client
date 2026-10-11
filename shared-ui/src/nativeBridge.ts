@@ -69,6 +69,8 @@ export interface NativeCapabilities {
   profileManagement: boolean;
   subscriptions: boolean;
   routing: boolean;
+  routingRuleActions?: boolean;
+  routingRuleToggles?: boolean;
   dns: boolean;
   mtu: boolean;
   ipv6: boolean;
