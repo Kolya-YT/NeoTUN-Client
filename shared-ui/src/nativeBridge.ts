@@ -63,6 +63,8 @@ export interface NativeCapabilities {
   dns: boolean;
   mtu: boolean;
   ipv6: boolean;
+  autoConnect: boolean;
+  autoUpdateSubscriptions: boolean;
   diagnostics: boolean;
   appUpdates: boolean;
 }
