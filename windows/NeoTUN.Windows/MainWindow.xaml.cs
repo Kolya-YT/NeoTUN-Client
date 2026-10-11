@@ -350,14 +350,27 @@ public partial class MainWindow : Window
                 if (!Uri.TryCreate(source, UriKind.Absolute, out var parsedSource) ||
                     (parsedSource.Scheme != Uri.UriSchemeHttps && parsedSource.Scheme != Uri.UriSchemeHttp))
                     throw new InvalidDataException("Подписка должна быть ссылкой HTTP или HTTPS.");
-                var imported = await SubscriptionImporter.ImportAsync(source);
-                if (imported.Count == 0) throw new InvalidDataException("По этой ссылке не найдено поддерживаемых серверов.");
-                _vm.AddProfiles(imported);
+                var existingProfiles = _vm.Profiles
+                    .Where(profile => string.Equals(profile.Source, source, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
                 var names = LoadSubscriptionNames();
                 names[source] = name;
                 SaveSubscriptionNames(names);
-                await RefreshSubscriptionSourcesAsync(automatic: false, onlySource: source);
-                return new { imported = imported.Count };
+                if (existingProfiles.Count > 0)
+                    return new { imported = 0, existing = existingProfiles.Count };
+
+                var imported = await SubscriptionImporter.ImportAsync(source);
+                if (imported.Count == 0) throw new InvalidDataException("По этой ссылке не найдено поддерживаемых серверов.");
+                _vm.AddProfiles(imported);
+
+                // The URL was just fetched successfully by ImportAsync; record that
+                // timestamp instead of downloading the same feed a second time.
+                var updateState = LoadSubscriptionUpdateState();
+                updateState[source] = DateTimeOffset.UtcNow;
+                Directory.CreateDirectory(DataDirectory);
+                File.WriteAllText(SubscriptionUpdateStatePath, JsonSerializer.Serialize(
+                    updateState, new JsonSerializerOptions { WriteIndented = true }));
+                return new { imported = imported.Count, existing = 0 };
             }
             case "subscriptions.rename":
             {
