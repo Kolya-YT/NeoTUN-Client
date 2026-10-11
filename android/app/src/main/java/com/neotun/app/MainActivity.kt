@@ -376,7 +376,7 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         item.addView(valueView, margins(top = 5))
-        item.addView(txt(label, 9f, Color.rgb(130, 137, 159), Typeface.BOLD, Gravity.CENTER).apply {
+        item.addView(txt(label, 9f, NeoTunDesign.TEXT_MUTED, Typeface.BOLD, Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 4))
@@ -518,7 +518,7 @@ class MainActivity : Activity() {
         val primary = button(if (isRunning()) "Отключиться" else "Подключиться") {
             if (isRunning()) disconnect() else connect(profile)
         }
-        primary.background = rounded(if (isRunning()) Color.rgb(36, 73, 62) else Color.rgb(125, 109, 255), 15)
+        primary.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, isRunning())
         row.addView(primary, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(0, 0, dp(6), 0) })
         row.addView(button("⋯  Действия") { profileActions(profile) },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
@@ -1770,9 +1770,9 @@ class MainActivity : Activity() {
     private fun styleDialog(dialog: AlertDialog) {
         dialog.window?.setBackgroundDrawable(ColorDrawable(NeoTunDesign.SURFACE))
         dialog.window?.setDimAmount(0.72f)
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.rgb(139, 120, 255))
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.rgb(155, 159, 170))
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(Color.rgb(155, 159, 170))
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(NeoTunDesign.BRAND_VIOLET)
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(NeoTunDesign.TEXT_MUTED)
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(NeoTunDesign.TEXT_MUTED)
     }
 
     private fun saveProfile(uri: String) {
@@ -1969,7 +1969,7 @@ class MainActivity : Activity() {
             }.create()
         dialog.setOnShowListener {
             styleDialog(dialog)
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.rgb(255, 102, 118))
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(NeoTunDesign.DANGER)
         }
         dialog.show()
     }
@@ -2109,7 +2109,7 @@ class MainActivity : Activity() {
                         orientation = LinearLayout.VERTICAL
                         setPadding(dp(24), dp(12), dp(24), dp(8))
                     }
-                    val status = txt("Подготовка загрузки…", 13f, Color.rgb(170, 174, 192))
+                    val status = txt("Подготовка загрузки…", 13f, NeoTunDesign.TEXT_SECONDARY)
                     val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
                         max = 100
                         this.progress = 0
@@ -2529,12 +2529,12 @@ class MainActivity : Activity() {
     private fun metric(icon: String, value: String, label: String) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
-        addView(txt(icon, 17f, Color.rgb(125, 108, 255), Typeface.BOLD, Gravity.CENTER))
+        addView(txt(icon, 17f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER))
         addView(txt(value, 15f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
-        addView(txt(label, 10f, Color.rgb(130, 134, 146), textGravity = Gravity.CENTER).apply {
+        addView(txt(label, 10f, NeoTunDesign.TEXT_MUTED, textGravity = Gravity.CENTER).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 2))
