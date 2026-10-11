@@ -3063,6 +3063,7 @@ class MainActivity : Activity() {
             web.stopLoading()
             web.removeJavascriptInterface("NeoTunAndroid")
             web.destroy()
+            shellRoot?.let { setContentView(it) }
             showScreen(sharedUiPreviousScreen)
             return
         }
