@@ -39,8 +39,14 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-          cache: true
-          cache-dependency-path: windows/NeoTUN.Windows/NeoTUN.Windows.csproj
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('windows/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
