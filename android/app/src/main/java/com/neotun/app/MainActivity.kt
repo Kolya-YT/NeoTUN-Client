@@ -2532,11 +2532,11 @@ class MainActivity : Activity() {
         nav.setPadding(dp(10), dp(6), dp(10), dp(7))
         nav.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(NeoTunDesign.NAVIGATION, NeoTunDesign.NAVIGATION)
+            intArrayOf(NeoTunDesign.NAVIGATION, NeoTunDesign.BACKGROUND)
         ).apply {
             setStroke(dp(1), NeoTunDesign.BORDER)
-            cornerRadii = floatArrayOf(dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(),
-                0f, 0f, 0f, 0f)
+            val radius = dp(22).toFloat()
+            cornerRadii = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
         }
         val items = listOf("⌂" to "Главная", "▤" to "Серверы", "⚙" to "Настройки")
         items.forEachIndexed { index, pair ->
@@ -2546,22 +2546,24 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 setPadding(dp(4), dp(5), dp(4), dp(4))
-                background = rounded(
-                    if (selected) NeoTunDesign.NAV_SELECTED else Color.TRANSPARENT,
-                    13,
-                    if (selected) NeoTunDesign.BORDER_ACCENT else null,
-                    if (selected) 1 else 0
-                )
+                background = if (selected) {
+                    GradientDrawable(
+                        GradientDrawable.Orientation.LEFT_RIGHT,
+                        intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
+                    ).apply { cornerRadius = dp(13).toFloat() }
+                } else {
+                    rounded(Color.TRANSPARENT, 13)
+                }
                 isClickable = true
                 isFocusable = true
                 contentDescription = pair.second
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 19f,
-                if (selected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_MUTED,
+            item.addView(txt(pair.first, 20f,
+                if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER))
             item.addView(txt(pair.second, 10f,
-                if (selected) NeoTunDesign.TEXT_PRIMARY else NeoTunDesign.TEXT_MUTED,
+                if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
                 if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 2))
             nav.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
                 setMargins(dp(3), 0, dp(3), 0)
