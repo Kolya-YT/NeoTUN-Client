@@ -90,8 +90,10 @@ class MainActivity : Activity() {
         if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("subscriptions_auto_update", true)) {
             refreshDueSubscriptions()
         }
+        // The shared React UI is now the production interface. Keep the native
+        // host/services initialized, but do not expose the retired native screens.
         buildShell()
-        showScreen(Screen.HOME)
+        openSharedUiPreview()
         handleRoutingIntent(intent)
         handleWidgetToggleIntent(intent)
         refreshDueRoutingProfiles()
@@ -3383,12 +3385,12 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         val web = sharedUiView
         if (web != null) {
+            // Back exits the shared app instead of reopening the retired native UI.
             sharedUiView = null
             web.stopLoading()
             web.removeJavascriptInterface("NeoTunAndroid")
             web.destroy()
-            shellRoot?.let { setContentView(it) }
-            showScreen(sharedUiPreviousScreen)
+            finish()
             return
         }
         super.onBackPressed()
