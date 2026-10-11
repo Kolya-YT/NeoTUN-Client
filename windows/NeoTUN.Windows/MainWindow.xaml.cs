@@ -251,7 +251,7 @@ public partial class MainWindow : Window
                 if (name.Length > 80) throw new InvalidDataException("Название профиля слишком длинное.");
                 profile.Name = name;
                 _vm.SaveProfiles();
-                _vm.OnPropertyChangedForSharedUi();
+                _vm.Notice = "Профиль переименован.";
                 return true;
             }
             case "profiles.delete":
