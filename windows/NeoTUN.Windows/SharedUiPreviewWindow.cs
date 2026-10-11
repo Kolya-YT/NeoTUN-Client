@@ -23,13 +23,12 @@ internal sealed class SharedUiPreviewWindow : Window
     public SharedUiPreviewWindow(MainWindow owner)
     {
         _owner = owner;
-        Title = "NeoTUN — новый интерфейс";
-        Width = 1180;
-        Height = 780;
-        MinWidth = 900;
-        MinHeight = 620;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Owner = owner;
+        Title = "NeoTUN";
+        Width = 1100;
+        Height = 720;
+        MinWidth = 720;
+        MinHeight = 520;
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Content = _webView;
         _stateTimer.Tick += (_, _) =>
         {
