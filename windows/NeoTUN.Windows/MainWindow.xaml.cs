@@ -108,7 +108,7 @@ public partial class MainWindow : Window
         SettingsPage.Visibility = page == "Настройки" ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == "Журнал" ? Visibility.Visible : Visibility.Collapsed;
 
-        var active = page switch
+        UIElement active = page switch
         {
             "Главная" => HomePage,
             "Серверы" => ServersPage,
