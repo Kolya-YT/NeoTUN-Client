@@ -633,27 +633,6 @@ class MainActivity : Activity() {
             else -> "Не настроена"
         }
 
-        val appearance = settingsSection("ВНЕШНИЙ ВИД И ДОСТУПНОСТЬ")
-        val themeLabels = mapOf("dark" to "Тёмная", "light" to "Светлая", "oled" to "OLED-чёрная")
-        val theme = prefs.getString("appearance_theme", "dark") ?: "dark"
-        appearance.addView(settingsRow(
-            "🎨 Тема оформления",
-            themeLabels[theme] ?: "Тёмная",
-            "Тёмная, светлая или чёрная для OLED-экранов"
-        ) { showAppearanceThemeSettings() })
-        val fontScale = prefs.getInt("font_scale", 100)
-        appearance.addView(settingsRow(
-            "🔤 Размер текста",
-            when (fontScale) { 85 -> "Маленький"; 115 -> "Крупный"; 130 -> "Очень крупный"; else -> "Стандартный" },
-            "Изменяет размер текста в интерфейсе приложения"
-        ) { showFontSizeSettings() })
-        appearance.addView(settingsRow(
-            "✨ Анимации интерфейса",
-            if (prefs.getBoolean("ui_animations", true)) "Включены" else "Выключены",
-            "Плавные переходы между экранами"
-        ) { toggleSetting("ui_animations", "Анимации интерфейса") { renderSettings() } })
-        content.addView(appearance, margins(bottom = 12))
-
         val connection = settingsSection("СОЕДИНЕНИЕ")
         connection.addView(settingsRow(
             "🧭 Правила маршрутизации",
@@ -862,41 +841,6 @@ class MainActivity : Activity() {
     }
 
 
-
-    private fun showAppearanceThemeSettings() {
-        val modes = arrayOf("Тёмная", "Светлая", "OLED-чёрная")
-        val keys = arrayOf("dark", "light", "oled")
-        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
-        val selected = keys.indexOf(prefs.getString("appearance_theme", "dark")).coerceAtLeast(0)
-        AlertDialog.Builder(this)
-            .setTitle("Тема оформления")
-            .setSingleChoiceItems(modes, selected) { dialog, which ->
-                prefs.edit().putString("appearance_theme", keys[which]).apply()
-                NeoTunDesign.apply(keys[which])
-                dialog.dismiss()
-                buildShell()
-                showScreen(screen)
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
-    }
-
-    private fun showFontSizeSettings() {
-        val labels = arrayOf("Маленький · 85%", "Стандартный · 100%", "Крупный · 115%", "Очень крупный · 130%")
-        val values = intArrayOf(85, 100, 115, 130)
-        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
-        val selected = values.indexOf(prefs.getInt("font_scale", 100)).coerceAtLeast(0)
-        AlertDialog.Builder(this)
-            .setTitle("Размер текста")
-            .setSingleChoiceItems(labels, selected) { dialog, which ->
-                prefs.edit().putInt("font_scale", values[which]).apply()
-                dialog.dismiss()
-                buildShell()
-                showScreen(screen)
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
-    }
 
     private fun showAppExclusionSettings() {
         val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -3237,8 +3181,6 @@ class MainActivity : Activity() {
                     "DNS" -> showDnsSettings()
                     "MTU" -> showMtuSettings()
                     "Исключения приложений" -> showAppExclusionSettings()
-                    "Оформление" -> showAppearanceThemeSettings()
-                    "Размер текста" -> showFontSizeSettings()
                     "Способ проверки пинга" -> showPingModeSettings()
                     "Интервал подписок" -> showSubscriptionIntervalSettings()
                     else -> error("Неизвестная страница Android")
