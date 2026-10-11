@@ -25,6 +25,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('Подключаемся к системному сервису…');
   const [draftDomain, setDraftDomain] = useState<Record<string, string>>({});
+  const [routingImportText, setRoutingImportText] = useState('');
+  const [routingImportResult, setRoutingImportResult] = useState('');
   const bridge = getNativeBridge();
 
   const refresh = useCallback(async () => {
@@ -130,8 +132,15 @@ export default function App() {
                   </div>
                   <div className="section-actions"><span className="capability-tag">
                     {snapshot?.capabilities.routing ? 'Доступно' : 'Только в классическом интерфейсе'}
-                  </span>{snapshot?.platform==='android'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть настройки маршрутизации</button>}{snapshot?.platform==='windows'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть все настройки маршрутизации</button>}</div>
+                  </span>{snapshot?.platform==='windows'&&!snapshot.capabilities.routing&&<button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Маршрутизация'}})}>Открыть все настройки маршрутизации</button>}</div>
                 </div>
+                {snapshot?.platform==='android'&&<div className="settings-card routing-profile-manager">
+                  <div className="settings-card-title"><Network size={18}/><div><b>Профиль маршрутизации</b><span>Сохраняемые профили JSON / INCY / Happ</span></div></div>
+                  <div className="routing-profile-row"><select aria-label="Активный профиль маршрутизации" value={snapshot.routingProfiles?.find(p=>p.selected)?.id??''} onChange={e=>void runCommand({type:'routingProfiles.select',payload:{profileId:e.target.value}})}><option value="">Выберите профиль</option>{(snapshot.routingProfiles??[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><label className="switch"><input type="checkbox" checked={snapshot.routingEnabled??true} onChange={e=>void runCommand({type:'routingProfiles.setEnabled',payload:{enabled:e.target.checked}})}/><span/></label><small>{snapshot.routingEnabled===false?'Выключено':'Включено'}</small></div>
+                  <div className="action-row"><button className="secondary small" onClick={()=>{const text=window.prompt('Вставьте JSON, Base64 или ссылку INCY/Happ');if(text?.trim()){setRoutingImportText(text);setRoutingImportResult('');}}}><Plus size={14}/> Вставить профиль</button><button className="secondary small" onClick={()=>{void runCommand({type:'routingProfiles.export',payload:{}});setRoutingImportResult('Ссылка профиля скопирована в буфер обмена.');}}><Copy size={14}/> Экспортировать</button><button className="secondary small" onClick={()=>void runCommand({type:'native.openPage',payload:{page:'Редактор маршрутизации'}})}>Расширенный редактор</button></div>
+                  {routingImportText&&<div className="routing-import-box"><textarea value={routingImportText} onChange={e=>setRoutingImportText(e.target.value)} placeholder="JSON / Base64 / INCY / Happ"/><div className="action-row"><button className="secondary small" onClick={async()=>{const native=getNativeBridge();if(!native)return;const result=await native.request<{valid:boolean;name:string}>({type:'routingProfiles.validate',payload:{source:routingImportText}});setRoutingImportResult(result.ok?'Проверка успешна: '+result.result.name:result.error.message);}}>Проверить</button><button className="primary small" onClick={()=>void runCommand({type:'routingProfiles.import',payload:{source:routingImportText}})}>Импортировать и выбрать</button><button className="secondary small" onClick={()=>{setRoutingImportText('');setRoutingImportResult('');}}>Отмена</button></div></div>}
+                  {routingImportResult&&<p className="inline-note">{routingImportResult}</p>}
+                </div>}
 
                 <div className="route-intro">
                   <div className="route-action proxy">
