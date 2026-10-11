@@ -1067,7 +1067,8 @@ public partial class MainWindow : Window
             AutoUpdateSubscriptionsToggle.IsChecked = saved?.AutoUpdateSubscriptions ?? true;
             SubscriptionIntervalSelector.SelectedIndex = (saved?.SubscriptionUpdateHours ?? 12) switch { 1 => 0, 6 => 1, 24 => 3, 72 => 4, 168 => 5, _ => 2 };
             LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
-            ApplyTheme(theme);
+            ApplyTheme(_appearanceTheme);
+            ApplyFontScale();
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
