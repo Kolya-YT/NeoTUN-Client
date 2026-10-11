@@ -170,6 +170,7 @@ export type NativeCommand =
   | { type: "settings.appearance.save"; payload: { theme: string; fontScale: number; animations: boolean } }
   | { type: "settings.launchWithWindows.save"; payload: { enabled: boolean } }
   | { type: "settings.pingMethod.save"; payload: { method: "tcp" | "icmp" | "http" } }
+  | { type: "settings.android.get" }
   | { type: "settings.android.save"; payload: { dnsMode: string; excludedPackages: string[] } }
   | { type: "diagnostics.getLogs" }
   | { type: "clipboard.import" }
