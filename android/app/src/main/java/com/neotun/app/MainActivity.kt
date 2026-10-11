@@ -3245,6 +3245,15 @@ class MainActivity : Activity() {
             .put("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
             .put("autoConnect", false)
             .put("autoUpdateSubscriptions", prefs.getBoolean("subscriptions_auto_update", true))
+        val appearance = JSONObject()
+            .put("theme", prefs.getString("appearance_theme", "dark") ?: "dark")
+            .put("fontScale", prefs.getInt("font_scale", 100))
+            .put("animations", prefs.getBoolean("ui_animations", true))
+        val pingMethod = when (prefs.getString("ping_mode", "tcp") ?: "tcp") {
+            "icmp" -> "icmp"
+            "proxy_get", "proxy_head" -> "http"
+            else -> "tcp"
+        }
         val capabilities = JSONObject()
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
@@ -3274,6 +3283,7 @@ class MainActivity : Activity() {
             .put("appVersion", packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown")
             .put("connection", connection).put("traffic", stats)
             .put("profiles", profileArray).put("subscriptions", subscriptionArray).put("settings", settings)
+            .put("appearance", appearance).put("pingMethod", pingMethod)
             .put("routingRules", JSONArray()).put("capabilities", capabilities)
             .put("nativeFeatures", JSONArray().put("profile-ping").put("profile-qr-scan")
                 .put("profile-qr-share").put("profile-config-view").put("profile-edit")
