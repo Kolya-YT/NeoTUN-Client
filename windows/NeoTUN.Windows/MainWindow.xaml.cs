@@ -237,8 +237,8 @@ public partial class MainWindow : Window
                 ipv6 = true,
                 autoConnect = false,
                 autoUpdateSubscriptions = true,
-                diagnostics = false,
-                appUpdates = false
+                diagnostics = true,
+                appUpdates = true
             },
             nativeFeatures = new[] { "routing-profiles", "routing-import", "routing-export", "routing-process-exclusions", "appearance-settings", "runtime-logs", "clipboard-import" }
         };
@@ -375,6 +375,37 @@ public partial class MainWindow : Window
                 var profile = _vm.Profiles.FirstOrDefault(item => item.Id == id) ?? throw new InvalidDataException("Профиль не найден.");
                 Clipboard.SetText(profile.Uri);
                 _vm.Notice = "Ссылка скопирована в буфер обмена.";
+                return true;
+            }
+            case "diagnostics.getLogs":
+            {
+                var text = File.Exists(RuntimeLogPath) ? File.ReadAllText(RuntimeLogPath) : "";
+                return new { text };
+            }
+            case "diagnostics.clear":
+            {
+                if (File.Exists(RuntimeLogPath)) File.WriteAllText(RuntimeLogPath, string.Empty);
+                LogsText.Clear();
+                AddLog("Журнал очищен из общего интерфейса.");
+                return true;
+            }
+            case "diagnostics.run":
+            {
+                var report = new System.Text.StringBuilder()
+                    .AppendLine("Диагностика NeoTUN Windows")
+                    .AppendLine("Версия: " + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "неизвестно"))
+                    .AppendLine("ОС: " + Environment.OSVersion)
+                    .AppendLine("Выбран профиль: " + (_vm.SelectedProfile?.Name ?? "не выбран"))
+                    .AppendLine("Сетевой движок: " + (_runtime.IsRunning ? "запущен" : "остановлен"))
+                    .AppendLine("Файл настроек маршрутизации: " + (File.Exists(RoutingSettingsPath) ? "найден" : "ещё не создан"))
+                    .AppendLine("Файл журнала: " + (File.Exists(RuntimeLogPath) ? "найден" : "ещё не создан"));
+                AddLog(report.ToString().TrimEnd());
+                _vm.Notice = "Локальная диагностика выполнена. Результат добавлен в журнал; доступность удалённого сервера этим тестом не подтверждается.";
+                return new { message = _vm.Notice };
+            }
+            case "app.checkUpdate":
+            {
+                CheckUpdates_Click(this, new RoutedEventArgs());
                 return true;
             }
             case "native.openPage":
