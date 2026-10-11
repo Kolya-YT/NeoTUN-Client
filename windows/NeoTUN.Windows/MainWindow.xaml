@@ -246,26 +246,6 @@
             <StackPanel>
               <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
                 <StackPanel>
-                  <TextBlock Text="Внешний вид" FontSize="19" FontWeight="Bold"/>
-                  <TextBlock Text="Цветовая тема приложения" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,10"/>
-                  <ComboBox x:Name="ThemeSelector" SelectedIndex="0" SelectionChanged="ThemeSelector_SelectionChanged" MinHeight="38" Margin="0,0,0,14">
-                    <ComboBoxItem Content="Тёмная"/>
-                    <ComboBoxItem Content="Светлая"/>
-                    <ComboBoxItem Content="OLED — чёрная"/>
-                  </ComboBox>
-                  <TextBlock Text="Размер текста" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
-                  <ComboBox x:Name="FontScaleSelector" SelectedIndex="1" SelectionChanged="FontScaleSelector_SelectionChanged" MinHeight="38" Margin="0,0,0,12">
-                    <ComboBoxItem Content="Маленький · 85%"/>
-                    <ComboBoxItem Content="Стандартный · 100%"/>
-                    <ComboBoxItem Content="Крупный · 115%"/>
-                    <ComboBoxItem Content="Очень крупный · 130%"/>
-                  </ComboBox>
-                  <CheckBox x:Name="UiAnimationsToggle" Content="Плавные переходы интерфейса" IsChecked="True" Checked="UiAnimations_Changed" Unchecked="UiAnimations_Changed" Margin="0,0,0,6"/>
-                  <TextBlock Text="Размер текста и анимации сохраняются отдельно для этого пользователя." Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextWrapping="Wrap"/>
-                </StackPanel>
-              </Border>
-              <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
-                <StackPanel>
                   <TextBlock Text="Запуск приложения" FontSize="19" FontWeight="Bold"/>
                   <TextBlock Text="NeoTUN можно запускать автоматически при входе в Windows." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,12"/>
                   <CheckBox x:Name="LaunchWithWindowsToggle" Content="Запускать NeoTUN вместе с Windows" Checked="LaunchWithWindows_Changed" Unchecked="LaunchWithWindows_Changed" Margin="0,0,0,6"/>

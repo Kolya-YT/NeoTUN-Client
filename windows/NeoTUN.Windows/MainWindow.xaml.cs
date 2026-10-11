@@ -18,6 +18,9 @@ public partial class MainWindow : Window
     private readonly MainViewModel _vm = new();
     private readonly EngineRuntime _runtime = new();
     private bool _loadingUiSettings;
+    private string _appearanceTheme = "dark";
+    private int _appearanceFontScale = 100;
+    private bool _appearanceAnimations = true;
     private readonly Dictionary<DependencyObject, double> _fontBaselines = new();
     private Guid? _activeSharedProfileId;
     private long _sharedUploadRate;
@@ -117,14 +120,14 @@ public partial class MainWindow : Window
         };
         active.Opacity = 1;
         active.BeginAnimation(UIElement.OpacityProperty, null);
-        if (IsLoaded && UiAnimationsToggle?.IsChecked == true)
+        if (IsLoaded && _appearanceAnimations)
         {
             active.Opacity = 0;
             active.BeginAnimation(UIElement.OpacityProperty,
                 new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
                 { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
         }
-        if (IsLoaded && FontScaleSelector is not null) ApplyFontScale();
+        if (IsLoaded) ApplyFontScale();
     }
 
     private void SyncSelectedProfileToEditor()
@@ -240,9 +243,9 @@ public partial class MainWindow : Window
             subscriptions,
             appearance = new
             {
-                theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" },
-                fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 },
-                animations = UiAnimationsToggle.IsChecked == true
+                theme = _appearanceTheme,
+                fontScale = _appearanceFontScale,
+                animations = _appearanceAnimations
             },
             launchWithWindows = LaunchWithWindowsToggle.IsChecked == true,
             settings = new
@@ -371,14 +374,21 @@ public partial class MainWindow : Window
                 _loadingUiSettings = true;
                 try
                 {
-                    ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
-                    FontScaleSelector.SelectedIndex = fontScale switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
-                    UiAnimationsToggle.IsChecked = animationsElement.GetBoolean();
-                    ApplyTheme(theme);
+                    _appearanceTheme = theme;
+                    _appearanceFontScale = fontScale;
+                    _appearanceAnimations = animationsElement.GetBoolean();
+                    ApplyTheme(_appearanceTheme);
                     ApplyFontScale();
+                    Directory.CreateDirectory(DataDirectory);
+                    File.WriteAllText(UiSettingsPath, JsonSerializer.Serialize(
+                        ReadUiSettings(), new JsonSerializerOptions { WriteIndented = true }));
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    throw new InvalidOperationException("Не удалось сохранить оформление: " + ex.Message, ex);
                 }
                 finally { _loadingUiSettings = false; }
-                PersistUiSettings("Оформление сохранено через общий интерфейс.");
+                SettingsSummary.Text = "Оформление сохранено через общий интерфейс.";
                 return true;
             }
             case "settings.save":
@@ -1051,14 +1061,14 @@ public partial class MainWindow : Window
             var saved = File.Exists(UiSettingsPath)
                 ? JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(UiSettingsPath))
                 : null;
-            var theme = saved?.Theme ?? "dark";
-            ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
-            FontScaleSelector.SelectedIndex = (saved?.FontScale ?? 100) switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
-            UiAnimationsToggle.IsChecked = saved?.UiAnimations ?? true;
+            _appearanceTheme = saved?.Theme is "light" or "oled" ? saved.Theme : "dark";
+            _appearanceFontScale = saved?.FontScale is 85 or 100 or 115 or 130 ? saved.FontScale.Value : 100;
+            _appearanceAnimations = saved?.UiAnimations ?? true;
             AutoUpdateSubscriptionsToggle.IsChecked = saved?.AutoUpdateSubscriptions ?? true;
             SubscriptionIntervalSelector.SelectedIndex = (saved?.SubscriptionUpdateHours ?? 12) switch { 1 => 0, 6 => 1, 24 => 3, 72 => 4, 168 => 5, _ => 2 };
             LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
-            ApplyTheme(theme);
+            ApplyTheme(_appearanceTheme);
+            ApplyFontScale();
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -1068,10 +1078,8 @@ public partial class MainWindow : Window
 
     private UiSettings ReadUiSettings()
     {
-        var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
-        var fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 };
         var hours = SubscriptionIntervalSelector.SelectedIndex switch { 0 => 1, 1 => 6, 3 => 24, 4 => 72, 5 => 168, _ => 12 };
-        return new UiSettings(theme, fontScale, UiAnimationsToggle.IsChecked == true,
+        return new UiSettings(_appearanceTheme, _appearanceFontScale, _appearanceAnimations,
             AutoUpdateSubscriptionsToggle.IsChecked == true, hours);
     }
 
@@ -1085,27 +1093,6 @@ public partial class MainWindow : Window
             SettingsSummary.Text = message;
         }
         catch (Exception ex) { SettingsSummary.Text = "Настройка применена, но не сохранена: " + ex.Message; }
-    }
-
-    private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized || ThemeSelector.SelectedIndex < 0) return;
-        var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
-        ApplyTheme(theme);
-        PersistUiSettings("Тема применена и сохранена.");
-    }
-
-    private void FontScaleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized || FontScaleSelector.SelectedIndex < 0) return;
-        ApplyFontScale();
-        PersistUiSettings("Размер текста применён и сохранён.");
-    }
-
-    private void UiAnimations_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized) return;
-        PersistUiSettings(UiAnimationsToggle.IsChecked == true ? "Переходы включены." : "Переходы выключены.");
     }
 
     private void AutoUpdateSubscriptions_Changed(object sender, RoutedEventArgs e)
@@ -1122,7 +1109,7 @@ public partial class MainWindow : Window
 
     private void ApplyFontScale()
     {
-        var factor = FontScaleSelector.SelectedIndex switch { 0 => 0.85, 2 => 1.15, 3 => 1.30, _ => 1.0 };
+        var factor = _appearanceFontScale / 100.0;
         ApplyFontScaleRecursive(MainRoot, factor);
     }
 
