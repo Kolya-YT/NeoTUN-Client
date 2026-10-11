@@ -36,3 +36,5 @@
 .diagnostic-log{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--input);border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--secondary);font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;margin:12px 0}
 
 .routing-profile-manager{margin:0 0 18px}.routing-profile-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}.routing-profile-row select{flex:1;min-width:160px}.routing-import-box{display:grid;gap:10px;margin-top:12px}.routing-import-box textarea{width:100%;min-height:130px;resize:vertical}.routing-import-box .action-row{display:flex;gap:8px;flex-wrap:wrap}.routing-profile-manager .action-row{display:flex;gap:8px;flex-wrap:wrap}
+
+.field-help{display:block;color:var(--muted);font-size:10px;line-height:1.5;margin-top:6px}
