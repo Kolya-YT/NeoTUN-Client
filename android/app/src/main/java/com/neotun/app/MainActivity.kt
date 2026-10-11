@@ -427,7 +427,7 @@ class MainActivity : Activity() {
 
         if (subs.isNotEmpty()) {
             val subCard = card()
-            subCard.addView(txt("ПОДПИСКИ", 10f, Color.rgb(160, 148, 255), Typeface.BOLD), margins(bottom = 5))
+            subCard.addView(txt("ПОДПИСКИ", 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD), margins(bottom = 5))
             subs.forEachIndexed { index, sub ->
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -472,7 +472,7 @@ class MainActivity : Activity() {
 
         fun renderProfileGroup(title: String, subtitle: String, groupProfiles: List<NeoTunProfile>) {
             if (groupProfiles.isEmpty()) return
-            content.addView(txt(title, 10f, Color.rgb(160, 148, 255), Typeface.BOLD),
+            content.addView(txt(title, 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
                 margins(start = 4, bottom = 3, top = 8))
             content.addView(txt(subtitle, 11f, NeoTunDesign.TEXT_MUTED),
                 margins(start = 4, bottom = 7))
@@ -555,7 +555,7 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
         val detail = if (compact) maskUri(profile.uri) else protocolLabel(profile) + "  ·  " + maskUri(profile.uri)
-        info.addView(txt(detail, 10f, Color.rgb(139, 145, 164)).apply {
+        info.addView(txt(detail, 10f, NeoTunDesign.TEXT_MUTED).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
@@ -567,11 +567,11 @@ class MainActivity : Activity() {
         }
         val pingLabel = pingResults[profile.id] ?: "Пинг"
         pingColumn.addView(txt(pingLabel, 9f,
-            if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else Color.rgb(139, 145, 164),
+            if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
             Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
             LinearLayout.LayoutParams(-1, dp(15)))
         pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
-            Color.rgb(151, 132, 255), Typeface.BOLD, Gravity.CENTER).apply {
+            NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
             isClickable = true
             isFocusable = true
             contentDescription = "Проверить пинг: ${profile.name}"
