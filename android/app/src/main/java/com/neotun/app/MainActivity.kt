@@ -3072,10 +3072,81 @@ class MainActivity : Activity() {
                 targets.forEach { refreshSubscription(it) }
             }
             "settings.save" -> {
-                val enabled = payload.optBoolean("autoUpdateSubscriptions", true)
-                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit()
-                    .putBoolean("subscriptions_auto_update", enabled)
+                val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+                val mtu = payload.optInt("mtu", prefs.getInt("mtu", 1500))
+                require(mtu in 1280..1500) { "MTU должен быть от 1280 до 1500" }
+                val ipv6 = payload.optString("ipv6", if (prefs.getBoolean("ipv6_enabled", false)) "enabled" else "disabled")
+                require(ipv6 == "enabled" || ipv6 == "disabled") { "Некорректное значение IPv6" }
+                prefs.edit()
+                    .putInt("mtu", mtu)
+                    .putBoolean("ipv6_enabled", ipv6 == "enabled")
+                    .putBoolean("subscriptions_auto_update", payload.optBoolean("autoUpdateSubscriptions", true))
                     .apply()
+            }
+            "profiles.ping" -> {
+                val id = payload.optString("profileId")
+                val profile = store.all().firstOrNull { it.id == id } ?: error("Профиль не найден")
+                pingSelected(profile)
+            }
+            "profiles.showConfig" -> {
+                val id = payload.optString("profileId")
+                val profile = store.all().firstOrNull { it.id == id } ?: error("Профиль не найден")
+                showProfileConfig(profile)
+            }
+            "profiles.showQr" -> {
+                val id = payload.optString("profileId")
+                val profile = store.all().firstOrNull { it.id == id } ?: error("Профиль не найден")
+                showProfileQr(profile)
+            }
+            "profiles.scanQr" -> scanQrCode()
+            "diagnostics.getLogs" -> return JSONObject().put("text", NeoTunDiagnostics.read(this))
+            "diagnostics.run" -> diagnostics()
+            "diagnostics.clear" -> {
+                NeoTunDiagnostics.clear(this)
+                toast("Журнал диагностики очищен")
+            }
+            "app.checkUpdate" -> checkUpdates()
+            "settings.pingMethod.save" -> {
+                val method = payload.optString("method", "tcp")
+                val key = when (method) {
+                    "tcp" -> "tcp"
+                    "icmp" -> "icmp"
+                    "http" -> "proxy_get"
+                    else -> error("Неизвестный способ проверки пинга")
+                }
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit().putString("ping_mode", key).apply()
+            }
+            "settings.appearance.save" -> {
+                val theme = payload.optString("theme", "dark")
+                require(theme in setOf("dark", "light", "oled")) { "Неизвестная тема оформления" }
+                val fontScale = payload.optInt("fontScale", 100)
+                require(fontScale in 85..130) { "Размер текста должен быть от 85 до 130%" }
+                getSharedPreferences(UI_PREFS, MODE_PRIVATE).edit()
+                    .putString("appearance_theme", theme)
+                    .putInt("font_scale", fontScale)
+                    .putBoolean("ui_animations", payload.optBoolean("animations", true))
+                    .apply()
+                NeoTunDesign.apply(theme)
+                buildShell()
+                showScreen(screen)
+            }
+            "native.openPage" -> {
+                when (payload.optString("page")) {
+                    "Главная" -> showScreen(Screen.HOME)
+                    "Серверы", "Импорт" -> if (payload.optString("page") == "Импорт") showImportMenu() else showScreen(Screen.PROFILES)
+                    "Настройки" -> showScreen(Screen.SETTINGS)
+                    "Маршрутизация" -> openRoutingEditor()
+                    "Журнал", "Диагностика" -> diagnostics()
+                    "Проверить обновления" -> checkUpdates()
+                    "DNS" -> showDnsSettings()
+                    "MTU" -> showMtuSettings()
+                    "Исключения приложений" -> showAppExclusionSettings()
+                    "Оформление" -> showAppearanceThemeSettings()
+                    "Размер текста" -> showFontSizeSettings()
+                    "Способ проверки пинга" -> showPingModeSettings()
+                    "Интервал подписок" -> showSubscriptionIntervalSettings()
+                    else -> error("Неизвестная страница Android")
+                }
             }
             else -> error("Команда пока не поддерживается в Android-интерфейсе: $type")
         }
@@ -3123,9 +3194,9 @@ class MainActivity : Activity() {
             .put("connectionLifecycle", true)
             .put("profileManagement", true)
             .put("subscriptions", true)
-            .put("routing", false).put("dns", false).put("mtu", false).put("ipv6", false)
+            .put("routing", false).put("dns", false).put("mtu", true).put("ipv6", true)
             .put("autoConnect", false).put("autoUpdateSubscriptions", true)
-            .put("diagnostics", false).put("appUpdates", false)
+            .put("diagnostics", true).put("appUpdates", true)
         val received = traffic.sessionRx.coerceAtLeast(0L)
         val sent = traffic.sessionTx.coerceAtLeast(0L)
         val now = System.currentTimeMillis()
