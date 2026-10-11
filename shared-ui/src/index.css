@@ -32,3 +32,5 @@
 .app-shell.theme-light .power-button{color:#fff}
 .app-shell.theme-oled{--bg:#000000;--nav:#000000;--surface:#050505;--raised:#101010;--input:#050505;--border:#242424;--text:#FFFFFF;--secondary:#C6C6C6;--muted:#858585;background:#000;color:#fff}
 .app-shell.reduce-motion *, .app-shell.reduce-motion *::before, .app-shell.reduce-motion *::after{animation-duration:0.001ms!important;animation-iteration-count:1!important;transition-duration:0.001ms!important;scroll-behavior:auto!important}
+
+.diagnostic-log{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--input);border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--secondary);font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;margin:12px 0}
