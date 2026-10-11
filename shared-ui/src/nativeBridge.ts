@@ -105,6 +105,7 @@ export type NativeFeature =
   | "routing-json-validation"
   | "routing-process-exclusions"
   | "appearance-settings"
+  | "launch-on-startup"
   | "ping-method-settings"
   | "connection-widgets"
   | "quick-settings-tile"
@@ -133,6 +134,7 @@ export interface NativeAppSnapshot {
   subscriptions: NativeSubscription[];
   settings: NativeClientSettings;
   appearance?: { theme: "dark" | "light" | "oled"; fontScale: number; animations: boolean };
+  launchWithWindows?: boolean;
   pingMethod?: "tcp" | "icmp" | "http";
   routingRules: NativeRoutingRule[];
   routingProfiles?: NativeRoutingProfile[];
@@ -162,6 +164,7 @@ export type NativeCommand =
   | { type: "routingProfiles.export"; payload: { profileId?: string } }
   | { type: "routingProfiles.validate"; payload: { source: string } }
   | { type: "settings.appearance.save"; payload: { theme: string; fontScale: number; animations: boolean } }
+  | { type: "settings.launchWithWindows.save"; payload: { enabled: boolean } }
   | { type: "settings.pingMethod.save"; payload: { method: "tcp" | "icmp" | "http" } }
   | { type: "diagnostics.getLogs" }
   | { type: "clipboard.import" }

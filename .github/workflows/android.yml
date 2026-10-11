@@ -9,6 +9,8 @@ on:
       - "core/**"
       - "xraybridge/**"
       - ".github/workflows/android.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release.yml"
       - "DESIGN_SYSTEM.md"
       - "shared-ui/src/**"
       - "shared-ui/public/**"
@@ -24,6 +26,7 @@ on:
       - "core/**"
       - "xraybridge/**"
       - ".github/workflows/android.yml"
+      - ".github/workflows/release.yml"
       - "DESIGN_SYSTEM.md"
       - "shared-ui/src/**"
       - "shared-ui/public/**"
@@ -183,49 +186,3 @@ jobs:
         with:
           name: NeoTUN-APKs-v${{ github.run_number }}
           path: dist/*.apk
-
-      - name: Read app version
-        id: version
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: android
-        run: |
-          VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
-          CODE=$(grep -o 'versionCode = [0-9]*' app/build.gradle.kts | head -1 | awk '{print $3}')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "code=$CODE" >> "$GITHUB_OUTPUT"
-          echo "Release version: $VERSION ($CODE)"
-
-      - name: Publish Android APKs to GitHub Release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="v${VERSION}"
-          TITLE="NeoTUN v${VERSION}"
-
-          # Android and Windows workflows can finish in either order.
-          RELEASE_FOUND=false
-          for attempt in $(seq 1 12); do
-            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              RELEASE_FOUND=true
-              break
-            fi
-            sleep 5
-          done
-
-          if [ "$RELEASE_FOUND" != true ]; then
-            if ! gh release create "$TAG" dist/*.apk \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$TITLE" \
-              --generate-notes; then
-              # Another workflow may have created the release in the meantime.
-              gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
-            fi
-          fi
-
-          gh release upload "$TAG" dist/*.apk --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --latest
-          echo "Published Android APKs to $TAG"
