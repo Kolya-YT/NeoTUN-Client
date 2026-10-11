@@ -386,7 +386,16 @@ public partial class MainWindow : Window
                 // Match the Android client's URL normalization so adding the same
                 // subscription with or without a trailing slash cannot create a
                 // second subscription entry or duplicate imported profiles.
-                static string NormalizeSource(string value) => value.Trim().TrimEnd('/');
+                static string NormalizeSource(string value)
+                {
+                    if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)) return value.Trim();
+                    // Normalize only the path. A slash at the end of a query token
+                    // is data, not a path separator, and must not merge distinct feeds.
+                    var builder = new UriBuilder(uri);
+                    var path = builder.Path.TrimEnd('/');
+                    builder.Path = string.IsNullOrEmpty(path) ? "/" : path;
+                    return builder.Uri.AbsoluteUri;
+                }
                 var normalizedSource = NormalizeSource(source);
                 var existingProfiles = _vm.Profiles
                     .Where(profile => !string.IsNullOrWhiteSpace(profile.Source) &&
