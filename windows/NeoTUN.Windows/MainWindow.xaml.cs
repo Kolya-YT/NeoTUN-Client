@@ -210,12 +210,6 @@ public partial class MainWindow : Window
                 fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 },
                 animations = UiAnimationsToggle.IsChecked == true
             },
-            appearance = new
-            {
-                theme = uiSettings.Theme ?? "dark",
-                fontScale = uiSettings.FontScale ?? 100,
-                animations = uiSettings.UiAnimations ?? true
-            },
             settings = new
             {
                 dns = new
