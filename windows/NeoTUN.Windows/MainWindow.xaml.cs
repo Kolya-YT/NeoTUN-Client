@@ -95,6 +95,62 @@ public partial class MainWindow : Window
                 ? new GridLength(0.85, GridUnitType.Star)
                 : new GridLength(0.95, GridUnitType.Star);
         }
+
+        // On compact windows stack the server list and its editor vertically;
+        // side-by-side panels become too narrow at the minimum window width.
+        if (ServersPage.RowDefinitions.Count >= 2)
+        {
+            ServersPage.RowDefinitions[0].Height = compact
+                ? new GridLength(1.15, GridUnitType.Star)
+                : new GridLength(1, GridUnitType.Star);
+            ServersPage.RowDefinitions[1].Height = compact
+                ? new GridLength(0.85, GridUnitType.Star)
+                : new GridLength(0);
+
+            Grid.SetRow(ProfileListPanel, 0);
+            Grid.SetColumn(ProfileListPanel, 0);
+            Grid.SetColumnSpan(ProfileListPanel, compact ? 2 : 1);
+            ProfileListPanel.Margin = compact ? new Thickness(0, 0, 0, 10) : new Thickness(0, 0, 10, 0);
+
+            Grid.SetRow(ProfileEditorPanel, compact ? 1 : 0);
+            Grid.SetColumn(ProfileEditorPanel, compact ? 0 : 1);
+            Grid.SetColumnSpan(ProfileEditorPanel, compact ? 2 : 1);
+            ProfileEditorPanel.Margin = compact ? new Thickness(0) : new Thickness(10, 0, 0, 0);
+        }
+
+        // Keep all six routing rule editors readable by turning the two-column
+        // matrix into a single vertical list when the content area is narrow.
+        if (RoutingRulesGrid.ColumnDefinitions.Count >= 2 && RoutingRulesGrid.RowDefinitions.Count >= 6)
+        {
+            RoutingRulesGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+            RoutingRulesGrid.ColumnDefinitions[1].Width = compact
+                ? new GridLength(0)
+                : new GridLength(1, GridUnitType.Star);
+
+            for (var row = 0; row < RoutingRulesGrid.RowDefinitions.Count; row++)
+                RoutingRulesGrid.RowDefinitions[row].Height = row < (compact ? 6 : 3)
+                    ? new GridLength(1, GridUnitType.Auto)
+                    : new GridLength(0);
+
+            var routingPanels = new[]
+            {
+                BlockSitesPanel, BlockIpPanel,
+                ProxySitesPanel, ProxyIpPanel,
+                DirectSitesPanel, DirectIpPanel
+            };
+
+            for (var index = 0; index < routingPanels.Length; index++)
+            {
+                var panel = routingPanels[index];
+                Grid.SetRow(panel, compact ? index : index / 2);
+                Grid.SetColumn(panel, compact ? 0 : index % 2);
+                panel.Margin = compact
+                    ? new Thickness(0, 0, 0, index == routingPanels.Length - 1 ? 0 : 12)
+                    : (index % 2 == 0
+                        ? new Thickness(0, 0, 7, index < 4 ? 12 : 0)
+                        : new Thickness(7, 0, 0, index < 4 ? 12 : 0));
+            }
+        }
     }
 
     private void ShowPage(string page)
