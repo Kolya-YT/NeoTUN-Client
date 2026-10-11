@@ -10,7 +10,6 @@ on:
       - "xraybridge/**"
       - ".github/workflows/android.yml"
       - ".github/workflows/release.yml"
-      - ".github/workflows/release.yml"
       - "DESIGN_SYSTEM.md"
       - "shared-ui/src/**"
       - "shared-ui/public/**"
