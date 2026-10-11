@@ -156,7 +156,6 @@ public partial class MainWindow : Window
 
     internal object BuildSharedUiSnapshot()
     {
-        var uiSettings = ReadUiSettings();
         var connected = _runtime.IsRunning;
         var subscriptionState = LoadSubscriptionUpdateState();
         var subscriptionNames = LoadSubscriptionNames();
@@ -206,11 +205,10 @@ public partial class MainWindow : Window
             subscriptions,
             appearance = new
             {
-                theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" },
-                fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 },
-                animations = UiAnimationsToggle.IsChecked == true
+                theme = ReadUiSettings().Theme ?? "dark",
+                fontScale = ReadUiSettings().FontScale ?? 100,
+                animations = ReadUiSettings().UiAnimations ?? true
             },
-            launchWithWindows = LaunchWithWindowsToggle.IsChecked == true,
             settings = new
             {
                 dns = new
@@ -249,7 +247,7 @@ public partial class MainWindow : Window
                 diagnostics = true,
                 appUpdates = true
             },
-            nativeFeatures = new[] { "routing-profiles", "routing-import", "routing-export", "routing-process-exclusions", "appearance-settings", "launch-on-startup", "runtime-logs", "clipboard-import" }
+            nativeFeatures = new[] { "routing-profiles", "routing-import", "routing-export", "routing-process-exclusions", "appearance-settings", "runtime-logs", "clipboard-import" }
         };
     }
 
@@ -309,23 +307,11 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException("Маршруты не сохранены. Проверьте DNS, MTU и исключения процессов.");
                 return true;
             }
-            case "settings.launchWithWindows.save":
-            {
-                if (!payload.TryGetProperty("enabled", out var enabledElement) ||
-                    enabledElement.ValueKind is not (System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False))
-                    throw new InvalidDataException("Параметр автозапуска задан некорректно.");
-                var enabled = enabledElement.GetBoolean();
-                LaunchWithWindowsToggle.IsChecked = enabled;
-                LaunchWithWindows_Changed(this, new RoutedEventArgs());
-                if (IsLaunchWithWindowsEnabled() != enabled)
-                    throw new InvalidOperationException(SettingsSummary.Text);
-                return true;
-            }
             case "settings.appearance.save":
             {
                 var theme = ReadString("theme");
                 if (theme is not ("dark" or "light" or "oled"))
-                    throw new InvalidDataException("Неизвестная тема оформления.");
+                    throw new InvalidDataException("Неизвестная тема интерфейса.");
                 if (!payload.TryGetProperty("fontScale", out var fontScaleElement) ||
                     !fontScaleElement.TryGetInt32(out var fontScale) ||
                     !new[] { 85, 100, 115, 130 }.Contains(fontScale))
@@ -340,10 +326,10 @@ public partial class MainWindow : Window
                     ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
                     FontScaleSelector.SelectedIndex = fontScale switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
                     UiAnimationsToggle.IsChecked = animationsElement.GetBoolean();
-                    ApplyTheme(theme);
-                    ApplyFontScale();
                 }
                 finally { _loadingUiSettings = false; }
+                ApplyTheme(theme);
+                ApplyFontScale();
                 PersistUiSettings("Оформление сохранено через общий интерфейс.");
                 return true;
             }
@@ -399,16 +385,7 @@ public partial class MainWindow : Window
                 // Match the Android client's URL normalization so adding the same
                 // subscription with or without a trailing slash cannot create a
                 // second subscription entry or duplicate imported profiles.
-                static string NormalizeSource(string value)
-                {
-                    if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)) return value.Trim();
-                    // Normalize only the path. A slash at the end of a query token
-                    // is data, not a path separator, and must not merge distinct feeds.
-                    var builder = new UriBuilder(uri);
-                    var path = builder.Path.TrimEnd('/');
-                    builder.Path = string.IsNullOrEmpty(path) ? "/" : path;
-                    return builder.Uri.AbsoluteUri;
-                }
+                static string NormalizeSource(string value) => value.Trim().TrimEnd('/');
                 var normalizedSource = NormalizeSource(source);
                 var existingProfiles = _vm.Profiles
                     .Where(profile => !string.IsNullOrWhiteSpace(profile.Source) &&
