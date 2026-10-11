@@ -19,6 +19,26 @@ function bytes(value: number): string {
 }
 function rate(value: number): string { return `${bytes(value)}/с`; }
 
+function isValidIpOrCidr(value: string): boolean {
+  const parts = value.split('/');
+  if (parts.length > 2 || parts.some(part => !part)) return false;
+  const address = parts[0];
+  const prefix = parts.length === 2 ? Number(parts[1]) : null;
+  if (prefix !== null && (!Number.isInteger(prefix) || prefix < 0)) return false;
+  const ipv4 = address.split('.');
+  if (ipv4.length === 4 && ipv4.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
+    return prefix === null || prefix <= 32;
+  }
+  if (!address.includes(':') || !/^[0-9a-fA-F:]+$/.test(address)) return false;
+  try {
+    const parsed = new URL('http://[' + address + ']/');
+    if (!parsed.hostname) return false;
+    return prefix === null || prefix <= 128;
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>('home');
   const [snapshot, setSnapshot] = useState<NativeAppSnapshot | null>(null);
@@ -236,11 +256,11 @@ export default function App() {
                             event.preventDefault();
                             const value = (draftDomain[rule.id] ?? '').trim();
                             if (!value) return;
-                            const isIpOrCidr = value.includes(':') || value.includes('/') ||
-                              (value.split('.').length === 4 && value.split('.').every(part => /^\d{1,3}$/.test(part)));
+                            const isIpOrCidr = isValidIpOrCidr(value);
                             const domainValue = value.startsWith('*.') ? value.slice(2) : value;
-                            const isValidDomain = domainValue.split('.').length >= 2 &&
-                              domainValue.split('.').every(label => /^[\p{L}\p{N}_-]+$/u.test(label));
+                            const isValidDomain = domainValue.length <= 253 && domainValue.split('.').length >= 2 &&
+                              domainValue.split('.').every(label => label.length > 0 && label.length <= 63 &&
+                                /^[\p{L}\p{N}](?:[\p{L}\p{N}_-]*[\p{L}\p{N}])?$/u.test(label));
                             if (isIpOrCidr) {
                               void saveRouting(snapshot.routingRules.map(item =>
                                 item.id === rule.id
