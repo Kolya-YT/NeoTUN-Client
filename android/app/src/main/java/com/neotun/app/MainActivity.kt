@@ -2046,14 +2046,14 @@ class MainActivity : Activity() {
     }
 
     private fun profileActions(p: NeoTunProfile) {
-        // Keep the common actions short and move rare/administrative actions out
-        // of the primary menu so a tap on the three-dot button is not overwhelming.
+        // Keep the first-level menu focused on frequent tasks. Rare maintenance
+        // actions stay grouped under "Ещё", instead of filling the whole screen.
         val options = arrayOf(
             "Подключиться",
             "Редактировать профиль",
             "Просмотреть конфигурацию",
             "Копировать ссылку",
-            "Дополнительные действия…"
+            "Ещё…"
         )
         val dialog = AlertDialog.Builder(this).setTitle(p.name)
             .setItems(options) { _, which ->
@@ -2062,14 +2062,14 @@ class MainActivity : Activity() {
                     1 -> editProfile(p)
                     2 -> showProfileConfig(p)
                     3 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
-                    4 -> profileMoreActions(p)
+                    4 -> showMoreProfileActions(p)
                 }
             }.create()
         dialog.setOnShowListener { styleDialog(dialog) }
         dialog.show()
     }
 
-    private fun profileMoreActions(p: NeoTunProfile) {
+    private fun showMoreProfileActions(p: NeoTunProfile) {
         val options = arrayOf(
             "Поделиться ссылкой",
             "Показать QR-код",
@@ -2077,7 +2077,7 @@ class MainActivity : Activity() {
             "Переименовать",
             "Удалить"
         )
-        val dialog = AlertDialog.Builder(this).setTitle("Дополнительно · ${p.name}")
+        val dialog = AlertDialog.Builder(this).setTitle("Дополнительные действия")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> shareText("NeoTUN · ${p.name}", p.uri)
