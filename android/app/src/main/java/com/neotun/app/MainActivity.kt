@@ -536,35 +536,95 @@ class MainActivity : Activity() {
         }
 
         if (subs.isNotEmpty()) {
-            val subCard = card()
-            subCard.addView(txt("ПОДПИСКИ", 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD), margins(bottom = 5))
+            content.addView(txt("ПОДПИСКИ", 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
+                margins(start = 4, bottom = 7))
             subs.forEachIndexed { index, sub ->
-                val row = LinearLayout(this).apply {
+                val owned = profiles.filter { it.sourceSubscriptionId == sub.id }
+                val expandedKey = "subscription_expanded_" + sub.id
+                val expanded = prefs.getBoolean(expandedKey, index == 0)
+                val subCard = card().apply { setPadding(dp(10), dp(5), dp(10), dp(8)) }
+                val headerRow = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(2), dp(10), 0, dp(10))
+                    setPadding(dp(1), dp(7), 0, dp(7))
                 }
+                headerRow.addView(iconButton(if (expanded) "⌄" else "›", 23) {
+                    prefs.edit().putBoolean(expandedKey, !prefs.getBoolean(expandedKey, index == 0)).apply()
+                    renderProfiles()
+                }.apply {
+                    contentDescription = if (expanded) "Свернуть подписку" else "Развернуть подписку"
+                    background = rounded(Color.TRANSPARENT, 10)
+                }, LinearLayout.LayoutParams(dp(32), dp(42)))
                 val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 info.addView(txt(sub.name, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 })
-                info.addView(txt(if (sub.lastUpdated > 0)
-                    "Обновлено • " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastUpdated))
-                    else "Ожидает первого обновления", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 4))
-                row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-                row.setOnClickListener { subscriptionActions(sub) }
-                row.setOnLongClickListener { subscriptionActions(sub); true }
-                row.addView(iconButton("↻", 22) { refreshSubscription(sub) }.apply {
-                    background = rounded(NeoTunDesign.SURFACE_RAISED, 13)
+                info.addView(txt(
+                    (if (sub.lastUpdated > 0) "Обновлено • " +
+                        java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(sub.lastUpdated))
+                    else "Ожидает первого обновления") + "  |  Серверов: " + owned.size,
+                    10.5f, NeoTunDesign.TEXT_MUTED
+                ), margins(top = 4))
+                info.setOnClickListener {
+                    prefs.edit().putBoolean(expandedKey, !expanded).apply()
+                    renderProfiles()
+                }
+                headerRow.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+                headerRow.addView(iconButton("↻", 21) { refreshSubscription(sub) }.apply {
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 11)
                     contentDescription = "Обновить подписку"
-                }, LinearLayout.LayoutParams(dp(42), dp(42)))
-                subCard.addView(row)
-                if (index < subs.lastIndex) subCard.addView(View(this).apply {
-                    setBackgroundColor(NeoTunDesign.BORDER)
-                }, LinearLayout.LayoutParams(-1, dp(1)))
+                }, LinearLayout.LayoutParams(dp(38), dp(40)))
+                headerRow.addView(iconButton("◴", 20) {
+                    if (owned.isEmpty()) toast("В подписке пока нет серверов")
+                    else owned.forEach { pingSelected(it) }
+                }.apply {
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 11)
+                    contentDescription = "Проверить пинг серверов подписки"
+                }, LinearLayout.LayoutParams(dp(38), dp(40)))
+                headerRow.addView(iconButton("⋯", 22) { subscriptionActions(sub) }.apply {
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 11)
+                    contentDescription = "Действия с подпиской"
+                }, LinearLayout.LayoutParams(dp(38), dp(40)))
+                subCard.addView(headerRow)
+                if (expanded) {
+                    val meta = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(dp(5), dp(5), dp(5), dp(8))
+                    }
+                    meta.addView(txt("🌐  " + (runCatching { java.net.URI(sub.url).host }.getOrNull() ?: sub.url),
+                        10.5f, NeoTunDesign.TEXT_MUTED).apply {
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                    }, LinearLayout.LayoutParams(0, -2, 1f))
+                    meta.addView(txt(owned.size.toString() + " серверов", 10f, NeoTunDesign.TEXT_SECONDARY, Typeface.BOLD))
+                    subCard.addView(meta)
+                    if (owned.isEmpty()) {
+                        subCard.addView(txt("Нет серверов. Обновите подписку.", 12f, NeoTunDesign.TEXT_MUTED),
+                            margins(start = 6, top = 8, bottom = 8))
+                    } else {
+                        owned.forEachIndexed { ownedIndex, profile ->
+                            val server = serverRow(profile, profile.id == selected, compact = true)
+                            server.setOnClickListener {
+                                setSelectedProfile(profile.id)
+                                renderProfiles()
+                            }
+                            server.setOnLongClickListener {
+                                setSelectedProfile(profile.id)
+                                profileActions(profile)
+                                true
+                            }
+                            subCard.addView(server)
+                            if (ownedIndex < owned.lastIndex) subCard.addView(View(this).apply {
+                                setBackgroundColor(NeoTunDesign.BORDER)
+                            }, LinearLayout.LayoutParams(-1, dp(1)))
+                        }
+                    }
+                }
+                content.addView(subCard, margins(bottom = 9))
             }
-            content.addView(subCard, margins(bottom = 14))
         }
 
         if (allProfiles.isEmpty()) {
@@ -610,10 +670,7 @@ class MainActivity : Activity() {
         val manualProfiles = profiles.filter { it.sourceSubscriptionId.isNullOrBlank() }
         renderProfileGroup("ОТДЕЛЬНЫЕ СЕРВЕРЫ", "Добавлены вручную или импортированы отдельно · ${manualProfiles.size}", manualProfiles)
 
-        subs.forEach { sub ->
-            val owned = profiles.filter { it.sourceSubscriptionId == sub.id }
-            renderProfileGroup(sub.name.uppercase(), "Серверы из этой подписки · ${owned.size}", owned)
-        }
+
         val knownSubscriptionIds = subs.map { it.id }.toSet()
         val orphanedProfiles = profiles.filter {
             !it.sourceSubscriptionId.isNullOrBlank() && it.sourceSubscriptionId !in knownSubscriptionIds
