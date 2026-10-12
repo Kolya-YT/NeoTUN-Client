@@ -6,14 +6,15 @@ Repository: `Kolya-YT/NeoTUN-Client`. This document and `AGENTS.md` are the shar
 Google AI Studio and ChatGPT do not automatically share chat history, unsaved code or local edits just because these files exist in GitHub. Each session must be given the current repository context. Keep both documents in the prompt/context of both tools.
 
 ## Roles
-- **ChatGPT & Google AI Studio:** both can inspect the repository, trace cross-platform behavior, prepare commits, or provide reviewed patches depending on the active task.
-- **Strict Single Writer:** only one assistant applies changes to the target branch or subsystem at a time. The other assistant analyzes, reviews the diff, or validates regression safety.
+- **ChatGPT:** inspect current repository, trace cross-platform behavior, prepare/review patches and commit through the connected GitHub workflow when available.
+- **Google AI Studio/Gemini:** analyze the same context and propose targeted patches. If the current AI Studio session cannot write to GitHub, it must return a diff or exact file patch, not claim it changed `main`.
+- Both may analyze/review. Only one writer may apply changes to the canonical branch at a time.
 
 ## Standard workflow
 1. Refresh the latest `main`, latest commit and relevant Actions run. Do not reuse old pasted source without comparing it with GitHub.
 2. Define one task with symptom, expected behavior, reproduction and acceptance checks.
 3. Trace the data path: import → parsing/normalization → persistence → engine config → runtime. For UI, trace state and callbacks.
-4. Ask one AI to propose a small patch. Provide current source files plus `AGENTS.md`, `AI_WORKFLOW.md`, and design token files (`NeoTunDesign.kt` / `App.xaml`) for UI work.
+4. Ask one AI to propose a small patch. Provide current source files plus `AGENTS.md`, `AI_WORKFLOW.md`, and `DESIGN_SYSTEM.md` for UI work.
 5. Ask the other AI to review the patch against current source, architecture and tests. It reviews; it does not concurrently edit the same files.
 6. The designated writer fetches latest target file and SHA, applies the reviewed patch and commits one logical change. Owner preference: direct commit to `main`, no PR.
 7. Run relevant tests and inspect GitHub Actions. If a run fails, inspect the failing step/log and fix the cause; do not suppress tests.
