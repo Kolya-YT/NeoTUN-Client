@@ -99,7 +99,7 @@ class MainActivity : Activity() {
         shellRoot = root
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(18))
+            setPadding(dp(16), dp(8), dp(16), dp(12))
             clipChildren = true
             clipToPadding = true
         }
@@ -114,7 +114,7 @@ class MainActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         bottomActions = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setPadding(dp(12), dp(5), dp(12), dp(5))
             setBackgroundColor(NeoTunDesign.BACKGROUND)
             visibility = View.GONE
         }
@@ -122,10 +122,10 @@ class MainActivity : Activity() {
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(8), dp(6), dp(8), dp(8))
+            setPadding(dp(6), dp(3), dp(6), dp(3))
             setBackgroundColor(NeoTunDesign.NAVIGATION)
         }
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(68)))
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(60)))
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
@@ -133,7 +133,7 @@ class MainActivity : Activity() {
             content.setPadding(dp(16) + bars.left, dp(10) + bars.top,
                 dp(16) + bars.right, dp(18) + bars.bottom)
             nav.setPadding(dp(8) + bars.left, dp(4), dp(8) + bars.right, bars.bottom + dp(4))
-            nav.layoutParams = nav.layoutParams.apply { height = dp(58) + bars.bottom }
+            nav.layoutParams = nav.layoutParams.apply { height = dp(52) + bars.bottom }
             bottomActions.setPadding(dp(14) + bars.left, dp(6), dp(14) + bars.right, dp(6))
             view.requestLayout()
             insets
@@ -189,7 +189,7 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(18))
+            setPadding(0, dp(2), 0, dp(12))
         }
         val logo = FrameLayout(this).apply {
             background = GradientDrawable(
@@ -212,7 +212,7 @@ class MainActivity : Activity() {
         content.addView(top)
 
         val connection = card().apply {
-            setPadding(dp(18), dp(17), dp(18), dp(17))
+            setPadding(dp(16), dp(13), dp(16), dp(13))
             background = NeoTunDesign.connectionCardDrawable(resources.displayMetrics.density, running)
             elevation = 0f
         }
@@ -236,12 +236,12 @@ class MainActivity : Activity() {
             25f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 13))
+        }, margins(top = 9))
         connection.addView(txt(
             if (running) "Трафик проходит через выбранный профиль."
             else "Подключитесь к серверу одним нажатием.",
             12f, NeoTunDesign.TEXT_SECONDARY
-        ), margins(top = 5, bottom = 17))
+        ), margins(top = 4, bottom = 12))
 
         val connectButton = button(if (running) "Отключиться" else "Подключиться") {
             if (isRunning()) disconnect()
@@ -251,12 +251,12 @@ class MainActivity : Activity() {
             }
         }.apply {
             textSize = 15f * fontScaleFactor()
-            minHeight = dp(52)
+            minHeight = dp(48)
             background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
             setTextColor(if (running) NeoTunDesign.TEXT_PRIMARY else Color.WHITE)
         }
         homeConnectionButton = connectButton
-        connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(52)))
+        connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(48)))
         content.addView(connection, margins(bottom = 14))
 
         val errorCard = card().apply {
@@ -288,7 +288,7 @@ class MainActivity : Activity() {
         val serverCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setPadding(dp(10), dp(9), dp(10), dp(9))
             background = rounded(NeoTunDesign.SURFACE, 17, NeoTunDesign.BORDER, 1)
             isClickable = true
             isFocusable = true
@@ -299,7 +299,7 @@ class MainActivity : Activity() {
             addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 22f,
                 NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
         }
-        serverCard.addView(flag, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+        serverCard.addView(flag, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
             setMargins(0, 0, dp(11), 0)
         })
         val serverInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
@@ -580,11 +580,11 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(5), dp(5), dp(5))
+            setPadding(dp(5), dp(4), dp(4), dp(4))
             background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 13,
                 NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
-        val iconSize = if (compact) 38 else 42
+        val iconSize = if (compact) 36 else 38
         val flag = FrameLayout(this).apply {
             background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED, 11)
         }
@@ -630,7 +630,7 @@ class MainActivity : Activity() {
         row.addView(txt(if (selected) "✓" else "›", if (selected) 18f else 22f,
             if (selected) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
             Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(20), dp(42)))
-        row.minimumHeight = dp(if (compact) 50 else 56)
+        row.minimumHeight = dp(if (compact) 46 else 50)
         return row
     }
 
