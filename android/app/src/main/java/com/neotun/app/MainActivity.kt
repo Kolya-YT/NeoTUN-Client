@@ -319,7 +319,85 @@ class MainActivity : Activity() {
         serverCard.addView(serverInfo, LinearLayout.LayoutParams(0, -2, 1f))
         serverCard.addView(txt("›", 24f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER),
             LinearLayout.LayoutParams(dp(24), dp(42)))
-        content.addView(serverCard, margins(bottom = 15))
+        content.addView(serverCard, margins(bottom = 8))
+
+        if (profiles.size > 1) {
+            val quickHeader = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            quickHeader.addView(txt("Быстрое переключение", 12f, NeoTunDesign.TEXT_SECONDARY, Typeface.BOLD),
+                LinearLayout.LayoutParams(0, -2, 1f))
+            quickHeader.addView(txt("${profiles.size} серверов", 10f, NeoTunDesign.TEXT_MUTED))
+            content.addView(quickHeader, margins(bottom = 7))
+
+            val quickScroll = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                clipToPadding = false
+                setPadding(0, 0, 0, dp(3))
+            }
+            val quickRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            profiles.forEach { profile ->
+                val isSelected = profile.id == selected?.id
+                val chip = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(11), dp(9), dp(13), dp(9))
+                    background = rounded(
+                        if (isSelected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE,
+                        14,
+                        if (isSelected) NeoTunDesign.BORDER_ACCENT else NeoTunDesign.BORDER,
+                        1
+                    )
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = "Выбрать сервер ${profile.name}"
+                    setOnClickListener {
+                        if (profile.id == selectedProfileId()) {
+                            showScreen(Screen.PROFILES)
+                        } else if (isRunning()) {
+                            val dialog = AlertDialog.Builder(this@MainActivity)
+                                .setTitle("Переключить сервер?")
+                                .setMessage("Текущее соединение будет остановлено и запущено заново через «${profile.name}».")
+                                .setNegativeButton("Отмена", null)
+                                .setPositiveButton("Переключить") { _, _ ->
+                                    setSelectedProfile(profile.id)
+                                    disconnect()
+                                    handler.postDelayed({
+                                        if (!isFinishing) connect(profile)
+                                    }, 800L)
+                                }
+                                .create()
+                            dialog.setOnShowListener { styleDialog(dialog) }
+                            dialog.show()
+                        } else {
+                            setSelectedProfile(profile.id)
+                            renderHome()
+                        }
+                    }
+                }
+                chip.addView(txt(countryFlag(profile.name), 18f, NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER))
+                val label = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                label.addView(txt(profile.name, 12f,
+                    if (isSelected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_PRIMARY,
+                    Typeface.BOLD).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+                label.addView(txt(protocolLabel(profile), 9f, NeoTunDesign.TEXT_MUTED).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, margins(top = 2))
+                chip.addView(label, LinearLayout.LayoutParams(dp(112), -2).apply { setMargins(dp(7), 0, 0, 0) })
+                quickRow.addView(chip, LinearLayout.LayoutParams(-2, dp(58)).apply {
+                    setMargins(0, 0, dp(7), 0)
+                })
+            }
+            quickScroll.addView(quickRow)
+            content.addView(quickScroll, margins(bottom = 14))
+        } else {
+            content.addView(View(this), LinearLayout.LayoutParams(1, dp(7)))
+        }
 
         val traffic = readVpnTraffic()
         val trafficCard = card().apply {
