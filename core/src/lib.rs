@@ -1,3 +1,5 @@
+pub mod dpi_adapter;
+
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
