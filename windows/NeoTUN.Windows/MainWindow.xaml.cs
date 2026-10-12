@@ -1,951 +1,1104 @@
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Diagnostics;
-using System.IO;
-using System.Text.Json;
-using System.Net.Http;
-using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using NeoTUN.Windows.Models;
 using NeoTUN.Windows.Services;
 using NeoTUN.Windows.ViewModels;
+using Application = System.Windows.Application;
+using Button = System.Windows.Controls.Button;
+using Clipboard = System.Windows.Clipboard;
+using FontFamily = System.Windows.Media.FontFamily;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using MessageBox = System.Windows.MessageBox;
+using Orientation = System.Windows.Controls.Orientation;
+using TextBox = System.Windows.Controls.TextBox;
+using Brush = System.Windows.Media.Brush;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace NeoTUN.Windows;
 
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
-    private readonly EngineRuntime _runtime = new();
-    private bool _loadingUiSettings;
-    private readonly Dictionary<DependencyObject, double> _fontBaselines = new();
+    private readonly ProfileStore _profileStore = new();
+    private readonly SubscriptionStore _subscriptionStore = new();
+    private readonly RoutingProfileStore _routingProfileStore = new();
+    private readonly PingService _pingService = new();
+    private readonly EngineRuntime _runtime;
+
+    private TrafficMonitor? _trafficMonitor;
+    private System.Windows.Forms.NotifyIcon? _notifyIcon;
+    private readonly string _dataDirectory;
+    private readonly string _appSettingsPath;
+    private AppSettings _settings = new();
+
+    private bool _isExplicitExit;
 
     public MainWindow()
     {
         InitializeComponent();
         DataContext = _vm;
-        _loadingUiSettings = true;
-        try { LoadUiSettings(); }
-        finally { _loadingUiSettings = false; }
-        LoadRoutingSettings();
-        DataDirectoryLabel.Text = DataDirectory;
-        AppVersionLabel.Text = "Установлена версия " + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "неизвестно");
-        ProfileList.SelectionChanged += (_, _) => SyncSelectedProfileToEditor();
-        SyncSelectedProfileToEditor();
-        _runtime.LogLine += line => Dispatcher.BeginInvoke(() => AddLog(line));
-        _runtime.TrafficUpdated += (up, down, totalUp, totalDown) => Dispatcher.BeginInvoke(() =>
-        {
-            HomeSpeedText.Text = $"{FormatSpeed(down)} ↓ / {FormatSpeed(up)} ↑";
-            HomeReceivedText.Text = FormatBytes(totalDown);
-            HomeSentText.Text = FormatBytes(totalUp);
-        });
-        _runtime.StateChanged += (running, status) => Dispatcher.BeginInvoke(() =>
-        {
-            _vm.IsConnected = running;
-            _vm.Status = status;
-            ConnectLabel.Text = running ? "ОТКЛЮЧИТЬ" : "ПОДКЛЮЧИТЬ";
-            ConnectionStatusDot.Fill = (Brush)FindResource(running ? "SuccessBrush" : "TextMutedBrush");
-            ConnectionBadgeText.Text = running ? "СОЕДИНЕНИЕ АКТИВНО" : "СОЕДИНЕНИЕ НЕ АКТИВНО";
-        });
-        AddLog("NeoTUN Windows UI initialized; runtime manager loaded.");
-        ShowPage("Главная");
-        Loaded += async (_, _) => await AutoRefreshSubscriptionsOnStartupAsync();
+
+        _dataDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoTUN");
+        Directory.CreateDirectory(_dataDirectory);
+        _appSettingsPath = Path.Combine(_dataDirectory, "app-settings.json");
+
+        _runtime = new EngineRuntime();
+        _runtime.LogLine += msg => Dispatcher.Invoke(() => AddLog(msg));
+
+        LoadAppSettings();
+        InitializeSystemTray();
+        ApplyThemeAndScale();
+
+        Loaded += MainWindow_Loaded;
     }
 
-    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        ApplyResponsiveLayout();
+        AddLog("NeoTUN Windows Client initialized. Core: " + _dataDirectory);
+
+        if (_settings.AutoUpdateSubscriptions)
+        {
+            await AutoRefreshSubscriptionsAsync();
+        }
+
+        if (_settings.MinimizeToTrayOnStart)
+        {
+            Hide();
+        }
     }
 
-    private void ApplyResponsiveLayout()
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Keep every feature reachable at compact sizes; the home page itself
-        // scrolls instead of clipping the traffic cards or the connection panel.
-        var compact = ActualWidth < 1000;
-        var shortWindow = ActualHeight < 650;
-
-        if (MainRoot.ColumnDefinitions.Count > 0)
-            MainRoot.ColumnDefinitions[0].Width = new GridLength(compact ? 184 : 224);
-
-        ContentArea.Margin = compact
-            ? new Thickness(16, 16, 16, 14)
-            : new Thickness(30, 24, 30, 22);
-        HomeHeroCard.Padding = compact || shortWindow
-            ? new Thickness(16)
-            : new Thickness(28);
-
-        ConnectButton.Width = compact || shortWindow ? 124 : 164;
-        ConnectButton.Height = compact || shortWindow ? 124 : 164;
-        ConnectButton.BorderThickness = compact || shortWindow ? new Thickness(3) : new Thickness(4);
-
-        if (HomeHeroLayout.ColumnDefinitions.Count >= 2)
+        if (!_isExplicitExit && _settings.MinimizeToTrayOnClose)
         {
-            HomeHeroLayout.ColumnDefinitions[0].Width = new GridLength(compact ? 1.15 : 1.1, GridUnitType.Star);
-            HomeHeroLayout.ColumnDefinitions[1].Width = new GridLength(compact ? 0.85 : 0.9, GridUnitType.Star);
-        }
-
-        if (ServersPage.ColumnDefinitions.Count >= 2)
-        {
-            // Give the profile list more room on smaller windows; the editor
-            // remains scrollable and its controls are never removed.
-            ServersPage.ColumnDefinitions[0].Width = compact
-                ? new GridLength(1.15, GridUnitType.Star)
-                : new GridLength(1.05, GridUnitType.Star);
-            ServersPage.ColumnDefinitions[1].Width = compact
-                ? new GridLength(0.85, GridUnitType.Star)
-                : new GridLength(0.95, GridUnitType.Star);
-        }
-
-        // On compact windows stack the server list and its editor vertically;
-        // side-by-side panels become too narrow at the minimum window width.
-        if (ServersPage.RowDefinitions.Count >= 2)
-        {
-            ServersPage.RowDefinitions[0].Height = compact
-                ? new GridLength(1.15, GridUnitType.Star)
-                : new GridLength(1, GridUnitType.Star);
-            ServersPage.RowDefinitions[1].Height = compact
-                ? new GridLength(0.85, GridUnitType.Star)
-                : new GridLength(0);
-
-            Grid.SetRow(ProfileListPanel, 0);
-            Grid.SetColumn(ProfileListPanel, 0);
-            Grid.SetColumnSpan(ProfileListPanel, compact ? 2 : 1);
-            ProfileListPanel.Margin = compact ? new Thickness(0, 0, 0, 10) : new Thickness(0, 0, 10, 0);
-
-            Grid.SetRow(ProfileEditorPanel, compact ? 1 : 0);
-            Grid.SetColumn(ProfileEditorPanel, compact ? 0 : 1);
-            Grid.SetColumnSpan(ProfileEditorPanel, compact ? 2 : 1);
-            ProfileEditorPanel.Margin = compact ? new Thickness(0) : new Thickness(10, 0, 0, 0);
-        }
-
-        // Keep all six routing rule editors readable by turning the two-column
-        // matrix into a single vertical list when the content area is narrow.
-        if (RoutingRulesGrid.ColumnDefinitions.Count >= 2 && RoutingRulesGrid.RowDefinitions.Count >= 6)
-        {
-            RoutingRulesGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-            RoutingRulesGrid.ColumnDefinitions[1].Width = compact
-                ? new GridLength(0)
-                : new GridLength(1, GridUnitType.Star);
-
-            for (var row = 0; row < RoutingRulesGrid.RowDefinitions.Count; row++)
-                RoutingRulesGrid.RowDefinitions[row].Height = row < (compact ? 6 : 3)
-                    ? GridLength.Auto
-                    : new GridLength(0);
-
-            var routingPanels = new[]
+            e.Cancel = true;
+            Hide();
+            if (_notifyIcon != null)
             {
-                BlockSitesPanel, BlockIpPanel,
-                ProxySitesPanel, ProxyIpPanel,
-                DirectSitesPanel, DirectIpPanel
-            };
-
-            for (var index = 0; index < routingPanels.Length; index++)
-            {
-                var panel = routingPanels[index];
-                Grid.SetRow(panel, compact ? index : index / 2);
-                Grid.SetColumn(panel, compact ? 0 : index % 2);
-                panel.Margin = compact
-                    ? new Thickness(0, 0, 0, index == routingPanels.Length - 1 ? 0 : 12)
-                    : (index % 2 == 0
-                        ? new Thickness(0, 0, 7, index < 4 ? 12 : 0)
-                        : new Thickness(7, 0, 0, index < 4 ? 12 : 0));
+                _notifyIcon.ShowBalloonTip(1500, "NeoTUN", "Приложение свёрнуто в системный трей.", System.Windows.Forms.ToolTipIcon.Info);
             }
         }
-    }
-
-    private void ShowPage(string page)
-    {
-        _vm.ActivePage = page;
-        UpdateNavigationState(page);
-        HomePage.Visibility = page == "Главная" ? Visibility.Visible : Visibility.Collapsed;
-        ServersPage.Visibility = page == "Серверы" ? Visibility.Visible : Visibility.Collapsed;
-        ImportPage.Visibility = page == "Импорт" ? Visibility.Visible : Visibility.Collapsed;
-        RoutingPage.Visibility = page == "Маршрутизация" ? Visibility.Visible : Visibility.Collapsed;
-        SettingsPage.Visibility = page == "Настройки" ? Visibility.Visible : Visibility.Collapsed;
-        LogsPage.Visibility = page == "Журнал" ? Visibility.Visible : Visibility.Collapsed;
-
-        UIElement active = page switch
+        else
         {
-            "Главная" => HomePage,
-            "Серверы" => ServersPage,
-            "Импорт" => ImportPage,
-            "Маршрутизация" => RoutingPage,
-            "Настройки" => SettingsPage,
-            "Журнал" => LogsPage,
-            _ => HomePage
-        };
-        active.Opacity = 1;
-        active.BeginAnimation(UIElement.OpacityProperty, null);
-        if (IsLoaded && UiAnimationsToggle?.IsChecked == true)
-        {
-            active.Opacity = 0;
-            active.BeginAnimation(UIElement.OpacityProperty,
-                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
-                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
-        }
-        if (IsLoaded && FontScaleSelector is not null) ApplyFontScale();
-    }
-
-
-    private void UpdateNavigationState(string page)
-    {
-        var items = new (Button Button, string Page)[]
-        {
-            (HomeNavButton, "Главная"),
-            (ServersNavButton, "Серверы"),
-            (RoutingNavButton, "Маршрутизация"),
-            (SettingsNavButton, "Настройки"),
-            (LogsNavButton, "Журнал")
-        };
-
-        foreach (var (button, targetPage) in items)
-        {
-            var selected = targetPage == page;
-            button.Background = selected
-                ? (Brush)FindResource("AccentSurfaceBrush")
-                : Brushes.Transparent;
-            button.BorderBrush = selected
-                ? (Brush)FindResource("AccentSurfaceBrush")
-                : Brushes.Transparent;
-            button.Foreground = selected
-                ? (Brush)FindResource("BrandVioletBrush")
-                : (Brush)FindResource("TextSecondaryBrush");
-            button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+            CleanupSystemTray();
         }
     }
 
-    private void SyncSelectedProfileToEditor()
-    {
-        var profile = _vm.SelectedProfile;
-        ProfileName.Text = profile?.Name ?? "";
-        ProfileUri.Text = profile?.Uri ?? "";
-    }
+    #region Navigation
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) => ShowPage("Главная");
     private void ServersNav_Click(object sender, RoutedEventArgs e) => ShowPage("Серверы");
     private void RoutingNav_Click(object sender, RoutedEventArgs e) => ShowPage("Маршрутизация");
     private void SettingsNav_Click(object sender, RoutedEventArgs e) => ShowPage("Настройки");
     private void LogsNav_Click(object sender, RoutedEventArgs e) => ShowPage("Журнал");
-    private void ImportNav_Click(object sender, RoutedEventArgs e) => ShowPage("Импорт");
+
+    private void ShowPage(string page)
+    {
+        _vm.ActivePage = page;
+
+        HomePage.Visibility = page == "Главная" ? Visibility.Visible : Visibility.Collapsed;
+        ServersPage.Visibility = page == "Серверы" ? Visibility.Visible : Visibility.Collapsed;
+        RoutingPage.Visibility = page == "Маршрутизация" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPage.Visibility = page == "Настройки" ? Visibility.Visible : Visibility.Collapsed;
+        LogsPage.Visibility = page == "Журнал" ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateButtonNav(TabHome, page == "Главная");
+        UpdateButtonNav(TabServers, page == "Серверы");
+        UpdateButtonNav(TabRouting, page == "Маршрутизация");
+        UpdateButtonNav(TabSettings, page == "Настройки");
+        UpdateButtonNav(TabLogs, page == "Журнал");
+    }
+
+    private static void UpdateButtonNav(Button btn, bool isActive)
+    {
+        btn.Background = isActive ? (Brush)Application.Current.Resources["BrandSoftBrush"] : Brushes.Transparent;
+        btn.BorderBrush = isActive ? (Brush)Application.Current.Resources["BorderAccentBrush"] : Brushes.Transparent;
+    }
+
+    #endregion
+
+    #region Connection Lifecycle
 
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        ConnectButton.IsEnabled = false;
+        if (_vm.IsConnecting) return;
+
+        if (_vm.IsConnected)
+        {
+            await DisconnectAsync();
+            return;
+        }
+
+        var profile = _vm.SelectedProfile;
+        if (profile == null || string.IsNullOrWhiteSpace(profile.Uri))
+        {
+            MessageBox.Show("Сначала выберите или добавьте профиль подключения.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowPage("Серверы");
+            return;
+        }
+
+        _vm.IsConnecting = true;
+        _vm.Status = "Запуск движков и конфигурация Wintun…";
+        AddLog($"Connecting to profile: {profile.Name} ({profile.Protocol})");
+
         try
         {
-            if (_runtime.IsRunning)
+            // Sync active routing profile before launching
+            if (_vm.ActiveRoutingProfile != null)
             {
-                _vm.Status = "Останавливаем сетевой движок…";
-                await _runtime.StopAsync();
-                _vm.IsConnected = false;
-                ConnectLabel.Text = "ПОДКЛЮЧИТЬ";
-                return;
+                _routingProfileStore.SyncToRuntimeSettings(_vm.ActiveRoutingProfile);
             }
 
-            var profile = _vm.SelectedProfile;
-            if (profile is null)
-            {
-                _vm.Status = "Сначала выберите или импортируйте сервер.";
-                return;
-            }
-
-            _vm.Status = "Проверяем профиль и запускаем сетевой движок…";
-            AddLog(_vm.Status);
             await _runtime.StartAsync(profile.Uri);
-            // EngineRuntime owns connection state. Do not overwrite its status here:
-            // an engine can exit immediately after startup and publish a failure state.
-            AddLog("Запуск движка завершён; актуальное состояние получено от runtime.");
+
+            _vm.IsConnected = true;
+            _vm.IsConnecting = false;
+            _vm.Status = $"Подключено к {profile.Name} ({profile.Endpoint})";
+            _vm.Notice = "Соединение установлено. Трафик защищён через Wintun.";
+            UpdateHeroConnectionVisuals(true);
+            UpdateTrayStatus(true, profile.Name);
+
+            // Start Traffic Monitoring via sing-box Clash WebSocket API
+            await StartTrafficMonitoringAsync();
         }
         catch (Exception ex)
         {
             _vm.IsConnected = false;
-            _vm.Status = ex.Message;
-            ConnectButton.Content = "⏻  ПОДКЛЮЧИТЬ";
-            AddLog("Connection failed: " + ex);
-            MessageBox.Show(ex.Message, "NeoTUN — ошибка подключения", MessageBoxButton.OK, MessageBoxImage.Error);
+            _vm.IsConnecting = false;
+            _vm.Status = "Ошибка подключения: " + ex.Message;
+            _vm.Notice = "Не удалось установить соединение. Проверьте параметры профиля или журнал.";
+            UpdateHeroConnectionVisuals(false);
+            UpdateTrayStatus(false);
+            AddLog("Connection error: " + ex.Message);
+            MessageBox.Show("Ошибка подключения:\n" + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally { ConnectButton.IsEnabled = true; }
     }
 
-    protected override void OnClosed(EventArgs e)
+    private async Task DisconnectAsync()
     {
-        _runtime.Dispose();
-        base.OnClosed(e);
-    }
+        _vm.IsConnecting = true;
+        _vm.Status = "Остановка туннеля…";
+        AddLog("Disconnecting tunnel...");
 
-    private async void ImportProfiles_Click(object sender, RoutedEventArgs e)
-    {
-        ImportButtonState(false);
         try
         {
-            var parsed = await SubscriptionImporter.ImportAsync(ImportEditor.Text);
-            if (parsed.Count == 0)
+            if (_trafficMonitor != null)
             {
-                _vm.Notice = "Поддерживаемые ссылки не найдены. Проверьте ссылку или содержимое подписки.";
-                AddLog(_vm.Notice);
-                return;
+                await _trafficMonitor.DisposeAsync();
+                _trafficMonitor = null;
             }
-            _vm.AddProfiles(parsed);
-            ImportEditor.Clear();
-            ShowPage("Серверы");
-            AddLog(_vm.Notice);
+
+            await _runtime.StopAsync();
+            _vm.IsConnected = false;
+            _vm.IsConnecting = false;
+            _vm.Status = "Отключено";
+            _vm.Notice = "Соединение разорвано.";
+            _vm.ResetTraffic();
+            UpdateHeroConnectionVisuals(false);
+            UpdateTrayStatus(false);
+            AddLog("Tunnel stopped.");
         }
         catch (Exception ex)
         {
-            _vm.Notice = "Ошибка импорта: " + ex.Message;
-            AddLog(_vm.Notice);
+            _vm.IsConnected = false;
+            _vm.IsConnecting = false;
+            _vm.Status = "Ошибка при остановке: " + ex.Message;
+            UpdateHeroConnectionVisuals(false);
+            UpdateTrayStatus(false);
+            AddLog("Stop error: " + ex.Message);
         }
-        finally { ImportButtonState(true); }
     }
 
-    private void ImportButtonState(bool enabled)
+    private async void QuickReconnect_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var button in FindVisualChildren<Button>(this).Where(b => b.Name == "ImportProfilesButton"))
-            button.IsEnabled = enabled;
-    }
-
-    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
-    {
-        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        if (_vm.IsConnected)
         {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
-            if (child is T matched) yield return matched;
-            foreach (var descendant in FindVisualChildren<T>(child)) yield return descendant;
+            await DisconnectAsync();
+            await Task.Delay(500);
         }
+        Connect_Click(sender, e);
     }
 
-    private void PasteImport_Click(object sender, RoutedEventArgs e)
-    {
-        try { ImportEditor.Text = Clipboard.GetText(); }
-        catch (Exception ex) { _vm.Notice = "Не удалось прочитать буфер обмена: " + ex.Message; }
-    }
-
-    private void ClearImport_Click(object sender, RoutedEventArgs e) => ImportEditor.Clear();
-
-    private string SubscriptionUpdateStatePath => Path.Combine(DataDirectory, "subscription-update-state.json");
-
-    private async void RefreshSubscriptions_Click(object sender, RoutedEventArgs e) =>
-        await RefreshSubscriptionSourcesAsync(automatic: false);
-
-    private async Task AutoRefreshSubscriptionsOnStartupAsync()
-    {
-        if (AutoUpdateSubscriptionsToggle.IsChecked != true) return;
-        await RefreshSubscriptionSourcesAsync(automatic: true);
-    }
-
-    private int SelectedSubscriptionIntervalHours() => SubscriptionIntervalSelector.SelectedIndex switch
-    {
-        0 => 1, 1 => 6, 3 => 24, 4 => 72, 5 => 168, _ => 12
-    };
-
-    private Dictionary<string, DateTimeOffset> LoadSubscriptionUpdateState()
+    private async Task StartTrafficMonitoringAsync()
     {
         try
         {
-            if (!File.Exists(SubscriptionUpdateStatePath)) return new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
-            var saved = JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(File.ReadAllText(SubscriptionUpdateStatePath));
-            return saved is null
-                ? new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, DateTimeOffset>(saved, StringComparer.OrdinalIgnoreCase);
+            if (_trafficMonitor != null)
+            {
+                await _trafficMonitor.DisposeAsync();
+                _trafficMonitor = null;
+            }
+
+            // Port 9090 is Clash API port in sing-box config
+            _trafficMonitor = new TrafficMonitor(9090, "neotun");
+            long totalRx = 0;
+            long totalTx = 0;
+
+            _trafficMonitor.SampleReceived += (up, down) =>
+            {
+                totalRx += down;
+                totalTx += up;
+                Dispatcher.Invoke(() =>
+                {
+                    _vm.UpdateTraffic(down, up, totalRx, totalTx);
+                });
+            };
+
+            _trafficMonitor.Start();
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            AddLog("Could not read subscription update state: " + ex.Message);
-            return new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+            AddLog("Traffic monitor start error: " + ex.Message);
         }
     }
 
-    private async Task RefreshSubscriptionSourcesAsync(bool automatic)
+    private void UpdateHeroConnectionVisuals(bool isRunning)
     {
-        var allSources = _vm.Profiles
-            .Select(profile => profile.Source?.Trim() ?? "")
-            .Where(source => Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var successBrush = (Brush)Application.Current.Resources["SuccessBrush"];
+        var successSurface = (Brush)Application.Current.Resources["SuccessSurfaceBrush"];
+        var borderAccent = (Brush)Application.Current.Resources["BorderAccentBrush"];
+        var textMuted = (Brush)Application.Current.Resources["TextMutedBrush"];
 
-        if (allSources.Length == 0)
+        HeroCard.BorderBrush = isRunning ? successBrush : borderAccent;
+        HeroCard.Background = isRunning
+            ? (Brush)Application.Current.Resources["HeroConnectedGradient"]
+            : (Brush)Application.Current.Resources["HeroIdleGradient"];
+
+        HeroStatusDot.Fill = isRunning ? successBrush : textMuted;
+        HeaderStatusDot.Fill = isRunning ? successBrush : textMuted;
+        HeroBadgeText.Foreground = isRunning ? successBrush : (Brush)Application.Current.Resources["TextSecondaryBrush"];
+    }
+
+    #endregion
+
+    #region Servers & Subscriptions Management
+
+    private void SelectProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ServerProfile profile })
         {
-            if (!automatic)
-            {
-                _vm.Notice = "Нет URL-подписок для обновления. Импортируйте HTTPS-ссылку подписки, чтобы обновлять её позже.";
-                AddLog(_vm.Notice);
-            }
-            return;
+            _vm.SelectedProfile = profile;
+            _settings.SelectedProfileUri = profile.Uri;
+            SaveAppSettings();
+            _vm.Notice = $"Выбран сервер: {profile.Name}";
         }
+    }
 
-        var state = LoadSubscriptionUpdateState();
-        var now = DateTimeOffset.UtcNow;
-        var interval = TimeSpan.FromHours(SelectedSubscriptionIntervalHours());
-        var sources = allSources.Where(source => !automatic || !state.TryGetValue(source, out var last) || now - last >= interval).ToArray();
-        if (sources.Length == 0) return;
+    private async void PingProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ServerProfile profile })
+        {
+            _vm.Notice = $"Проверка задержки для {profile.Name}…";
+            var (ms, display) = await _pingService.PingProfileAsync(profile, _settings.PingTimeoutMs);
+            _vm.Notice = ms > 0 ? $"Задержка {profile.Name}: {display}" : $"Сервер {profile.Name} недоступен ({display})";
+        }
+    }
 
-        RefreshSubscriptionsButton.IsEnabled = false;
-        var refreshedProfiles = 0;
-        var successfulFeeds = 0;
-        var errors = new List<string>();
+    private async void QuickPing_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedProfile != null)
+        {
+            _vm.Notice = $"Проверка задержки для {_vm.SelectedProfile.Name}…";
+            var (ms, display) = await _pingService.PingProfileAsync(_vm.SelectedProfile, _settings.PingTimeoutMs);
+            _vm.Notice = ms > 0 ? $"Задержка: {display}" : $"Не удалось связаться с сервером ({display})";
+        }
+        else
+        {
+            MessageBox.Show("Выберите сервер для проверки задержки.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private async void PingAll_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.Notice = "Выполняется проверка задержки для всех отображаемых серверов…";
+        await _pingService.PingAllAsync(_vm.FilteredProfiles, _settings.PingTimeoutMs);
+        _vm.Notice = "Проверка задержки завершена.";
+    }
+
+    private async void RefreshSubscriptions_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.Notice = "Обновление всех подписок…";
+        var total = 0;
+        foreach (var sub in _vm.Subscriptions.ToList())
+        {
+            try
+            {
+                sub.IsUpdating = true;
+                var count = await _subscriptionStore.RefreshAsync(sub, _profileStore, _routingProfileStore);
+                total += count;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Ошибка обновления {sub.Name}: {ex.Message}");
+            }
+            finally
+            {
+                sub.IsUpdating = false;
+            }
+        }
+        _vm.ReloadAll();
+        _vm.Notice = $"Подписки обновлены. Загружено серверов: {total}.";
+    }
+
+    private async void RefreshSingleSubscription_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Subscription sub })
+        {
+            try
+            {
+                sub.IsUpdating = true;
+                _vm.Notice = $"Обновление подписки «{sub.Name}»…";
+                var count = await _subscriptionStore.RefreshAsync(sub, _profileStore, _routingProfileStore);
+                _vm.ReloadAll();
+                _vm.Notice = $"Подписка «{sub.Name}» обновлена ({count} серверов).";
+            }
+            catch (Exception ex)
+            {
+                _vm.Notice = $"Ошибка обновления: {ex.Message}";
+                MessageBox.Show("Не удалось обновить подписку:\n" + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                sub.IsUpdating = false;
+            }
+        }
+    }
+
+    private async Task AutoRefreshSubscriptionsAsync()
+    {
         try
         {
-            foreach (var source in sources)
+            foreach (var sub in _subscriptionStore.All())
             {
-                var host = new Uri(source).Host;
-                try
+                var hoursSince = sub.LastUpdated.HasValue ? (DateTimeOffset.UtcNow - sub.LastUpdated.Value).TotalHours : 999;
+                if (hoursSince >= _settings.SubscriptionIntervalHours)
                 {
-                    var imported = await SubscriptionImporter.ImportAsync(source);
-                    if (imported.Count == 0)
-                    {
-                        errors.Add(host + ": поддерживаемые профили не найдены; прежние серверы сохранены.");
-                        continue;
-                    }
-
-                    refreshedProfiles += _vm.ReplaceSubscriptionProfiles(source, imported);
-                    state[source] = DateTimeOffset.UtcNow;
-                    successfulFeeds++;
-                    AddLog($"Subscription refreshed: {host}, profiles={imported.Count}");
-                }
-                catch (Exception ex)
-                {
-                    errors.Add(host + ": " + ex.Message);
-                    AddLog("Subscription refresh failed: " + host + " — " + ex.Message);
+                    await _subscriptionStore.RefreshAsync(sub, _profileStore, _routingProfileStore);
                 }
             }
-
-            if (successfulFeeds > 0)
-            {
-                Directory.CreateDirectory(DataDirectory);
-                File.WriteAllText(SubscriptionUpdateStatePath, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
-            }
-
-            ProfileList.Items.Refresh();
-            SyncSelectedProfileToEditor();
-            if (!automatic || errors.Count > 0)
-            {
-                _vm.Notice = errors.Count == 0
-                    ? $"Обновлено подписок: {successfulFeeds}. Получено профилей: {refreshedProfiles}."
-                    : $"Обновлено подписок: {successfulFeeds} из {sources.Length}. Профилей: {refreshedProfiles}. Ошибки: " + string.Join(" | ", errors);
-                AddLog(_vm.Notice);
-            }
+            _vm.ReloadAll();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            AddLog("Could not save subscription update state: " + ex.Message);
-            if (!automatic) _vm.Notice = "Подписки обновлены, но время последнего обновления не сохранилось: " + ex.Message;
-        }
-        finally
-        {
-            RefreshSubscriptionsButton.IsEnabled = true;
+            AddLog("Auto refresh error: " + ex.Message);
         }
     }
 
-    private void SaveProfile_Click(object sender, RoutedEventArgs e)
+    private void EditSubscription_Click(object sender, RoutedEventArgs e)
     {
-        if (_vm.SelectedProfile is null) return;
-        var uri = ProfileUri.Text.Trim();
-        if (!uri.Contains("://", StringComparison.Ordinal))
+        if (sender is Button { Tag: Subscription sub })
         {
-            _vm.Notice = "Укажите корректную ссылку подключения.";
-            return;
+            ShowEditSubscriptionModal(sub);
         }
-        _vm.SelectedProfile.Name = ProfileName.Text.Trim();
-        _vm.SelectedProfile.Uri = uri;
-        _vm.SelectedProfile.UpdatedAt = DateTimeOffset.UtcNow;
-        _vm.SaveProfiles();
-        _vm.Notice = "Профиль сохранён.";
-        ProfileList.Items.Refresh();
-        AddLog(_vm.Notice);
     }
 
-    private void CopyProfile_Click(object sender, RoutedEventArgs e)
+    private void DeleteSubscription_Click(object sender, RoutedEventArgs e)
     {
-        if (_vm.SelectedProfile is null) return;
-        Clipboard.SetText(_vm.SelectedProfile.Uri);
-        _vm.Notice = "Ссылка скопирована.";
+        if (sender is Button { Tag: Subscription sub })
+        {
+            if (MessageBox.Show($"Удалить подписку «{sub.Name}» и все связанные с ней серверы?",
+                    "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                _subscriptionStore.Delete(sub.Id, _profileStore);
+                _vm.ReloadAll();
+                _vm.Notice = $"Подписка «{sub.Name}» удалена.";
+            }
+        }
     }
 
     private void DeleteProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (_vm.SelectedProfile is null) return;
-        if (MessageBox.Show("Удалить выбранный профиль?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        _vm.RemoveSelected();
-        SyncSelectedProfileToEditor();
+        if (sender is Button { Tag: ServerProfile profile })
+        {
+            if (MessageBox.Show($"Удалить сервер «{profile.Name}»?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                _profileStore.Delete(profile.Id);
+                _vm.ReloadAll();
+                _vm.Notice = "Профиль удалён.";
+            }
+        }
     }
 
-    private string DataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoTUN");
-    private string RoutingSettingsPath => Path.Combine(DataDirectory, "routing-settings.json");
-    private string UiSettingsPath => Path.Combine(DataDirectory, "ui-settings.json");
-    private string RuntimeLogPath => Path.Combine(DataDirectory, "windows-runtime.log");
+    #endregion
 
-    private sealed record RoutingSettings(
-        bool GlobalProxy, bool Ipv6Enabled, int Mtu, int RouteOrder, string RemoteDns, string DomesticDns, string DomesticDnsDomains,
-        string BlockSites, string BlockIp, string ProxySites, string ProxyIp,
-        string DirectSites, string DirectIp, string ProcessExclusions);
+    #region Modals (Profile Editor, Add Dialog, Config JSON Inspector, Capabilities)
 
-    private sealed record UiSettings(string? Theme = null, int? FontScale = null, bool? UiAnimations = null, bool? AutoUpdateSubscriptions = null, int? SubscriptionUpdateHours = null);
-
-    private void LoadRoutingSettings()
+    private void AddServerDialog_Click(object sender, RoutedEventArgs e)
     {
+        var panel = new StackPanel { Margin = new Thickness(10) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Добавление серверов и подписок",
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 16)
+        });
+
+        var input = new TextBox
+        {
+            Height = 120,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            ToolTip = "Вставьте ссылку на подписку (http/https), share-ссылку (vless://, hysteria2://, trojan://...) или Base64-список"
+        };
+        panel.Children.Add(input);
+
+        var hint = new TextBlock
+        {
+            Text = "Поддерживаются: HTTP(S) подписки, vless://, trojan://, hysteria2://, vmess://, tuic://, ss://, а также JSON конфигурации.",
+            FontSize = 11,
+            Foreground = (Brush)Application.Current.Resources["TextMutedBrush"],
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 16)
+        };
+        panel.Children.Add(hint);
+
+        var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var btnPaste = new Button { Content = "📋 Вставить из буфера", Margin = new Thickness(0, 0, 8, 0) };
+        btnPaste.Click += (s, ev) => { input.Text = Clipboard.GetText(); };
+
+        var btnImport = new Button { Content = "Импортировать", Style = (Style)Application.Current.Resources["BrandButton"], Margin = new Thickness(0, 0, 8, 0) };
+        btnImport.Click += async (s, ev) =>
+        {
+            var text = input.Text.Trim();
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            HideModal();
+            _vm.Notice = "Выполняется импорт…";
+
+            try
+            {
+                if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sub = new Subscription { Name = "Подписка", Url = text };
+                    _subscriptionStore.Save(sub);
+                    var count = await _subscriptionStore.RefreshAsync(sub, _profileStore, _routingProfileStore);
+                    _vm.ReloadAll();
+                    _vm.Notice = $"Подписка добавлена ({count} серверов).";
+                }
+                else
+                {
+                    var profiles = SubscriptionImporter.Parse(text);
+                    if (profiles.Count == 0) throw new InvalidDataException("Не найдено поддерживаемых ссылок.");
+                    foreach (var p in profiles)
+                    {
+                        p.Engine = NativeCore.DetectEngine(p.Uri);
+                        _profileStore.Upsert(p);
+                    }
+                    _vm.ReloadAll();
+                    _vm.Notice = $"Импортировано серверов: {profiles.Count}.";
+                }
+            }
+            catch (Exception ex)
+            {
+                _vm.Notice = "Ошибка импорта: " + ex.Message;
+                MessageBox.Show("Ошибка импорта:\n" + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
+
+        var btnCancel = new Button { Content = "Отмена" };
+        btnCancel.Click += (s, ev) => HideModal();
+
+        btnBar.Children.Add(btnPaste);
+        btnBar.Children.Add(btnImport);
+        btnBar.Children.Add(btnCancel);
+        panel.Children.Add(btnBar);
+
+        ShowModal(panel);
+    }
+
+    private void EditProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ServerProfile profile })
+        {
+            ShowEditProfileModal(profile);
+        }
+    }
+
+    private void ShowEditProfileModal(ServerProfile profile)
+    {
+        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 520 };
+        var panel = new StackPanel { Margin = new Thickness(10) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Редактирование параметров сервера",
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 14)
+        });
+
+        TextBox AddField(string label, string value)
+        {
+            panel.Children.Add(new TextBlock { Text = label, FontSize = 11, Foreground = (Brush)Application.Current.Resources["TextSecondaryBrush"], Margin = new Thickness(0, 4, 0, 2) });
+            var tb = new TextBox { Text = value, Margin = new Thickness(0, 0, 0, 8) };
+            panel.Children.Add(tb);
+            return tb;
+        }
+
+        var tbName = AddField("Название сервера", profile.Name);
+        var tbHost = AddField("Адрес сервера (Host)", profile.Host);
+        var tbPort = AddField("Порт", profile.Port.ToString());
+        var tbEngine = AddField("Движок (sing-box / xray)", profile.Engine);
+        var tbUri = AddField("Исходная ссылка конфигурации", profile.Uri);
+
+        var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+        var btnSave = new Button { Content = "Сохранить", Style = (Style)Application.Current.Resources["BrandButton"], Margin = new Thickness(0, 0, 8, 0) };
+        btnSave.Click += (s, ev) =>
+        {
+            profile.Name = tbName.Text.Trim();
+            profile.Engine = tbEngine.Text.Trim().ToLowerInvariant().Contains("xray") ? "xray" : "sing-box";
+
+            var newUri = tbUri.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(newUri) && newUri != profile.Uri)
+            {
+                profile.Uri = newUri;
+                profile.Engine = NativeCore.DetectEngine(newUri);
+            }
+
+            _profileStore.Upsert(profile);
+            _vm.ReloadAll();
+            HideModal();
+            _vm.Notice = $"Сервер «{profile.Name}» сохранён.";
+        };
+
+        var btnCancel = new Button { Content = "Отмена" };
+        btnCancel.Click += (s, ev) => HideModal();
+
+        btnBar.Children.Add(btnSave);
+        btnBar.Children.Add(btnCancel);
+        panel.Children.Add(btnBar);
+
+        scroll.Content = panel;
+        ShowModal(scroll);
+    }
+
+    private void ShowEditSubscriptionModal(Subscription sub)
+    {
+        var panel = new StackPanel { Margin = new Thickness(10) };
+        panel.Children.Add(new TextBlock { Text = "Редактирование подписки", FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
+
+        panel.Children.Add(new TextBlock { Text = "Название подписки:", FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextSecondaryBrush"], Margin = new Thickness(0, 0, 0, 4) });
+        var tbName = new TextBox { Text = sub.Name, Margin = new Thickness(0, 0, 0, 12) };
+        panel.Children.Add(tbName);
+
+        panel.Children.Add(new TextBlock { Text = "URL подписки (HTTP / HTTPS):", FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextSecondaryBrush"], Margin = new Thickness(0, 0, 0, 4) });
+        var tbUrl = new TextBox { Text = sub.Url, Margin = new Thickness(0, 0, 0, 16) };
+        panel.Children.Add(tbUrl);
+
+        var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var btnSave = new Button { Content = "Сохранить", Style = (Style)Application.Current.Resources["BrandButton"], Margin = new Thickness(0, 0, 8, 0) };
+        btnSave.Click += (s, ev) =>
+        {
+            sub.Name = tbName.Text.Trim();
+            sub.Url = tbUrl.Text.Trim();
+            _subscriptionStore.Save(sub);
+            _vm.ReloadAll();
+            HideModal();
+            _vm.Notice = "Параметры подписки сохранены.";
+        };
+
+        var btnCancel = new Button { Content = "Отмена" };
+        btnCancel.Click += (s, ev) => HideModal();
+
+        btnBar.Children.Add(btnSave);
+        btnBar.Children.Add(btnCancel);
+        panel.Children.Add(btnBar);
+
+        ShowModal(panel);
+    }
+
+    private void ShowProfileConfig_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ServerProfile profile })
+        {
+            ShowConfigModal(profile);
+        }
+    }
+
+    private void InspectConfig_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedProfile != null)
+        {
+            ShowConfigModal(_vm.SelectedProfile);
+        }
+        else
+        {
+            MessageBox.Show("Сначала выберите профиль.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void ShowConfigModal(ServerProfile profile)
+    {
+        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 520 };
+        var panel = new StackPanel { Margin = new Thickness(10) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Инспектор конфигурации · {profile.Name}",
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 10)
+        });
+
+        var caps = EngineCapabilities.ForProfile(profile);
+        var capsPanel = new Border
+        {
+            Background = (Brush)Application.Current.Resources["RaisedSurfaceBrush"],
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        var capsStack = new StackPanel();
+        capsStack.Children.Add(new TextBlock { Text = $"Движок: {caps.EngineName}  •  Протокол: {caps.Protocol}", FontWeight = FontWeights.SemiBold });
+        foreach (var note in caps.Notes)
+        {
+            capsStack.Children.Add(new TextBlock { Text = "• " + note, FontSize = 11, Foreground = (Brush)Application.Current.Resources["TextSecondaryBrush"], Margin = new Thickness(0, 2, 0, 0) });
+        }
+        capsPanel.Child = capsStack;
+        panel.Children.Add(capsPanel);
+
+        panel.Children.Add(new TextBlock { Text = "Синтезированный JSON (sing-box / xray):", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+
+        string configPreview;
         try
         {
-            if (!File.Exists(RoutingSettingsPath)) return;
-            var settings = JsonSerializer.Deserialize<RoutingSettings>(File.ReadAllText(RoutingSettingsPath));
-            if (settings is null) return;
-            GlobalProxyToggle.IsChecked = settings.GlobalProxy;
-            Ipv6Toggle.IsChecked = settings.Ipv6Enabled;
-            MtuInput.Text = settings.Mtu.ToString();
-            RouteOrderSelector.SelectedIndex = Math.Clamp(settings.RouteOrder, 0, 2);
-            RemoteDnsInput.Text = settings.RemoteDns;
-            DomesticDnsInput.Text = settings.DomesticDns;
-            DomesticDnsDomainsEditor.Text = settings.DomesticDnsDomains;
-            BlockSitesEditor.Text = settings.BlockSites;
-            BlockIpEditor.Text = settings.BlockIp;
-            ProxySitesEditor.Text = settings.ProxySites;
-            ProxyIpEditor.Text = settings.ProxyIp;
-            DirectSitesEditor.Text = settings.DirectSites;
-            DirectIpEditor.Text = settings.DirectIp;
-            ProcessExclusionsEditor.Text = settings.ProcessExclusions;
-            ProcessExclusionsEditor.Text = settings.ProcessExclusions;
-            RoutingSummary.Text = "Загружено из локального файла маршрутов.";
+            var runtime = NativeCore.BuildRuntimeConfig(profile.Uri);
+            configPreview = runtime.SingBoxJson;
+            if (!string.IsNullOrEmpty(runtime.XrayJson))
+            {
+                configPreview = "// === SING-BOX TUN BRIDGE ===\n" + configPreview + "\n\n// === XRAY OUTBOUND CONFIG ===\n" + runtime.XrayJson;
+            }
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            RoutingSummary.Text = "Не удалось прочитать файл маршрутов: " + ex.Message;
+            configPreview = "Ошибка разбора профиля native core: " + ex.Message;
+        }
+
+        var tbJson = new TextBox
+        {
+            Text = configPreview,
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            FontFamily = new FontFamily("Consolas, monospace"),
+            FontSize = 11,
+            Height = 220,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        panel.Children.Add(tbJson);
+
+        var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+        var btnCopyJson = new Button { Content = "Копировать JSON", Style = (Style)Application.Current.Resources["BrandButton"], Margin = new Thickness(0, 0, 8, 0) };
+        btnCopyJson.Click += (s, ev) =>
+        {
+            Clipboard.SetText(configPreview);
+            MessageBox.Show("Конфигурация скопирована в буфер обмена.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+        };
+
+        var btnCopyUri = new Button { Content = "Копировать ссылку профиля", Margin = new Thickness(0, 0, 8, 0) };
+        btnCopyUri.Click += (s, ev) =>
+        {
+            Clipboard.SetText(profile.Uri);
+            MessageBox.Show("Ссылка профиля скопирована в буфер обмена.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+        };
+
+        var btnClose = new Button { Content = "Закрыть" };
+        btnClose.Click += (s, ev) => HideModal();
+
+        btnBar.Children.Add(btnCopyJson);
+        btnBar.Children.Add(btnCopyUri);
+        btnBar.Children.Add(btnClose);
+        panel.Children.Add(btnBar);
+
+        scroll.Content = panel;
+        ShowModal(scroll);
+    }
+
+    private void ShowModal(UIElement content)
+    {
+        ModalContentRoot.Children.Clear();
+        ModalContentRoot.Children.Add(content);
+        ModalOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HideModal()
+    {
+        ModalOverlay.Visibility = Visibility.Collapsed;
+        ModalContentRoot.Children.Clear();
+    }
+
+    #endregion
+
+    #region Routing
+
+    private void RoutingProfileSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RoutingProfileSelector.SelectedItem is RoutingProfile rp)
+        {
+            _routingProfileStore.Select(rp.Id);
+            _settings.ActiveRoutingProfileId = rp.Id;
+            SaveAppSettings();
+        }
+    }
+
+    private void NewRoutingProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var newProfile = new RoutingProfile
+        {
+            Name = "Новый профиль маршрутизации",
+            GlobalProxy = true,
+            RouteOrder = 0
+        };
+        _routingProfileStore.Save(newProfile);
+        _vm.ReloadAll();
+        _vm.ActiveRoutingProfile = newProfile;
+        _vm.Notice = "Создан новый профиль маршрутизации.";
+    }
+
+    private void ImportRoutingProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var panel = new StackPanel { Margin = new Thickness(10) };
+        panel.Children.Add(new TextBlock { Text = "Импорт профиля маршрутизации", FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
+
+        var input = new TextBox { Height = 100, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, ToolTip = "Вставьте ссылку happ://routing/..., Base64 или JSON" };
+        panel.Children.Add(input);
+
+        var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+        var btnImport = new Button { Content = "Импортировать", Style = (Style)Application.Current.Resources["BrandButton"], Margin = new Thickness(0, 0, 8, 0) };
+        btnImport.Click += (s, ev) =>
+        {
+            var text = input.Text.Trim();
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            var imported = _routingProfileStore.ImportFromDeepLink(text);
+            if (imported != null)
+            {
+                _vm.ReloadAll();
+                _vm.ActiveRoutingProfile = imported;
+                HideModal();
+                _vm.Notice = $"Импортирован профиль маршрутизации «{imported.Name}».";
+            }
+            else
+            {
+                MessageBox.Show("Не удалось распознать формат маршрутов (требуется JSON, Base64 или deeplink).", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
+
+        var btnCancel = new Button { Content = "Отмена" };
+        btnCancel.Click += (s, ev) => HideModal();
+
+        btnBar.Children.Add(btnImport);
+        btnBar.Children.Add(btnCancel);
+        panel.Children.Add(btnBar);
+
+        ShowModal(panel);
+    }
+
+    private void DeleteRoutingProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.ActiveRoutingProfile != null)
+        {
+            if (MessageBox.Show($"Удалить профиль маршрутизации «{_vm.ActiveRoutingProfile.Name}»?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                _routingProfileStore.Delete(_vm.ActiveRoutingProfile.Id);
+                _vm.ReloadAll();
+                _vm.Notice = "Профиль маршрутизации удалён.";
+            }
         }
     }
 
     private void SaveRouting_Click(object sender, RoutedEventArgs e)
     {
-        if (!ValidateDns(RemoteDnsInput.Text, "Удалённый DNS") ||
-            !ValidateDns(DomesticDnsInput.Text, "Домашний DNS"))
-            return;
-
-        if (!int.TryParse(MtuInput.Text.Trim(), out var mtu) || mtu is < 1280 or > 1500)
+        if (_vm.ActiveRoutingProfile != null)
         {
-            MessageBox.Show("MTU должен быть целым числом от 1280 до 1500.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var processExclusions = NormalizeLines(ProcessExclusionsEditor.Text)
-            .Split(new[] { Environment.NewLine }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        var invalidProcessName = processExclusions.FirstOrDefault(name =>
-            !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-            name != Path.GetFileName(name) || name.Contains('/') || name.Contains('\\') || name.Contains(':'));
-        if (invalidProcessName is not null)
-        {
-            MessageBox.Show("Имя процесса «" + invalidProcessName + "» некорректно. Укажите только имя файла .exe, без пути.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var settings = new RoutingSettings(
-            GlobalProxyToggle.IsChecked == true,
-            Ipv6Toggle.IsChecked == true,
-            mtu,
-            Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
-            RemoteDnsInput.Text.Trim(),
-            DomesticDnsInput.Text.Trim(),
-            NormalizeLines(DomesticDnsDomainsEditor.Text),
-            NormalizeLines(BlockSitesEditor.Text),
-            NormalizeLines(BlockIpEditor.Text),
-            NormalizeLines(ProxySitesEditor.Text),
-            NormalizeLines(ProxyIpEditor.Text),
-            NormalizeLines(DirectSitesEditor.Text),
-            NormalizeLines(DirectIpEditor.Text),
-            NormalizeLines(ProcessExclusionsEditor.Text));
-
-        try
-        {
-            Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(RoutingSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-            RoutingSummary.Text = "Маршруты сохранены локально. Настройки будут учтены при следующем подключении.";
+            _routingProfileStore.Save(_vm.ActiveRoutingProfile);
+            _routingProfileStore.SyncToRuntimeSettings(_vm.ActiveRoutingProfile);
             _vm.Notice = "Настройки маршрутизации сохранены.";
-            AddLog("Routing preferences saved to " + RoutingSettingsPath);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            RoutingSummary.Text = "Не удалось сохранить маршруты: " + ex.Message;
+            AddLog("Routing profile saved: " + _vm.ActiveRoutingProfile.Name);
+            MessageBox.Show("Настройки маршрутизации успешно сохранены.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
-    private void LoadRouting_Click(object sender, RoutedEventArgs e)
+    private void CopyRoutingJson_Click(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(RoutingSettingsPath))
+        if (_vm.ActiveRoutingProfile != null)
         {
-            RoutingSummary.Text = "Файл маршрутов ещё не создан. Сначала сохраните настройки.";
-            return;
-        }
-        try
-        {
-            using var document = JsonDocument.Parse(File.ReadAllText(RoutingSettingsPath));
-            LoadRoutingSettings();
-            RoutingSummary.Text = "Файл маршрутов — корректный JSON; настройки загружены.";
-        }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
-        {
-            RoutingSummary.Text = "Ошибка файла маршрутов: " + ex.Message;
-        }
-    }
-
-    private void CopyRouting_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (!int.TryParse(MtuInput.Text.Trim(), out var mtu) || mtu is < 1280 or > 1500)
-                throw new InvalidDataException("MTU должен быть целым числом от 1280 до 1500.");
-            var settings = new RoutingSettings(
-                GlobalProxyToggle.IsChecked == true,
-                Ipv6Toggle.IsChecked == true,
-                mtu,
-                Math.Clamp(RouteOrderSelector.SelectedIndex, 0, 2),
-                RemoteDnsInput.Text.Trim(), DomesticDnsInput.Text.Trim(), NormalizeLines(DomesticDnsDomainsEditor.Text),
-                NormalizeLines(BlockSitesEditor.Text), NormalizeLines(BlockIpEditor.Text),
-                NormalizeLines(ProxySitesEditor.Text), NormalizeLines(ProxyIpEditor.Text),
-                NormalizeLines(DirectSitesEditor.Text), NormalizeLines(DirectIpEditor.Text),
-                NormalizeLines(ProcessExclusionsEditor.Text));
-            Clipboard.SetText(JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-            RoutingSummary.Text = "JSON настроек маршрутизации скопирован в буфер обмена.";
-        }
-        catch (Exception ex) { RoutingSummary.Text = "Не удалось сформировать JSON: " + ex.Message; }
-    }
-
-    private void ResetRouting_Click(object sender, RoutedEventArgs e)
-    {
-        if (MessageBox.Show("Сбросить поля маршрутизации? Сохранённый файл не будет удалён до нового сохранения.",
-                "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        GlobalProxyToggle.IsChecked = true;
-        Ipv6Toggle.IsChecked = false;
-        MtuInput.Text = "1500";
-        RouteOrderSelector.SelectedIndex = 0;
-        RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
-        DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
-        DomesticDnsDomainsEditor.Text = "ru" + Environment.NewLine + "su" + Environment.NewLine + "рф";
-        BlockSitesEditor.Clear(); BlockIpEditor.Clear();
-        ProxySitesEditor.Clear(); ProxyIpEditor.Clear();
-        DirectSitesEditor.Clear(); DirectIpEditor.Clear(); ProcessExclusionsEditor.Clear();
-        ProcessExclusionsEditor.Clear();
-        RoutingSummary.Text = "Поля сброшены. Нажмите «Сохранить маршруты», чтобы записать новые значения.";
-    }
-
-    private bool ValidateDns(string value, string label)
-    {
-        value = value.Trim();
-        if (value.Length == 0) return true;
-        if (value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            if (Uri.TryCreate(value, UriKind.Absolute, out var endpoint) && !string.IsNullOrWhiteSpace(endpoint.Host)) return true;
-        }
-        else if (System.Net.IPAddress.TryParse(value, out _)) return true;
-
-        MessageBox.Show($"{label}: укажите корректный IP-адрес или HTTPS URL.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
-        return false;
-    }
-
-    private static string NormalizeLines(string value) => string.Join(Environment.NewLine,
-        value.Replace("\r", "").Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Where(line => !line.StartsWith("#", StringComparison.Ordinal))
-            .Distinct(StringComparer.OrdinalIgnoreCase));
-
-    private void LoadUiSettings()
-    {
-        try
-        {
-            var saved = File.Exists(UiSettingsPath)
-                ? JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(UiSettingsPath))
-                : null;
-            var theme = saved?.Theme ?? "dark";
-            ThemeSelector.SelectedIndex = theme switch { "light" => 1, "oled" => 2, _ => 0 };
-            FontScaleSelector.SelectedIndex = (saved?.FontScale ?? 100) switch { 85 => 0, 115 => 2, 130 => 3, _ => 1 };
-            UiAnimationsToggle.IsChecked = saved?.UiAnimations ?? true;
-            AutoUpdateSubscriptionsToggle.IsChecked = saved?.AutoUpdateSubscriptions ?? true;
-            SubscriptionIntervalSelector.SelectedIndex = (saved?.SubscriptionUpdateHours ?? 12) switch { 1 => 0, 6 => 1, 24 => 3, 72 => 4, 168 => 5, _ => 2 };
-            LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
-            ApplyTheme(theme);
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            SettingsSummary.Text = "Не удалось загрузить настройки интерфейса: " + ex.Message;
-        }
-    }
-
-    private UiSettings ReadUiSettings()
-    {
-        var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
-        var fontScale = FontScaleSelector.SelectedIndex switch { 0 => 85, 2 => 115, 3 => 130, _ => 100 };
-        var hours = SubscriptionIntervalSelector.SelectedIndex switch { 0 => 1, 1 => 6, 3 => 24, 4 => 72, 5 => 168, _ => 12 };
-        return new UiSettings(theme, fontScale, UiAnimationsToggle.IsChecked == true,
-            AutoUpdateSubscriptionsToggle.IsChecked == true, hours);
-    }
-
-    private void PersistUiSettings(string message)
-    {
-        if (_loadingUiSettings || !IsInitialized) return;
-        try
-        {
-            Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(UiSettingsPath, JsonSerializer.Serialize(ReadUiSettings(), new JsonSerializerOptions { WriteIndented = true }));
-            SettingsSummary.Text = message;
-        }
-        catch (Exception ex) { SettingsSummary.Text = "Настройка применена, но не сохранена: " + ex.Message; }
-    }
-
-    private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized || ThemeSelector.SelectedIndex < 0) return;
-        var theme = ThemeSelector.SelectedIndex switch { 1 => "light", 2 => "oled", _ => "dark" };
-        ApplyTheme(theme);
-        PersistUiSettings("Тема применена и сохранена.");
-    }
-
-    private void FontScaleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized || FontScaleSelector.SelectedIndex < 0) return;
-        ApplyFontScale();
-        PersistUiSettings("Размер текста применён и сохранён.");
-    }
-
-    private void UiAnimations_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized) return;
-        PersistUiSettings(UiAnimationsToggle.IsChecked == true ? "Переходы включены." : "Переходы выключены.");
-    }
-
-    private void AutoUpdateSubscriptions_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized) return;
-        PersistUiSettings(AutoUpdateSubscriptionsToggle.IsChecked == true ? "Автообновление подписок включено." : "Автообновление подписок выключено.");
-    }
-
-    private void SubscriptionInterval_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingUiSettings || !IsInitialized || SubscriptionIntervalSelector.SelectedIndex < 0) return;
-        PersistUiSettings("Интервал обновления подписок сохранён.");
-    }
-
-    private void ApplyFontScale()
-    {
-        var factor = FontScaleSelector.SelectedIndex switch { 0 => 0.85, 2 => 1.15, 3 => 1.30, _ => 1.0 };
-        ApplyFontScaleRecursive(MainRoot, factor);
-    }
-
-    private void ApplyFontScaleRecursive(DependencyObject parent, double factor)
-    {
-        if (parent is Control control)
-        {
-            if (!_fontBaselines.ContainsKey(parent)) _fontBaselines[parent] = control.FontSize;
-            control.FontSize = _fontBaselines[parent] * factor;
-        }
-        else if (parent is TextBlock textBlock)
-        {
-            if (!_fontBaselines.ContainsKey(parent)) _fontBaselines[parent] = textBlock.FontSize;
-            textBlock.FontSize = _fontBaselines[parent] * factor;
-        }
-
-        var count = VisualTreeHelper.GetChildrenCount(parent);
-        for (var index = 0; index < count; index++)
-            ApplyFontScaleRecursive(VisualTreeHelper.GetChild(parent, index), factor);
-    }
-    private void ApplyTheme(string theme)
-    {
-        var colors = theme switch
-        {
-            "light" => new Dictionary<string, string> {
-                ["BackgroundBrush"]="#F4F5FA", ["NavigationBrush"]="#FFFFFF", ["SurfaceBrush"]="#FFFFFF",
-                ["RaisedSurfaceBrush"]="#E9EBF5", ["InputSurfaceBrush"]="#F0F1F8", ["BorderBrushNeo"]="#D9DCEC",
-                ["BrandVioletBrush"]="#6850E8", ["BrandBlueBrush"]="#455BE8", ["AccentSurfaceBrush"]="#EAE6FF",
-                ["TextPrimaryBrush"]="#191A28", ["TextSecondaryBrush"]="#50566B", ["TextMutedBrush"]="#747B91",
-                ["SuccessBrush"]="#147B55", ["SuccessSurfaceBrush"]="#DDF6EA", ["DangerBrush"]="#AD3151", ["DangerSurfaceBrush"]="#FFE8EE" },
-            "oled" => new Dictionary<string, string> {
-                ["BackgroundBrush"]="#000000", ["NavigationBrush"]="#050509", ["SurfaceBrush"]="#09090F",
-                ["RaisedSurfaceBrush"]="#11111B", ["InputSurfaceBrush"]="#05050A", ["BorderBrushNeo"]="#242435",
-                ["BrandVioletBrush"]="#8068FF", ["BrandBlueBrush"]="#5B68F2", ["AccentSurfaceBrush"]="#171327",
-                ["TextPrimaryBrush"]="#F7F8FF", ["TextSecondaryBrush"]="#B1B8CD", ["TextMutedBrush"]="#858EA8",
-                ["SuccessBrush"]="#65E7B0", ["SuccessSurfaceBrush"]="#09251D", ["DangerBrush"]="#FFB5C3", ["DangerSurfaceBrush"]="#26101A" },
-            _ => new Dictionary<string, string> {
-                ["BackgroundBrush"]="#080A12", ["NavigationBrush"]="#0D101B", ["SurfaceBrush"]="#131725",
-                ["RaisedSurfaceBrush"]="#1B2031", ["InputSurfaceBrush"]="#0E1220", ["BorderBrushNeo"]="#292F45",
-                ["BrandVioletBrush"]="#8068FF", ["BrandBlueBrush"]="#5B68F2", ["AccentSurfaceBrush"]="#211D38",
-                ["TextPrimaryBrush"]="#F7F8FF", ["TextSecondaryBrush"]="#B1B8CD", ["TextMutedBrush"]="#858EA8",
-                ["SuccessBrush"]="#65E7B0", ["SuccessSurfaceBrush"]="#12362F", ["DangerBrush"]="#FFB5C3", ["DangerSurfaceBrush"]="#321C29" }
-        };
-
-        foreach (var item in colors)
-        {
-            if (ColorConverter.ConvertFromString(item.Value) is not Color color)
-                continue;
-
-            // Brushes referenced by StaticResource in the compiled XAML can be frozen
-            // by WPF. Replace the resource with a new mutable brush instead of trying
-            // to change the Color property on a possibly frozen instance.
-            Application.Current.Resources[item.Key] = new SolidColorBrush(color);
-        }
-    }
-
-    private bool IsLaunchWithWindowsEnabled()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
-            return key?.GetValue("NeoTUN") is string;
-        }
-        catch { return false; }
-    }
-
-    private void LaunchWithWindows_Changed(object sender, RoutedEventArgs e)
-    {
-        if (!IsInitialized || LaunchWithWindowsToggle.IsChecked is null) return;
-        try
-        {
-            using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            if (key is null) throw new InvalidOperationException("Не удалось открыть раздел автозапуска.");
-            if (LaunchWithWindowsToggle.IsChecked == true)
+            try
             {
-                var executable = Process.GetCurrentProcess().MainModule?.FileName;
-                if (string.IsNullOrWhiteSpace(executable))
-                    throw new InvalidOperationException("Не удалось определить путь к NeoTUN.exe.");
-                key.SetValue("NeoTUN", $"\"{executable}\"");
+                var json = JsonSerializer.Serialize(_vm.ActiveRoutingProfile, new JsonSerializerOptions { WriteIndented = true });
+                Clipboard.SetText(json);
+                MessageBox.Show("Конфигурация маршрутизации скопирована в буфер обмена.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            else key.DeleteValue("NeoTUN", false);
-            SettingsSummary.Text = LaunchWithWindowsToggle.IsChecked == true
-                ? "Автозапуск включён для текущего пользователя."
-                : "Автозапуск отключён.";
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка: " + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Settings
+
+    private void SettingsTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SettingsThemeSelector.SelectedIndex >= 0)
+        {
+            var theme = SettingsThemeSelector.SelectedIndex switch
+            {
+                1 => "light",
+                2 => "oled",
+                _ => "dark"
+            };
+            _settings.Theme = theme;
+            ThemeManager.ApplyTheme(theme);
+            SaveAppSettings();
+        }
+    }
+
+    private void SettingsFontScale_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SettingsFontScaleSelector.SelectedIndex >= 0)
+        {
+            var scale = SettingsFontScaleSelector.SelectedIndex switch
+            {
+                0 => 0.85,
+                2 => 1.15,
+                3 => 1.30,
+                _ => 1.0
+            };
+            _settings.FontScale = scale;
+            SaveAppSettings();
+        }
+    }
+
+    private void SettingsSubInterval_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SettingsSubInterval.SelectedIndex >= 0)
+        {
+            _settings.SubscriptionIntervalHours = SettingsSubInterval.SelectedIndex switch
+            {
+                0 => 1,
+                1 => 6,
+                2 => 12,
+                3 => 24,
+                4 => 72,
+                _ => 168
+            };
+            SaveAppSettings();
+        }
+    }
+
+    private void LaunchWithWindows_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
+            var isChecked = SettingsLaunchWithWindows.IsChecked == true;
+            _settings.LaunchWithWindows = isChecked;
+
+            if (runKey != null)
+            {
+                if (isChecked)
+                {
+                    var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(exePath))
+                    {
+                        runKey.SetValue("NeoTUN", $"\"{exePath}\"");
+                    }
+                }
+                else
+                {
+                    runKey.DeleteValue("NeoTUN", false);
+                }
+            }
+            SaveAppSettings();
         }
         catch (Exception ex)
         {
-            SettingsSummary.Text = "Не удалось изменить автозапуск: " + ex.Message;
-            LaunchWithWindowsToggle.IsChecked = IsLaunchWithWindowsEnabled();
+            MessageBox.Show("Ошибка реестра автозапуска: " + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-    }
-
-    private void ResetSettings_Click(object sender, RoutedEventArgs e)
-    {
-        var answer = MessageBox.Show(
-            "Сбросить настройки интерфейса и сетевые параметры по умолчанию? Серверы, подписки и правила маршрутизации в списках не удаляются. Автозапуск Windows останется без изменений.",
-            "NeoTUN — сброс настроек", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (answer != MessageBoxResult.Yes) return;
-
-        _loadingUiSettings = true;
-        try
-        {
-            ThemeSelector.SelectedIndex = 0;
-            FontScaleSelector.SelectedIndex = 1;
-            UiAnimationsToggle.IsChecked = true;
-            AutoUpdateSubscriptionsToggle.IsChecked = true;
-            SubscriptionIntervalSelector.SelectedIndex = 2;
-
-            GlobalProxyToggle.IsChecked = true;
-            Ipv6Toggle.IsChecked = false;
-            MtuInput.Text = "1500";
-            RouteOrderSelector.SelectedIndex = 0;
-            RemoteDnsInput.Text = "https://8.8.8.8/dns-query";
-            DomesticDnsInput.Text = "https://77.88.8.8/dns-query";
-            DomesticDnsDomainsEditor.Text = "ru" + Environment.NewLine + "su" + Environment.NewLine + "рф";
-            // Keep user-defined routing rules and process exclusions, as Android keeps
-            // routing profiles when resetting app preferences.
-        }
-        finally { _loadingUiSettings = false; }
-
-        ApplyTheme("dark");
-        ApplyFontScale();
-        SaveRouting_Click(sender, e);
-        PersistUiSettings("Настройки сброшены. Серверы и подписки сохранены.");
-        AddLog("Настройки интерфейса и сетевые параметры сброшены к значениям по умолчанию.");
     }
 
     private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
     {
-        CheckUpdatesButton.IsEnabled = false;
-        UpdateSummary.Text = "Проверяем последнюю опубликованную версию…";
+        SettingsUpdateSummary.Text = "Проверка наличия обновлений на GitHub…";
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("NeoTUN-Windows/0.1");
-            using var response = await client.GetAsync("https://api.github.com/repos/Kolya-YT/NeoTUN-Client/releases/latest");
-            response.EnsureSuccessStatusCode();
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            var tag = document.RootElement.TryGetProperty("tag_name", out var tagValue) ? tagValue.GetString() ?? "" : "";
-            var releaseUrl = document.RootElement.TryGetProperty("html_url", out var urlValue) ? urlValue.GetString() ?? "https://github.com/Kolya-YT/NeoTUN-Client/releases" : "https://github.com/Kolya-YT/NeoTUN-Client/releases";
-            var numericVersion = System.Text.RegularExpressions.Regex.Match(tag, @"\d+(\.\d+){1,3}").Value;
-            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0);
-            if (!Version.TryParse(numericVersion, out var latest))
-            {
-                UpdateSummary.Text = "Последний релиз найден (" + tag + "), но его версию не удалось распознать. Откройте страницу релизов для проверки.";
-                if (MessageBox.Show("Открыть страницу релизов NeoTUN?", "NeoTUN — обновления", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
-                    Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
-                return;
-            }
-
-            if (latest > current)
-            {
-                UpdateSummary.Text = "Доступно обновление: " + tag;
-                if (MessageBox.Show("Установлена версия " + current + ". Доступна версия " + tag + ".\n\nОткрыть загрузку релиза?", "NeoTUN — обновления", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
-                    Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
-            }
-            else
-            {
-                UpdateSummary.Text = "Установлена актуальная версия (" + current + ").";
-            }
-            AddLog("Update check: current=" + current + ", latest=" + tag + ".");
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("NeoTUN-Windows/0.4");
+            var json = await client.GetStringAsync("https://api.github.com/repos/Kolya-YT/NeoTUN-Client/releases/latest");
+            using var doc = JsonDocument.Parse(json);
+            var tag = doc.RootElement.GetProperty("tag_name").GetString();
+            SettingsUpdateSummary.Text = $"Последняя версия на GitHub: {tag}. Текущая: v0.1.1.";
         }
         catch (Exception ex)
         {
-            UpdateSummary.Text = "Не удалось проверить обновления: " + ex.Message;
-            AddLog("Update check failed: " + ex.Message);
-        }
-        finally
-        {
-            CheckUpdatesButton.IsEnabled = true;
+            SettingsUpdateSummary.Text = "Не удалось проверить обновления: " + ex.Message;
         }
     }
-    private void OpenDataFolder_Click(object sender, RoutedEventArgs e) => OpenPath(DataDirectory);
-    private void OpenLog_Click(object sender, RoutedEventArgs e) => OpenPath(RuntimeLogPath);
 
-    private void OpenPath(string path)
+    private void OpenGitHubReleases_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            if (File.Exists(path))
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            else
+            Process.Start(new ProcessStartInfo("https://github.com/Kolya-YT/NeoTUN-Client/releases") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private void ResetSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Сбросить все настройки к значениям по умолчанию?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+        {
+            _settings = new AppSettings();
+            SaveAppSettings();
+            ApplyThemeAndScale();
+            MessageBox.Show("Настройки сброшены.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void LoadAppSettings()
+    {
+        try
+        {
+            if (File.Exists(_appSettingsPath))
             {
-                Directory.CreateDirectory(Directory.Exists(path) ? path : Path.GetDirectoryName(path)!);
-                Process.Start(new ProcessStartInfo(Directory.Exists(path) ? path : Path.GetDirectoryName(path)!) { UseShellExecute = true });
+                _settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_appSettingsPath)) ?? new AppSettings();
             }
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch { _settings = new AppSettings(); }
+
+        SettingsThemeSelector.SelectedIndex = _settings.Theme switch { "light" => 1, "oled" => 2, _ => 0 };
+        SettingsFontScaleSelector.SelectedIndex = _settings.FontScale switch { 0.85 => 0, 1.15 => 2, 1.30 => 3, _ => 1 };
+        SettingsAutoUpdateSubscriptions.IsChecked = _settings.AutoUpdateSubscriptions;
+        SettingsLaunchWithWindows.IsChecked = _settings.LaunchWithWindows;
+        SettingsMinimizeToTrayOnClose.IsChecked = _settings.MinimizeToTrayOnClose;
+        SettingsMinimizeToTrayOnStart.IsChecked = _settings.MinimizeToTrayOnStart;
     }
 
-    private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
+    private void SaveAppSettings()
     {
         try
         {
-            var diagnostics = new System.Text.StringBuilder()
-                .AppendLine("NeoTUN Windows diagnostics")
-                .AppendLine("Version: " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version)
-                .AppendLine("OS: " + Environment.OSVersion)
-                .AppendLine("Data directory: " + DataDirectory)
-                .AppendLine("Selected profile: " + (_vm.SelectedProfile?.Name ?? "none"))
-                .AppendLine("Runtime is running: " + _runtime.IsRunning);
-            if (File.Exists(RuntimeLogPath))
-                diagnostics.AppendLine().AppendLine("Runtime log:").AppendLine(File.ReadAllText(RuntimeLogPath));
-            Clipboard.SetText(diagnostics.ToString());
-            SettingsSummary.Text = "Диагностика скопирована в буфер обмена. Проверьте её перед отправкой — журнал может содержать технические адреса.";
+            File.WriteAllText(_appSettingsPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch (Exception ex) { SettingsSummary.Text = "Не удалось собрать диагностику: " + ex.Message; }
+        catch { }
     }
 
-    private static string FormatBytes(long bytes)
+    private void ApplyThemeAndScale()
     {
-        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
-        double value = Math.Max(0, bytes);
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
-        return $"{value:0.##} {units[unit]}";
+        ThemeManager.ApplyTheme(_settings.Theme);
     }
 
-    private static string FormatSpeed(long bytesPerSecond) => FormatBytes(bytesPerSecond) + "/s";
+    #endregion
+
+    #region System Tray
+
+    private void InitializeSystemTray()
+    {
+        try
+        {
+            _notifyIcon = new System.Windows.Forms.NotifyIcon
+            {
+                Text = "NeoTUN Client",
+                Icon = System.Drawing.SystemIcons.Shield,
+                Visible = true
+            };
+
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+            menu.Items.Add("Открыть NeoTUN", null, (s, e) => ShowAndRestore());
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add("Подключить / Отключить", null, (s, e) => Dispatcher.Invoke(() => Connect_Click(s, new RoutedEventArgs())));
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add("Выход", null, (s, e) => Dispatcher.Invoke(ExitApplication));
+
+            _notifyIcon.ContextMenuStrip = menu;
+            _notifyIcon.DoubleClick += (s, e) => Dispatcher.Invoke(ShowAndRestore);
+        }
+        catch (Exception ex)
+        {
+            AddLog("System tray init: " + ex.Message);
+        }
+    }
+
+    private void UpdateTrayStatus(bool connected, string? serverName = null)
+    {
+        if (_notifyIcon == null) return;
+        _notifyIcon.Text = connected
+            ? $"NeoTUN: Подключено ({serverName ?? "VPN"})"
+            : "NeoTUN: Отключено";
+    }
+
+    private void MinimizeToTray_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+    }
+
+    private void ShowAndRestore()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void ExitApplication()
+    {
+        _isExplicitExit = true;
+        CleanupSystemTray();
+        Application.Current.Shutdown();
+    }
+
+    private void CleanupSystemTray()
+    {
+        if (_notifyIcon != null)
+        {
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _notifyIcon = null;
+        }
+    }
+
+    #endregion
+
+    #region Logs & Diagnostics
 
     private void AddLog(string message)
     {
-        if (LogsText is null) return;
-        LogsText.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
-        LogsText.ScrollToEnd();
+        var line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n";
+        LogsTextBox.AppendText(line);
+        LogsTextBox.ScrollToEnd();
     }
+
+    private void CopyLogs_Click(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(LogsTextBox.Text);
+        MessageBox.Show("Журнал скопирован в буфер обмена.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ClearLogs_Click(object sender, RoutedEventArgs e)
+    {
+        LogsTextBox.Clear();
+    }
+
+    private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", _dataDirectory) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    #endregion
 }
