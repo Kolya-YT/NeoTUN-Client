@@ -1,6 +1,6 @@
 # RIPDPI integration plan
 
-Status: **Phase 0 — upstream pinned and monitored; runtime integration not enabled yet.**
+Status: **Phase 1 — NeoTUN-owned adapter contract added; upstream runtime not linked or enabled yet.**
 
 ## Goal
 
@@ -26,7 +26,26 @@ Therefore, do not add the whole workspace to NeoTUN's existing core/Cargo.toml, 
 
 ## Phases
 
-### Phase 0 — source and update safety (current)
+### Phase 0 — source and update safety (completed baseline)
+
+- Reviewed upstream commit `5ea9c492c0ba1d27cf5223642c1aa36a044aa3d5`.
+- Added `.github/ripdpi-upstream.lock` and a scheduled review workflow. The workflow only alerts for review; it does not update code or ship artifacts.
+
+### Phase 1 — minimal Rust API proof (contract started)
+
+- Added `core/src/dpi_adapter.rs` and exported it from `core/src/lib.rs`.
+- The contract models target validation, backend state/capabilities, bounded diagnostics, TCP/UDP support, and fallback to existing engines.
+- Unit tests cover invalid targets, transport capability checks, and safe fallback policy.
+- **This is an integration boundary only, not a working DPI implementation.** No RIPDPI strategy or packet interception is currently linked into NeoTUN.
+
+#### Upstream audit at the pinned revision
+
+- RIPDPI's `native/rust/Cargo.toml` is a large Rust 2024 workspace with many path-linked internal crates; NeoTUN's current `core/Cargo.toml` is a small Rust 2021 JNI crate. Adding the upstream workspace wholesale would create a toolchain/dependency and maintenance risk.
+- The candidate `ripdpi-proxy-runtime-desync-adapter` depends on numerous internal crates, including runtime services, platform, strategy registry, packet and session layers; it is not a standalone crate that can simply be added as one dependency.
+- `ripdpi-proxy-runtime-adapter` includes Unix/Linux-oriented dependencies such as `nix` and `libc`, plus runtime/platform components. Its presence does not establish Android/Windows portability or mean the strategy can operate on NeoTUN's existing TUN traffic.
+- Next gate: resolve the smallest dependency closure and its platform assumptions in a reproducible upstream checkout, then compile an isolated proof-of-concept before wiring the adapter into connection startup.
+
+### Phase 2 — Android adapter (not started)
 
 - Record the reviewed upstream commit.
 - Monitor upstream for new commits and open a single review issue when the pinned revision becomes stale.
@@ -44,13 +63,13 @@ Therefore, do not add the whole workspace to NeoTUN's existing core/Cargo.toml, 
 - Confirm whether the chosen upstream APIs operate on traffic NeoTUN can safely provide. Do not assume raw packet strategies work from a SOCKS proxy or an already-owned TUN.
 - Test direct path, local strategy, timeout/cancellation, VPN lifecycle, DNS, TCP, UDP, and fallback to the existing engines.
 
-### Phase 3 — desktop adapters
+### Phase 4 — desktop adapters
 
 - Reuse only portable logic where possible.
 - Implement separate platform-specific packet interception and permission handling.
 - Keep the feature disabled on platforms without a tested backend.
 
-### Phase 4 — controlled updates
+### Phase 5 — controlled updates
 
 - Update the pinned revision only after compatibility, license, regression, and platform checks pass.
 - Keep the last known-good revision available for rollback.
