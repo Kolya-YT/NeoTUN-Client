@@ -39,6 +39,26 @@ internal static class NativeCore
             if (ptr != IntPtr.Zero) FreeString(ptr);
         }
     }
+
+    public static string DetectEngine(string shareUri)
+    {
+        try
+        {
+            var config = BuildRuntimeConfig(shareUri);
+            return config.Engine;
+        }
+        catch
+        {
+            var lower = shareUri.ToLowerInvariant();
+            if (lower.Contains("security=reality") ||
+                lower.Contains("type=xhttp") ||
+                lower.Contains("type=splithttp"))
+            {
+                return "xray";
+            }
+            return "sing-box";
+        }
+    }
 }
 
 internal sealed record RuntimeConfig(string Engine, string SingBoxJson, string? XrayJson);
