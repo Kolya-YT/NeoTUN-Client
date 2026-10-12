@@ -1,8 +1,10 @@
 #include <jni.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 static JavaVM *g_vm = NULL;
 static jobject g_vpn_service = NULL;
+static pthread_mutex_t g_vpn_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 extern char *NeotunPrepare(char *server);
 extern char *NeotunSetAssetPath(char *path);
@@ -11,7 +13,7 @@ extern void NeotunResetDNS(void);
 extern void NeotunFree(char *value);
 
 int neotun_protect_fd(int fd) {
-    if (g_vm == NULL || g_vpn_service == NULL) {
+    if (g_vm == NULL) {
         return 0;
     }
 
@@ -24,27 +26,65 @@ int neotun_protect_fd(int fd) {
             return 0;
         }
         detach = 1;
-    } else if (attached != JNI_OK) {
+    } else if (attached != JNI_OK || env == NULL) {
         return 0;
     }
 
-    jclass cls = (*env)->GetObjectClass(env, g_vpn_service);
+    pthread_mutex_lock(&g_vpn_mutex);
+    jobject local_service = NULL;
+    if (g_vpn_service != NULL) {
+        local_service = (*env)->NewLocalRef(env, g_vpn_service);
+    }
+    pthread_mutex_unlock(&g_vpn_mutex);
+
+    if (local_service == NULL) {
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+        }
+        if (detach) {
+            (*g_vm)->DetachCurrentThread(g_vm);
+        }
+        return 0;
+    }
+
+    jclass cls = (*env)->GetObjectClass(env, local_service);
     if (cls == NULL) {
-        if (detach) (*g_vm)->DetachCurrentThread(g_vm);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+        }
+        (*env)->DeleteLocalRef(env, local_service);
+        if (detach) {
+            (*g_vm)->DetachCurrentThread(g_vm);
+        }
         return 0;
     }
 
     jmethodID protect = (*env)->GetMethodID(env, cls, "protect", "(I)Z");
     if (protect == NULL) {
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+        }
         (*env)->DeleteLocalRef(env, cls);
-        if (detach) (*g_vm)->DetachCurrentThread(g_vm);
+        (*env)->DeleteLocalRef(env, local_service);
+        if (detach) {
+            (*g_vm)->DetachCurrentThread(g_vm);
+        }
         return 0;
     }
 
-    jboolean result = (*env)->CallBooleanMethod(env, g_vpn_service, protect, (jint)fd);
-    (*env)->DeleteLocalRef(env, cls);
+    jboolean result = (*env)->CallBooleanMethod(env, local_service, protect, (jint)fd);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        result = JNI_FALSE;
+    }
 
-    if (detach) (*g_vm)->DetachCurrentThread(g_vm);
+    (*env)->DeleteLocalRef(env, cls);
+    (*env)->DeleteLocalRef(env, local_service);
+
+    if (detach) {
+        (*g_vm)->DetachCurrentThread(g_vm);
+    }
+
     return result ? 1 : 0;
 }
 
@@ -59,6 +99,7 @@ Java_com_neotun_app_NeoTunXrayBridge_nativeInit(
     JNIEnv *env, jclass clazz, jobject vpn_service) {
     (void)clazz;
 
+    pthread_mutex_lock(&g_vpn_mutex);
     if (g_vpn_service != NULL) {
         (*env)->DeleteGlobalRef(env, g_vpn_service);
         g_vpn_service = NULL;
@@ -66,6 +107,7 @@ Java_com_neotun_app_NeoTunXrayBridge_nativeInit(
     if (vpn_service != NULL) {
         g_vpn_service = (*env)->NewGlobalRef(env, vpn_service);
     }
+    pthread_mutex_unlock(&g_vpn_mutex);
 }
 
 
