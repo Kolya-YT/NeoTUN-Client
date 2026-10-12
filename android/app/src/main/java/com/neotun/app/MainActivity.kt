@@ -110,6 +110,15 @@ class MainActivity : Activity() {
             clipChildren = true
             addView(content, FrameLayout.LayoutParams(-1, -2))
         }
+        nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(6), dp(3), dp(6), dp(3))
+            setBackgroundColor(NeoTunDesign.NAVIGATION)
+        }
+        // Keep primary navigation at the top. On gesture-navigation devices the
+        // old bottom bar overlapped Android's system navigation area and hid labels.
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(56)))
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         bottomActions = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -118,21 +127,15 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         root.addView(bottomActions, LinearLayout.LayoutParams(-1, -2))
-        nav = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(dp(6), dp(3), dp(6), dp(3))
-            setBackgroundColor(NeoTunDesign.NAVIGATION)
-        }
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(60)))
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            content.setPadding(dp(16) + bars.left, dp(10) + bars.top,
+            content.setPadding(dp(16) + bars.left, dp(10),
                 dp(16) + bars.right, dp(18) + bars.bottom)
-            nav.setPadding(dp(8) + bars.left, dp(4), dp(8) + bars.right, bars.bottom + dp(4))
-            nav.layoutParams = nav.layoutParams.apply { height = dp(52) + bars.bottom }
+            nav.setPadding(dp(8) + bars.left, bars.top + dp(4),
+                dp(8) + bars.right, dp(4))
+            nav.layoutParams = nav.layoutParams.apply { height = dp(56) + bars.top }
             bottomActions.setPadding(dp(14) + bars.left, dp(6), dp(14) + bars.right, dp(6))
             view.requestLayout()
             insets
