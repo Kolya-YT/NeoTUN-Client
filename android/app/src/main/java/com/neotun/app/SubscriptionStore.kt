@@ -108,13 +108,10 @@ class SubscriptionStore(context: Context) {
         if (imported == 0) error("В подписке нет поддерживаемых профилей")
         save(candidate.copy(lastUpdated = System.currentTimeMillis()))
 
-        // Routing metadata can be delivered as plain text, response headers,
-        // or embedded in a Base64-encoded subscription body. Inspect both the
-        // original payload and its decoded text; otherwise common encoded feeds
-        // silently import servers while dropping their routing profile.
-        val decodedBody = decodeTextPayload(response.body)
+        // Inspect the original and decoded feed. This retains headers/metadata
+        // while making routing directives inside Base64 feeds visible to parser.
         importRoutingFromSubscription(
-            response.body + "\\n" + decodedBody,
+            response.body + "\n" + decodedBody,
             response.routingHeader,
             response.autoRoutingHeader,
         )
@@ -151,26 +148,6 @@ class SubscriptionStore(context: Context) {
         } finally {
             connection.disconnect()
         }
-    }
-
-    private fun decodeTextPayload(body: String): String {
-        val value = body.trim()
-        if (value.isBlank()) return ""
-        val candidates = linkedSetOf<String>()
-        candidates.add(value)
-        candidates.addAll(value.lineSequence().map { it.trim() }.filter { it.isNotBlank() })
-        candidates.toList().forEach { item ->
-            for (flags in listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)) {
-                val decoded = runCatching {
-                    Base64.decode(item.replace("\\s".toRegex(), ""), flags)
-                        .toString(StandardCharsets.UTF_8).trim()
-                }.getOrNull() ?: continue
-                if (decoded.contains("://routing/", true) ||
-                    decoded.contains("://autorouting/", true) ||
-                    decoded.startsWith("{")) candidates.add(decoded)
-            }
-        }
-        return candidates.filter { it != value }.joinToString("\\n")
     }
 
     private fun importRoutingFromSubscription(body: String, routingHeader: String?, autoRoutingHeader: String?) {
