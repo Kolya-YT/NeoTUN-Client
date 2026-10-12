@@ -189,14 +189,18 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(2), 0, dp(12))
+            setPadding(dp(2), dp(4), dp(2), dp(15))
         }
         val logo = FrameLayout(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
-            ).apply { cornerRadius = dp(13).toFloat() }
-            addView(txt("N", 21f, Color.WHITE, Typeface.BOLD, Gravity.CENTER),
+            ).apply {
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), NeoTunDesign.BRAND_VIOLET_LIGHT)
+            }
+            elevation = dp(3).toFloat()
+            addView(txt("N", 23f, Color.WHITE, Typeface.BOLD, Gravity.CENTER),
                 FrameLayout.LayoutParams(-1, -1))
         }
         top.addView(logo, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
