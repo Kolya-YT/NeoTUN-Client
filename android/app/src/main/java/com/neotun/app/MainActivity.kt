@@ -578,6 +578,12 @@ class MainActivity : Activity() {
                     setSelectedProfile(profile.id)
                     renderProfiles()
                 }
+                row.setOnLongClickListener {
+                    setSelectedProfile(profile.id)
+                    profileActions(profile)
+                    true
+                }
+                row.contentDescription = "${profile.name}, ${protocolLabel(profile)}. Нажмите для выбора, удерживайте для действий"
                 listCard.addView(row)
                 if (index < groupProfiles.lastIndex) listCard.addView(View(this).apply {
                     setBackgroundColor(NeoTunDesign.BORDER)
