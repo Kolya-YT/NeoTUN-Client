@@ -444,6 +444,8 @@ class NeoTunXrayVpnService : VpnService() {
             tunFd = -1
         }
 
+        runCatching { NeoTunXrayBridge.nativeInit(null) }
+
         running = false
         starting = false
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
@@ -486,6 +488,7 @@ class NeoTunXrayVpnService : VpnService() {
             tunFd = -1
         }
         NeoTunXrayBridge.nativeResetDns()
+        runCatching { NeoTunXrayBridge.nativeInit(null) }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
