@@ -1818,9 +1818,12 @@ class MainActivity : Activity() {
             runOnUiThread {
                 result.onSuccess {
                     if (selectedProfileId() == null) store.all().firstOrNull()?.let { setSelectedProfile(it.id) }
-                    showScreen(Screen.HOME)
-                    toast("${subscription.name}: импортировано $it профилей")
-                }.onFailure { toast("Подписка: ${it.message ?: "ошибка обновления"}") }
+                    if (screen == Screen.PROFILES) renderProfiles() else showScreen(Screen.HOME)
+                    toast("${subscription.name}: обновлено профилей — $it")
+                }.onFailure {
+                    NeoTunDiagnostics.log(this, "Subscription refresh failed for ${subscription.name}: ${it.message}")
+                    toast("Не удалось обновить подписку: ${it.message ?: "неизвестная ошибка"}")
+                }
             }
         }.start()
     }
