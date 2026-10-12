@@ -608,8 +608,12 @@ class MainActivity : Activity() {
                         owned.forEachIndexed { ownedIndex, profile ->
                             val server = serverRow(profile, profile.id == selected, compact = true)
                             server.setOnClickListener {
-                                setSelectedProfile(profile.id)
-                                renderProfiles()
+                                if (profile.id != selectedProfileId() && isRunning()) {
+                                    switchServer(profile)
+                                } else {
+                                    setSelectedProfile(profile.id)
+                                    renderProfiles()
+                                }
                             }
                             server.setOnLongClickListener {
                                 setSelectedProfile(profile.id)
