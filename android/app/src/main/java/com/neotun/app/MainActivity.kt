@@ -908,7 +908,7 @@ class MainActivity : Activity() {
         val keys = arrayOf("dark", "light", "oled")
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
         val selected = keys.indexOf(prefs.getString("appearance_theme", "dark")).coerceAtLeast(0)
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Тема оформления")
             .setSingleChoiceItems(modes, selected) { dialog, which ->
                 prefs.edit().putString("appearance_theme", keys[which]).apply()
@@ -918,7 +918,9 @@ class MainActivity : Activity() {
                 showScreen(screen)
             }
             .setNegativeButton("Отмена", null)
-            .show()
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun showFontSizeSettings() {
@@ -926,7 +928,7 @@ class MainActivity : Activity() {
         val values = intArrayOf(85, 100, 115, 130)
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
         val selected = values.indexOf(prefs.getInt("font_scale", 100)).coerceAtLeast(0)
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Размер текста")
             .setSingleChoiceItems(labels, selected) { dialog, which ->
                 prefs.edit().putInt("font_scale", values[which]).apply()
@@ -935,7 +937,9 @@ class MainActivity : Activity() {
                 showScreen(screen)
             }
             .setNegativeButton("Отмена", null)
-            .show()
+            .create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
     }
 
     private fun showAppExclusionSettings() {
