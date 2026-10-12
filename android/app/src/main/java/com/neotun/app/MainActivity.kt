@@ -758,7 +758,8 @@ class MainActivity : Activity() {
         if (selected) {
             row.background = rounded(NeoTunDesign.NAV_SELECTED, 15, NeoTunDesign.BORDER_ACCENT, 1)
         }
-        row.minimumHeight = dp(if (compact) 46 else 50)
+        // Compact subscription rows while retaining a comfortable touch target.
+        row.minimumHeight = dp(if (compact) 44 else 48)
         return row
     }
 
@@ -921,8 +922,9 @@ class MainActivity : Activity() {
     private fun settingsRow(title: String, value: String, summary: String, action: () -> Unit): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(7), dp(13), dp(5), dp(13))
-            minimumHeight = dp(62)
+            // Keep settings dense enough for phone screens without shrinking tap targets.
+            setPadding(dp(7), dp(9), dp(5), dp(9))
+            minimumHeight = dp(56)
             isClickable = true
             isFocusable = true
             background = android.graphics.drawable.RippleDrawable(
