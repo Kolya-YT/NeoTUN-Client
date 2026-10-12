@@ -769,12 +769,26 @@ class MainActivity : Activity() {
 
     private fun settingsSection(title: String): LinearLayout {
         val section = card().apply {
-            setPadding(dp(13), dp(11), dp(13), dp(7))
+            setPadding(dp(12), dp(9), dp(12), dp(5))
             background = rounded(NeoTunDesign.SURFACE, 17, NeoTunDesign.BORDER, 1)
             elevation = 0f
         }
-        section.addView(txt(title, 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
-            margins(start = 2, bottom = 4))
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(5))
+        }
+        heading.addView(View(this).apply {
+            background = rounded(NeoTunDesign.BRAND_VIOLET, 3)
+        }, LinearLayout.LayoutParams(dp(3), dp(15)).apply {
+            setMargins(dp(2), 0, dp(8), 0)
+        })
+        heading.addView(txt(title, 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD).apply {
+            letterSpacing = 0.025f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        section.addView(heading)
         return section
     }
 
