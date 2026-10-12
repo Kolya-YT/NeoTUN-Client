@@ -13,6 +13,13 @@ on:
       - "installer/**"
       - "README.md"
       - "DESIGN_SYSTEM.md"
+  pull_request:
+    paths:
+      - "windows/**"
+      - "core/**"
+      - "installer/**"
+      - ".github/workflows/desktop.yml"
+
   workflow_dispatch:
     inputs:
       release_tag:

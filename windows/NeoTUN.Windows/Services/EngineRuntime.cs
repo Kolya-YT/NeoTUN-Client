@@ -63,8 +63,11 @@ internal sealed class EngineRuntime : IDisposable
         if (IsRunning) return;
         Interlocked.Exchange(ref _stopRequested, 0);
         Interlocked.Exchange(ref _isStarting, 1);
-        _lastSingBoxError = null;
-        _lastXrayError = null;
+        lock (_errorSync)
+        {
+            _singBoxErrors.Clear();
+            _xrayErrors.Clear();
+        }
         if (_singBox is not null || _xray is not null) await StopAsync();
 
         var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
