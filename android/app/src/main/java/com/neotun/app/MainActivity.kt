@@ -2047,16 +2047,14 @@ class MainActivity : Activity() {
     }
 
     private fun profileActions(p: NeoTunProfile) {
+        // Keep the common actions short and move rare/administrative actions out
+        // of the primary menu so a tap on the three-dot button is not overwhelming.
         val options = arrayOf(
-            "Подключиться к серверу",
-            "Настройки сервера",
+            "Подключиться",
+            "Редактировать профиль",
             "Просмотреть конфигурацию",
-            "Возможности ядра",
-            "Скопировать ссылку",
-            "Поделиться ссылкой",
-            "Показать QR-код",
-            "Переименовать",
-            "Удалить"
+            "Копировать ссылку",
+            "Дополнительные действия…"
         )
         val dialog = AlertDialog.Builder(this).setTitle(p.name)
             .setItems(options) { _, which ->
@@ -2064,12 +2062,30 @@ class MainActivity : Activity() {
                     0 -> selectProfile(p)
                     1 -> editProfile(p)
                     2 -> showProfileConfig(p)
-                    3 -> showEngineCapabilities(p)
-                    4 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
-                    5 -> shareText("NeoTUN · ${p.name}", p.uri)
-                    6 -> showProfileQr(p)
-                    7 -> rename(p)
-                    8 -> confirmDelete(p)
+                    3 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
+                    4 -> profileMoreActions(p)
+                }
+            }.create()
+        dialog.setOnShowListener { styleDialog(dialog) }
+        dialog.show()
+    }
+
+    private fun profileMoreActions(p: NeoTunProfile) {
+        val options = arrayOf(
+            "Поделиться ссылкой",
+            "Показать QR-код",
+            "Возможности ядра",
+            "Переименовать",
+            "Удалить"
+        )
+        val dialog = AlertDialog.Builder(this).setTitle("Дополнительно · ${p.name}")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> shareText("NeoTUN · ${p.name}", p.uri)
+                    1 -> showProfileQr(p)
+                    2 -> showEngineCapabilities(p)
+                    3 -> rename(p)
+                    4 -> confirmDelete(p)
                 }
             }.create()
         dialog.setOnShowListener { styleDialog(dialog) }
