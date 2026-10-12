@@ -842,12 +842,19 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeVersion(
 
 impl Profile {
     pub fn engine(&self) -> &'static str {
-        // Use sing-box natively for VLESS transports it supports. Keep Xray only
-        // for XHTTP/SplitHTTP, whose implementation is more compatible in Xray.
         let transport = self.params.get("type")
             .map(|value| value.to_ascii_lowercase())
             .unwrap_or_default();
-        if self.protocol == "vless" && matches!(transport.as_str(), "xhttp" | "splithttp") {
+        let security = self.params.get("security")
+            .map(|value| value.to_ascii_lowercase())
+            .unwrap_or_default();
+
+        // Newer Xray REALITY servers require the X25519MLKEM768 key share.
+        // sing-box's current Firefox uTLS fingerprint does not provide it,
+        // producing "reality verification failed" even with correct URI keys.
+        // Route VLESS REALITY through Xray, which supports this handshake.
+        if self.protocol == "vless" &&
+            (matches!(transport.as_str(), "xhttp" | "splithttp") || security == "reality") {
             "xray"
         } else {
             "sing-box"
@@ -1018,6 +1025,16 @@ mod tests {
             assert_eq!(runtime["engine"], "sing-box", "transport={transport}");
             assert!(runtime.get("xray_config").is_none());
             assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
+        }
+
+        for transport in ["tcp", "ws", "grpc", "httpupgrade", "http", "xhttp", "splithttp"] {
+            let uri = format!("vless://123e4567-e89b-12d3-a456-426614174000@example.com:9443?security=reality&type={transport}&fp=firefox&pbk=public-key&sid=a1baa1&sni=example.com");
+            let profile = Profile::from_share_uri(&uri).unwrap();
+            assert_eq!(profile.engine(), "xray", "REALITY transport={transport}");
+            let runtime: serde_json::Value =
+                serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+            assert_eq!(runtime["engine"], "xray", "REALITY transport={transport}");
+            assert_eq!(runtime["xray_config"]["outbounds"][0]["protocol"], "vless");
         }
 
         for transport in ["xhttp", "splithttp"] {
