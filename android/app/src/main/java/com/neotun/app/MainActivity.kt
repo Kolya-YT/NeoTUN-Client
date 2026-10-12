@@ -1471,8 +1471,10 @@ class MainActivity : Activity() {
     private fun startVpnFromPrefs() {
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         val engine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
-        // Reflect the user's action immediately. The service clears this flag if startup fails.
-        prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).apply()
+        // Do not mark the tunnel as connected optimistically. The selected service
+        // owns KEY_RUNNING and sets it only after its engine startup succeeds.
+        // Otherwise a failed server switch can leave the UI claiming "connected".
+        prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         if (engine == NeoTunVpnService.ENGINE_XRAY) {
             val uri = prefs.getString(NeoTunVpnService.KEY_URI, null)
             if (uri.isNullOrBlank()) {
