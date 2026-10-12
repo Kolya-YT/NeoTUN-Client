@@ -3,15 +3,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
   <Application.Resources>
-    <Color x:Key="BackgroundColor">#080A12</Color>
-    <Color x:Key="NavigationColor">#0D101B</Color>
-    <Color x:Key="SurfaceColor">#131725</Color>
-    <Color x:Key="RaisedSurfaceColor">#1B2031</Color>
-    <Color x:Key="InputSurfaceColor">#0E1220</Color>
-    <Color x:Key="BorderColor">#292F45</Color>
-    <Color x:Key="BrandVioletColor">#8068FF</Color>
-    <Color x:Key="BrandBlueColor">#5B68F2</Color>
-    <Color x:Key="AccentSurfaceColor">#211D38</Color>
+    <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+
+    <!-- Base NeoTunDesign Tokens (Dark Theme Default) -->
+    <Color x:Key="BackgroundColor">#0B0815</Color>
+    <Color x:Key="NavigationColor">#120D20</Color>
+    <Color x:Key="SurfaceColor">#191226</Color>
+    <Color x:Key="RaisedSurfaceColor">#251A36</Color>
+    <Color x:Key="InputSurfaceColor">#120C1E</Color>
+    <Color x:Key="BorderColor">#38284F</Color>
+    <Color x:Key="BorderAccentColor">#7851B8</Color>
+    <Color x:Key="BrandVioletColor">#8B5CF6</Color>
+    <Color x:Key="BrandVioletLightColor">#C4B5FD</Color>
+    <Color x:Key="BrandBlueColor">#6D8DFF</Color>
+    <Color x:Key="BrandSoftColor">#2A1B45</Color>
+    <Color x:Key="NavSelectedColor">#2A1B45</Color>
     <Color x:Key="TextPrimaryColor">#F7F8FF</Color>
     <Color x:Key="TextSecondaryColor">#B1B8CD</Color>
     <Color x:Key="TextMutedColor">#858EA8</Color>
@@ -19,15 +25,22 @@
     <Color x:Key="SuccessSurfaceColor">#12362F</Color>
     <Color x:Key="DangerColor">#FFB5C3</Color>
     <Color x:Key="DangerSurfaceColor">#321C29</Color>
+    <Color x:Key="WarningColor">#FFCA7A</Color>
+    <Color x:Key="WarningSurfaceColor">#3B2C15</Color>
+
+    <!-- Brushes -->
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
     <SolidColorBrush x:Key="NavigationBrush" Color="{StaticResource NavigationColor}" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="RaisedSurfaceBrush" Color="{StaticResource RaisedSurfaceColor}" />
     <SolidColorBrush x:Key="InputSurfaceBrush" Color="{StaticResource InputSurfaceColor}" />
     <SolidColorBrush x:Key="BorderBrushNeo" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="BorderAccentBrush" Color="{StaticResource BorderAccentColor}" />
     <SolidColorBrush x:Key="BrandVioletBrush" Color="{StaticResource BrandVioletColor}" />
+    <SolidColorBrush x:Key="BrandVioletLightBrush" Color="{StaticResource BrandVioletLightColor}" />
     <SolidColorBrush x:Key="BrandBlueBrush" Color="{StaticResource BrandBlueColor}" />
-    <SolidColorBrush x:Key="AccentSurfaceBrush" Color="{StaticResource AccentSurfaceColor}" />
+    <SolidColorBrush x:Key="BrandSoftBrush" Color="{StaticResource BrandSoftColor}" />
+    <SolidColorBrush x:Key="NavSelectedBrush" Color="{StaticResource NavSelectedColor}" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
@@ -35,37 +48,56 @@
     <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="{StaticResource SuccessSurfaceColor}" />
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
     <SolidColorBrush x:Key="DangerSurfaceBrush" Color="{StaticResource DangerSurfaceColor}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
+    <SolidColorBrush x:Key="WarningSurfaceBrush" Color="{StaticResource WarningSurfaceColor}" />
 
+    <!-- Brand Gradients -->
+    <LinearGradientBrush x:Key="BrandGradient" StartPoint="0,0" EndPoint="1,0">
+      <GradientStop Color="{StaticResource BrandVioletColor}" Offset="0.0"/>
+      <GradientStop Color="{StaticResource BrandBlueColor}" Offset="1.0"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="HeroIdleGradient" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="{StaticResource BrandSoftColor}" Offset="0.0"/>
+      <GradientStop Color="{StaticResource SurfaceColor}" Offset="1.0"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="HeroConnectedGradient" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="{StaticResource SuccessSurfaceColor}" Offset="0.0"/>
+      <GradientStop Color="{StaticResource SurfaceColor}" Offset="1.0"/>
+    </LinearGradientBrush>
+
+    <!-- Global Typography and Element Styles -->
     <Style TargetType="TextBlock">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
       <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
     </Style>
+
     <Style TargetType="Label">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
     </Style>
-    <Style TargetType="ListBox">
+
+    <Style TargetType="Window">
+      <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-      <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
+      <Setter Property="FontFamily" Value="Segoe UI, -apple-system, Roboto, sans-serif"/>
+      <Setter Property="FontSize" Value="14"/>
     </Style>
-    <Style TargetType="ListBoxItem">
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-      <Setter Property="Padding" Value="0"/>
-    </Style>
-    <Style TargetType="Button">
+
+    <!-- Buttons -->
+    <Style TargetType="{x:Type Button}">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="Background" Value="{StaticResource RaisedSurfaceBrush}"/>
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="Padding" Value="14,9"/>
-      <Setter Property="MinHeight" Value="38"/>
+      <Setter Property="Padding" Value="14,8"/>
+      <Setter Property="MinHeight" Value="36"/>
       <Setter Property="FontSize" Value="13"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template">
         <Setter.Value>
-          <ControlTemplate TargetType="Button">
+          <ControlTemplate TargetType="{x:Type Button}">
             <Border x:Name="ButtonSurface" Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                     CornerRadius="10" Padding="{TemplateBinding Padding}">
@@ -75,11 +107,11 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="ButtonSurface" Property="BorderBrush" Value="{StaticResource BrandVioletBrush}"/>
-                <Setter TargetName="ButtonSurface" Property="Opacity" Value="0.96"/>
+                <Setter TargetName="ButtonSurface" Property="BorderBrush" Value="{StaticResource BorderAccentBrush}"/>
+                <Setter TargetName="ButtonSurface" Property="Opacity" Value="0.95"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="ButtonSurface" Property="Opacity" Value="0.82"/>
+                <Setter TargetName="ButtonSurface" Property="Opacity" Value="0.80"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="ButtonSurface" Property="Opacity" Value="0.45"/>
@@ -89,52 +121,88 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <Style TargetType="TextBox">
+
+    <Style x:Key="BrandButton" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{StaticResource BrandGradient}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BrandVioletBrush}"/>
+      <Setter Property="Foreground" Value="#FFFFFF"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="DangerButton" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{StaticResource DangerSurfaceBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+    </Style>
+
+    <Style x:Key="OutlineButton" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
+    </Style>
+
+    <!-- Text Inputs -->
+    <Style TargetType="{x:Type TextBox}">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="Background" Value="{StaticResource InputSurfaceBrush}"/>
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="Padding" Value="10,8"/>
       <Setter Property="CaretBrush" Value="{StaticResource BrandVioletBrush}"/>
+      <Setter Property="SelectionBrush" Value="{StaticResource BrandVioletBrush}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type TextBox}">
+            <Border x:Name="BoxBorder" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="10">
+              <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsFocused" Value="True">
+                <Setter TargetName="BoxBorder" Property="BorderBrush" Value="{StaticResource BorderAccentBrush}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
-    <Style TargetType="Window">
-      <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-      <Setter Property="FontFamily" Value="Segoe UI"/>
-      <Setter Property="FontSize" Value="14"/>
-    </Style>
-    
-    
-    <Style TargetType="ComboBox">
+
+    <!-- ComboBox -->
+    <Style TargetType="{x:Type ComboBox}">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="Background" Value="{StaticResource InputSurfaceBrush}"/>
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
-      <Setter Property="Padding" Value="9,6"/>
-      <Setter Property="MinHeight" Value="38"/>
+      <Setter Property="Padding" Value="10,6"/>
+      <Setter Property="MinHeight" Value="36"/>
     </Style>
-    <Style TargetType="ComboBoxItem">
+
+    <Style TargetType="{x:Type ComboBoxItem}">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
       <Setter Property="Padding" Value="10,8"/>
       <Style.Triggers>
         <Trigger Property="IsHighlighted" Value="True">
-          <Setter Property="Background" Value="{StaticResource AccentSurfaceBrush}"/>
+          <Setter Property="Background" Value="{StaticResource BrandSoftBrush}"/>
         </Trigger>
         <Trigger Property="IsSelected" Value="True">
-          <Setter Property="Background" Value="{StaticResource AccentSurfaceBrush}"/>
+          <Setter Property="Background" Value="{StaticResource BrandSoftBrush}"/>
           <Setter Property="Foreground" Value="{StaticResource BrandVioletBrush}"/>
         </Trigger>
       </Style.Triggers>
     </Style>
-    <Style TargetType="CheckBox">
+
+    <!-- CheckBox -->
+    <Style TargetType="{x:Type CheckBox}">
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
-      <Setter Property="Padding" Value="2,4"/>
+      <Setter Property="Padding" Value="4,2"/>
     </Style>
-    <Style TargetType="ScrollBar">
+
+    <!-- ScrollBar -->
+    <Style TargetType="{x:Type ScrollBar}">
       <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
-      <Setter Property="Width" Value="10"/>
+      <Setter Property="Width" Value="8"/>
     </Style>
   </Application.Resources>
 </Application>
