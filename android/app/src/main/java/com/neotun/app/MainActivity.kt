@@ -723,28 +723,28 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-        if (!compact) {
-            val pingColumn = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                minimumWidth = dp(46)
-            }
-            val pingLabel = pingResults[profile.id] ?: "Пинг"
-            pingColumn.addView(txt(pingLabel, 9f,
-                if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
-                Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
-                LinearLayout.LayoutParams(-1, dp(15)))
-            pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
-                NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
-                isClickable = true
-                isFocusable = true
-                contentDescription = "Проверить пинг: ${profile.name}"
-                setOnClickListener { pingSelected(profile) }
-            }, LinearLayout.LayoutParams(-1, dp(27)))
-            row.addView(pingColumn, LinearLayout.LayoutParams(dp(48), dp(42)).apply {
-                setMargins(dp(3), 0, dp(2), 0)
-            })
+        // Show ping in both standalone and subscription rows. Compact rows used
+        // to hide this column entirely, making ping appear to have disappeared.
+        val pingColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            minimumWidth = dp(if (compact) 40 else 46)
         }
+        val pingLabel = pingResults[profile.id] ?: "Пинг"
+        pingColumn.addView(txt(pingLabel, if (compact) 8.5f else 9f,
+            if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
+            Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END },
+            LinearLayout.LayoutParams(-1, dp(15)))
+        pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴",
+            if (compact) 18f else 21f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Проверить пинг: ${profile.name}"
+            setOnClickListener { pingSelected(profile) }
+        }, LinearLayout.LayoutParams(-1, dp(25)))
+        row.addView(pingColumn, LinearLayout.LayoutParams(dp(if (compact) 40 else 48), dp(42)).apply {
+            setMargins(dp(2), 0, dp(1), 0)
+        })
         val action = iconButton(if (compact) "›" else "⋯", 22) {
             if (compact) showProfileConfig(profile) else profileActions(profile)
         }.apply {
@@ -1507,44 +1507,48 @@ class MainActivity : Activity() {
         NeoTunHomeWidget.refreshAll(this)
     }
 
+    private var switchGeneration = 0
+
     private fun switchServer(profile: NeoTunProfile) {
-        if (isFinishing) return
+        if (isFinishing || isDestroyed) return
+        val generation = ++switchGeneration
         setSelectedProfile(profile.id)
         NeoTunDiagnostics.log(this, "Switching server to " +
-            profile.uri.substringBefore("://").lowercase() + " via automatic reconnect")
+            profile.uri.substringBefore("://").lowercase() + "; generation=" + generation)
+        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
+            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+            .remove(NeoTunVpnService.KEY_ERROR)
+            .apply()
         disconnect()
 
-        // libbox and Xray release their TUN interfaces asynchronously. Starting
-        // the replacement immediately can race that teardown and terminate the app
-        // or leave Android's VPN interface attached to the previous profile.
+        // Wait for the active engine to release its TUN before starting the next
+        // profile. Ignore stale queued switches if the user taps another server.
         handler.postDelayed({
-            if (isFinishing || isDestroyed) return@postDelayed
+            if (isFinishing || isDestroyed || generation != switchGeneration) return@postDelayed
+            NeoTunDiagnostics.log(this, "Starting selected profile after tunnel teardown; generation=" + generation)
             connect(profile)
-        }, 1_500L)
+        }, 2_500L)
+        renderProfiles()
     }
 
     private fun disconnect() {
-        // Send the explicit shutdown command first. The services own the
-        // actual Xray/sing-box + TUN teardown.
-        runCatching {
-            startService(
-                Intent(this, NeoTunXrayVpnService::class.java)
-                    .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT)
-            )
+        // Stop only the engine currently selected in shared state. Starting both
+        // VPN services just to stop them can race service startup/teardown.
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        val activeEngine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+        val target = if (activeEngine == NeoTunVpnService.ENGINE_XRAY) {
+            Intent(this, NeoTunXrayVpnService::class.java)
+                .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT)
+        } else {
+            Intent(this, NeoTunVpnService::class.java)
+                .setAction(NeoTunVpnService.ACTION_DISCONNECT)
         }
-        runCatching {
-            startService(
-                Intent(this, NeoTunVpnService::class.java)
-                    .setAction(NeoTunVpnService.ACTION_DISCONNECT)
-            )
-        }
+        runCatching { startService(target) }
+            .onFailure { NeoTunDiagnostics.error(this, "Failed to stop active tunnel before switch", it) }
 
-        // Do not call stopService immediately after sending the command: that
-        // races onStartCommand and can interrupt native TUN teardown.
-        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-            .edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
+        prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         resetTrafficCounters()
-        renderHome()
+        if (screen == Screen.HOME) renderHome()
         NeoTunHomeWidget.refreshAll(this)
         handler.postDelayed({
             if (!isFinishing && screen == Screen.HOME) renderHome()
