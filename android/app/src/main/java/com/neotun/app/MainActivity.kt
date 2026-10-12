@@ -359,20 +359,9 @@ class MainActivity : Activity() {
                         if (profile.id == selectedProfileId()) {
                             showScreen(Screen.PROFILES)
                         } else if (isRunning()) {
-                            val dialog = AlertDialog.Builder(this@MainActivity)
-                                .setTitle("Переключить сервер?")
-                                .setMessage("Текущее соединение будет остановлено и запущено заново через «${profile.name}».")
-                                .setNegativeButton("Отмена", null)
-                                .setPositiveButton("Переключить") { _, _ ->
-                                    setSelectedProfile(profile.id)
-                                    disconnect()
-                                    handler.postDelayed({
-                                        if (!isFinishing) connect(profile)
-                                    }, 800L)
-                                }
-                                .create()
-                            dialog.setOnShowListener { styleDialog(dialog) }
-                            dialog.show()
+                            // Switch without a confirmation dialog. Fully request the
+                            // active tunnel shutdown before starting the new profile.
+                            switchServer(profile)
                         } else {
                             setSelectedProfile(profile.id)
                             renderHome()
@@ -1440,6 +1429,22 @@ class MainActivity : Activity() {
         }
         renderHome()
         NeoTunHomeWidget.refreshAll(this)
+    }
+
+    private fun switchServer(profile: NeoTunProfile) {
+        if (isFinishing) return
+        setSelectedProfile(profile.id)
+        NeoTunDiagnostics.log(this, "Switching server to " +
+            profile.uri.substringBefore("://").lowercase() + " via automatic reconnect")
+        disconnect()
+
+        // libbox and Xray release their TUN interfaces asynchronously. Starting
+        // the replacement immediately can race that teardown and terminate the app
+        // or leave Android's VPN interface attached to the previous profile.
+        handler.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            connect(profile)
+        }, 1_500L)
     }
 
     private fun disconnect() {
