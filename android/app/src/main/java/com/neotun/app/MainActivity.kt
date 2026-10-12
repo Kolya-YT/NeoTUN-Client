@@ -2125,52 +2125,181 @@ class MainActivity : Activity() {
     }
 
     private fun editProfile(p: NeoTunProfile) {
-        val name = EditText(this).apply {
-            setText(p.name)
-            hint = "Название сервера"
+        val original = p.uri
+        val scheme = original.substringBefore("://").lowercase()
+        val withoutFragment = original.substringBefore("#")
+        val fragment = original.substringAfter("#", "").takeIf { "#" in original }
+        val withoutQuery = withoutFragment.substringBefore("?")
+        val rawQuery = withoutFragment.substringAfter("?", "").takeIf { "?" in withoutFragment }.orEmpty()
+        val authority = withoutQuery.substringAfter("://", "")
+        val rawUserInfo = authority.substringBeforeLast("@", "").takeIf { "@" in authority }.orEmpty()
+        val hostPort = authority.substringAfterLast("@")
+        val parsed = runCatching { java.net.URI(original) }.getOrNull()
+        val query = linkedMapOf<String, String>()
+        rawQuery.split("&").filter { it.isNotBlank() }.forEach { pair ->
+            val key = decodeUriValue(pair.substringBefore("="))
+            val value = decodeUriValue(pair.substringAfter("=", ""))
+            if (key.isNotBlank()) query[key] = value
+        }
+        fun first(vararg keys: String): String = keys.firstNotNullOfOrNull { key ->
+            query.entries.firstOrNull { it.key.equals(key, true) }?.value
+        }.orEmpty()
+        fun decode(value: String): String = runCatching {
+            java.net.URLDecoder.decode(value, "UTF-8")
+        }.getOrDefault(value)
+        fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")
+            .replace("+", "%20")
+        val profileName = EditText(this).apply {
+            setText(p.name); hint = "Название профиля"; isSingleLine = true
+        }
+        val address = EditText(this).apply {
+            setText(parsed?.host ?: hostPort.substringBefore(":")); hint = "Адрес сервера"
             isSingleLine = true
         }
-        val uri = EditText(this).apply {
-            setText(p.uri)
-            hint = "Ссылка конфигурации"
-            minLines = 4
-            maxLines = 8
-            gravity = Gravity.TOP
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        val port = EditText(this).apply {
+            setText(parsed?.port?.takeIf { it > 0 }?.toString()
+                ?: hostPort.substringAfterLast(":", "").takeIf { it.toIntOrNull() != null }.orEmpty())
+            hint = "Порт"; inputType = InputType.TYPE_CLASS_NUMBER; isSingleLine = true
         }
-        val box = LinearLayout(this).apply {
+        val identity = EditText(this).apply {
+            setText(decode(rawUserInfo)); hint = "UUID / пароль / ключ"; isSingleLine = true
+        }
+        val flow = EditText(this).apply { setText(first("flow")); hint = "Flow (если требуется)"; isSingleLine = true }
+        val transport = EditText(this).apply {
+            setText(first("type", "network").ifBlank { if (scheme in listOf("vless", "vmess")) "tcp" else "" })
+            hint = "Транспорт: tcp, ws, grpc, xhttp…"; isSingleLine = true
+        }
+        val security = EditText(this).apply {
+            setText(first("security").ifBlank { if (scheme in listOf("trojan", "https")) "tls" else "none" })
+            hint = "Защита: none, tls, reality"; isSingleLine = true
+        }
+        val path = EditText(this).apply { setText(first("path")); hint = "Путь (path)"; isSingleLine = true }
+        val hostHeader = EditText(this).apply { setText(first("host")); hint = "Host заголовка"; isSingleLine = true }
+        val mode = EditText(this).apply { setText(first("mode")); hint = "Режим XHTTP"; isSingleLine = true }
+        val sni = EditText(this).apply { setText(first("sni", "serverName", "server_name")); hint = "SNI"; isSingleLine = true }
+        val fingerprint = EditText(this).apply { setText(first("fp", "fingerprint", "utlsFingerprint")); hint = "Fingerprint"; isSingleLine = true }
+        val alpn = EditText(this).apply { setText(first("alpn")); hint = "ALPN"; isSingleLine = true }
+        val publicKey = EditText(this).apply { setText(first("pbk", "publicKey", "public_key")); hint = "REALITY PublicKey"; isSingleLine = true }
+        val shortId = EditText(this).apply { setText(first("sid", "shortId", "short_id")); hint = "REALITY ShortId"; isSingleLine = true }
+        val spiderX = EditText(this).apply { setText(first("spx", "spiderX", "spider_x")); hint = "REALITY SpiderX"; isSingleLine = true }
+
+        val dialog = Dialog(this)
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(4), dp(20), 0)
-            addView(txt("Название", 12f, NeoTunDesign.TEXT_MUTED), margins(bottom = 4))
-            addView(name, LinearLayout.LayoutParams(-1, dp(48)))
-            addView(txt("Ссылка / конфигурация", 12f, NeoTunDesign.TEXT_MUTED), margins(top = 12, bottom = 4))
-            addView(uri, LinearLayout.LayoutParams(-1, dp(132)))
-            if (p.sourceSubscriptionId != null) {
-                addView(txt("Профиль получен из подписки. При следующем обновлении подписки изменения ссылки могут быть заменены исходной конфигурацией.",
-                    11f, NeoTunDesign.TEXT_MUTED), margins(top = 8))
-            }
+            setBackgroundColor(NeoTunDesign.BACKGROUND)
         }
-        val dialog = AlertDialog.Builder(this).setTitle("Настройки сервера")
-            .setView(ScrollView(this).apply { addView(box) })
-            .setNegativeButton("Отмена", null)
-            .setPositiveButton("Сохранить", null)
-            .create()
-        dialog.setOnShowListener {
-            styleDialog(dialog)
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val newUri = uri.text.toString().trim()
-                val engine = NeoTunCore.nativeShareEngine(newUri)
-                if (engine == "unknown") {
-                    uri.error = "Неподдерживаемая ссылка"
-                    return@setOnClickListener
-                }
-                store.save(p.copy(name = name.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine))
-                dialog.dismiss()
-                renderProfiles()
-                toast("Настройки сервера сохранены")
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
+        toolbar.addView(iconButton("‹", 30) { dialog.dismiss() }.apply {
+            background = ColorDrawable(Color.TRANSPARENT); contentDescription = "Назад"
+        }, LinearLayout.LayoutParams(dp(44), dp(48)))
+        toolbar.addView(txt("Редактор профиля", 19f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        toolbar.addView(iconButton("✓", 25) {
+            val newHost = address.text.toString().trim()
+            val newPort = port.text.toString().trim()
+            if (newHost.isBlank()) { address.error = "Укажите адрес сервера"; return@iconButton }
+            if (newPort.toIntOrNull() !in 1..65535) { port.error = "Порт должен быть от 1 до 65535"; return@iconButton }
+            val updated = linkedMapOf<String, String>()
+            updated.putAll(query)
+            fun setParam(key: String, value: String, aliases: List<String> = emptyList()) {
+                (listOf(key) + aliases).forEach { alias -> updated.keys.filter { it.equals(alias, true) }.toList().forEach(updated::remove) }
+                if (value.isNotBlank()) updated[key] = value
             }
+            setParam("flow", flow.text.toString().trim())
+            setParam("type", transport.text.toString().trim().lowercase(), listOf("network"))
+            setParam("security", security.text.toString().trim().lowercase())
+            setParam("path", path.text.toString().trim())
+            setParam("host", hostHeader.text.toString().trim())
+            setParam("mode", mode.text.toString().trim())
+            setParam("sni", sni.text.toString().trim(), listOf("serverName", "server_name"))
+            setParam("fp", fingerprint.text.toString().trim(), listOf("fingerprint", "utlsFingerprint"))
+            setParam("alpn", alpn.text.toString().trim())
+            setParam("pbk", publicKey.text.toString().trim(), listOf("publicKey", "public_key"))
+            setParam("sid", shortId.text.toString().trim(), listOf("shortId", "short_id"))
+            setParam("spx", spiderX.text.toString().trim(), listOf("spiderX", "spider_x"))
+            val newAuthority = (identity.text.toString().trim().takeIf { it.isNotBlank() }?.let { encode(it) + "@" } ?: "") +
+                (if (newHost.contains(":") && !newHost.startsWith("[")) "[$newHost]" else newHost) + ":$newPort"
+            val newQuery = updated.entries.joinToString("&") { "${encode(it.key)}=${encode(it.value)}" }
+            val newUri = buildString {
+                append(scheme).append("://").append(newAuthority)
+                if (newQuery.isNotBlank()) append("?").append(newQuery)
+                if (fragment != null) append("#").append(fragment)
+            }
+            val engine = NeoTunCore.nativeShareEngine(newUri)
+            if (engine == "unknown") {
+                toast("Не удалось определить ядро для этой ссылки")
+                return@iconButton
+            }
+            store.save(p.copy(name = profileName.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine))
+            dialog.dismiss()
+            renderProfiles()
+            toast("Профиль сохранён")
+        }.apply {
+            background = ColorDrawable(Color.TRANSPARENT); contentDescription = "Сохранить профиль"
+        }, LinearLayout.LayoutParams(dp(44), dp(48)))
+        root.addView(toolbar)
+        root.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
+            LinearLayout.LayoutParams(-1, dp(1)))
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(24))
+        }
+        fun section(title: String) {
+            body.addView(txt(title, 14f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
+                margins(top = 18, bottom = 8))
+        }
+        fun field(label: String, input: EditText) {
+            body.addView(txt(label, 11f, NeoTunDesign.TEXT_MUTED), margins(top = 8, bottom = 4))
+            input.setTextColor(NeoTunDesign.TEXT_PRIMARY)
+            input.setHintTextColor(NeoTunDesign.TEXT_MUTED)
+            input.textSize = 14f
+            input.setPadding(dp(12), dp(10), dp(12), dp(10))
+            input.background = rounded(NeoTunDesign.SURFACE, 10, NeoTunDesign.BORDER, 1)
+            body.addView(input, LinearLayout.LayoutParams(-1, dp(46)))
+        }
+        section("Основное")
+        field("Название", profileName)
+        field("Адрес сервера", address)
+        field("Порт", port)
+        field("UUID / пароль / ключ", identity)
+        section("Протокол и транспорт")
+        field("Flow", flow)
+        field("Транспорт (type)", transport)
+        field("Защита (security)", security)
+        field("Путь (path)", path)
+        field("Host заголовка", hostHeader)
+        field("Режим XHTTP", mode)
+        section("TLS / REALITY")
+        field("SNI", sni)
+        field("Fingerprint", fingerprint)
+        field("ALPN", alpn)
+        field("PublicKey", publicKey)
+        field("ShortId", shortId)
+        field("SpiderX", spiderX)
+        body.addView(txt(
+            "Неизвестные параметры ссылки сохраняются. Для профилей из подписки изменения могут быть заменены при следующем обновлении подписки.",
+            11f, NeoTunDesign.TEXT_MUTED
+        ), margins(top = 14))
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = false
+            addView(body, FrameLayout.LayoutParams(-1, -2))
+        }
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        dialog.setContentView(root)
+        dialog.window?.let { window ->
+            window.setBackgroundDrawableResource(android.R.color.transparent)
+            window.setLayout(-1, -1)
+            window.statusBarColor = NeoTunDesign.BACKGROUND
+            window.navigationBarColor = NeoTunDesign.BACKGROUND
+            window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         dialog.show()
+        dialog.window?.setLayout(-1, -1)
     }
 
     private fun showProfileConfig(p: NeoTunProfile) {
