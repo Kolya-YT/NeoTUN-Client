@@ -117,27 +117,26 @@ class MainActivity : Activity() {
             setPadding(dp(6), dp(3), dp(6), dp(3))
             setBackgroundColor(NeoTunDesign.NAVIGATION)
         }
-        // Keep primary navigation at the top. On gesture-navigation devices the
-        // old bottom bar overlapped Android's system navigation area and hid labels.
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(56)))
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         bottomActions = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(5), dp(12), dp(5))
+            setPadding(dp(12), dp(4), dp(12), dp(4))
             setBackgroundColor(NeoTunDesign.BACKGROUND)
             visibility = View.GONE
         }
         root.addView(bottomActions, LinearLayout.LayoutParams(-1, -2))
+        root.addView(nav, LinearLayout.LayoutParams(-1, dp(58)))
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            content.setPadding(dp(16) + bars.left, dp(10),
-                dp(16) + bars.right, dp(18) + bars.bottom)
-            nav.setPadding(dp(8) + bars.left, bars.top + dp(4),
-                dp(8) + bars.right, dp(4))
-            nav.layoutParams = nav.layoutParams.apply { height = dp(56) + bars.top }
-            bottomActions.setPadding(dp(14) + bars.left, dp(6), dp(14) + bars.right, dp(6))
+            content.setPadding(dp(16) + bars.left, dp(8) + bars.top,
+                dp(16) + bars.right, dp(12))
+            // Reserve the system gesture/navigation area exactly once: in the
+            // nav view's height, not both its height and padding.
+            nav.setPadding(dp(8) + bars.left, dp(3), dp(8) + bars.right, dp(3))
+            nav.layoutParams = nav.layoutParams.apply { height = dp(58) + bars.bottom }
+            bottomActions.setPadding(dp(14) + bars.left, dp(4), dp(14) + bars.right, dp(4))
             view.requestLayout()
             insets
         }
@@ -2947,7 +2946,7 @@ class MainActivity : Activity() {
 
     private fun renderNavigation() {
         nav.removeAllViews()
-        nav.setPadding(dp(10), dp(6), dp(10), dp(7))
+        nav.setPadding(dp(8), dp(3), dp(8), dp(3))
         nav.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(NeoTunDesign.NAVIGATION, NeoTunDesign.BACKGROUND)
@@ -2956,14 +2955,14 @@ class MainActivity : Activity() {
             val radius = dp(22).toFloat()
             cornerRadii = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
         }
-        val items = listOf("◈" to "Главная", "◉" to "Серверы", "☷" to "Настройки")
+        val items = listOf("⌂" to "Главная", "◉" to "Серверы", "⚙" to "Настройки")
         items.forEachIndexed { index, pair ->
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(4), dp(3), dp(4), dp(3))
+                setPadding(dp(3), dp(1), dp(3), dp(1))
                 background = if (selected) {
                     GradientDrawable(
                         GradientDrawable.Orientation.LEFT_RIGHT,
@@ -2977,10 +2976,10 @@ class MainActivity : Activity() {
                 contentDescription = pair.second
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 22f,
+            item.addView(txt(pair.first, 19f,
                 if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER))
-            item.addView(txt(pair.second, 10.5f,
+            item.addView(txt(pair.second, 9.5f,
                 if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
                 if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 2))
             nav.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
