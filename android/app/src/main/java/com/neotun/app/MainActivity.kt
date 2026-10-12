@@ -445,19 +445,63 @@ class MainActivity : Activity() {
         searchRow.addView(searchInput, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
             setMargins(0, 0, dp(8), 0)
         })
+        searchInput.setSingleLine(true)
+        searchInput.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        searchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                profileSearchQuery = searchInput.text.toString().trim()
+                renderProfiles()
+                true
+            } else false
+        }
         searchRow.addView(button(if (profileSearchQuery.isBlank()) "Найти" else "Сбросить") {
             profileSearchQuery = if (profileSearchQuery.isBlank()) searchInput.text.toString().trim() else ""
             renderProfiles()
         }, LinearLayout.LayoutParams(dp(96), dp(48)))
-        content.addView(searchRow, margins(bottom = 14))
+        content.addView(searchRow, margins(bottom = 8))
+
+        val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+        val sortMode = prefs.getString("profiles_sort", "default") ?: "default"
+        val sortLabel = when (sortMode) {
+            "name" -> "По имени"
+            "ping" -> "По пингу"
+            "protocol" -> "По протоколу"
+            else -> "Как добавлены"
+        }
+        val toolsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        toolsRow.addView(txt("СОРТИРОВКА", 10f, NeoTunDesign.TEXT_MUTED, Typeface.BOLD), 
+            LinearLayout.LayoutParams(0, dp(40), 1f))
+        toolsRow.addView(button("⇅  $sortLabel") {
+            val next = when (sortMode) {
+                "default" -> "name"
+                "name" -> "protocol"
+                "protocol" -> "ping"
+                else -> "default"
+            }
+            prefs.edit().putString("profiles_sort", next).apply()
+            renderProfiles()
+        }, LinearLayout.LayoutParams(-2, dp(40)))
+        content.addView(toolsRow, margins(bottom = 10))
 
         val selected = selectedProfileId()
         val subs = subscriptions.all()
         val query = profileSearchQuery.trim()
-        val profiles = if (query.isBlank()) allProfiles else allProfiles.filter { profile ->
+        val filteredProfiles = if (query.isBlank()) allProfiles else allProfiles.filter { profile ->
             profile.name.contains(query, ignoreCase = true) ||
                 profile.uri.contains(query, ignoreCase = true) ||
                 protocolLabel(profile).contains(query, ignoreCase = true)
+        }
+        val profiles = when (sortMode) {
+            "name" -> filteredProfiles.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }
+            "protocol" -> filteredProfiles.sortedBy { protocolLabel(it).lowercase(java.util.Locale.ROOT) }
+            "ping" -> filteredProfiles.sortedWith(compareBy<NeoTunProfile> {
+                val value = pingResults[it.id]?.removeSuffix("мс")?.toLongOrNull()
+                value == null
+            }.thenBy { pingResults[it.id]?.removeSuffix("мс")?.toLongOrNull() ?: Long.MAX_VALUE })
+            else -> filteredProfiles
         }
 
         if (subs.isNotEmpty()) {
