@@ -2154,39 +2154,151 @@ class MainActivity : Activity() {
     }
 
     private fun showProfileConfig(p: NeoTunProfile) {
-        val text = TextView(this).apply {
-            text = buildString {
-                appendLine("Название: ${p.name}")
-                appendLine("Ядро: ${p.engine}")
-                appendLine("Протокол: ${protocolLabel(p)}")
-                appendLine()
-                appendLine("Исходная ссылка:")
-                appendLine(p.uri)
-                appendLine()
-                appendLine("Конфигурация ядра:")
-                val config = runCatching { NeoTunCore.nativeShareConfig(p.uri) }.getOrNull()
-                append(config?.takeIf { it.isNotBlank() } ?: "Для этого формата ядро не вернуло отдельный JSON-конфиг.")
-            }
-            textSize = 12f
-            setTextColor(NeoTunDesign.TEXT_PRIMARY)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            setTextIsSelectable(true)
-            typeface = android.graphics.Typeface.MONOSPACE
+        val dialog = Dialog(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(NeoTunDesign.BACKGROUND)
         }
-        val dialog = AlertDialog.Builder(this).setTitle("Конфигурация сервера")
-            .setView(ScrollView(this).apply { addView(text) })
-            .setNegativeButton("Закрыть", null)
-            .setNeutralButton("Копировать", null)
-            .create()
-        dialog.setOnShowListener {
-            styleDialog(dialog)
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                val clipboard = getSystemService(android.content.ClipboardManager::class.java)
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NeoTUN config", text.text))
-                toast("Конфигурация скопирована")
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
+        toolbar.addView(iconButton("‹", 30) { dialog.dismiss() }.apply {
+            background = ColorDrawable(Color.TRANSPARENT)
+            contentDescription = "Назад"
+        }, LinearLayout.LayoutParams(dp(44), dp(48)))
+        toolbar.addView(txt("Профиль", 20f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        toolbar.addView(iconButton("✎", 22) {
+            dialog.dismiss()
+            editProfile(p)
+        }.apply {
+            background = ColorDrawable(Color.TRANSPARENT)
+            contentDescription = "Изменить профиль"
+        }, LinearLayout.LayoutParams(dp(42), dp(48)))
+        toolbar.addView(iconButton("✓", 25) {
+            copyText("NeoTUN profile", p.uri, "Ссылка профиля скопирована")
+        }.apply {
+            background = ColorDrawable(Color.TRANSPARENT)
+            contentDescription = "Копировать ссылку профиля"
+        }, LinearLayout.LayoutParams(dp(42), dp(48)))
+        root.addView(toolbar)
+        root.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
+            LinearLayout.LayoutParams(-1, dp(1)))
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4), 0, dp(24))
+        }
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = false
+            addView(body, FrameLayout.LayoutParams(-1, -2))
+        }
+        root.addView(scrollView, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        fun section(title: String) {
+            body.addView(txt(title, 14f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
+                margins(start = 20, top = 22, bottom = 8))
+        }
+        fun field(label: String, value: String?) {
+            val shown = value?.takeIf { it.isNotBlank() } ?: "Не задано"
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(12), dp(20), dp(12))
             }
+            row.addView(txt(label, 11f, NeoTunDesign.TEXT_MUTED))
+            row.addView(txt(shown, 14f,
+                if (shown == "Не задано") NeoTunDesign.TEXT_MUTED else NeoTunDesign.TEXT_PRIMARY,
+                Typeface.NORMAL).apply {
+                setTextIsSelectable(true)
+                maxLines = 4
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, margins(top = 5))
+            body.addView(row)
+            body.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
+                LinearLayout.LayoutParams(-1, dp(1)))
+        }
+        fun param(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
+            uriParam(p.uri, key)?.takeIf { it.isNotBlank() }
+        }
+        val parsed = runCatching { java.net.URI(p.uri) }.getOrNull()
+        val scheme = p.uri.substringBefore("://").uppercase()
+        val host = parsed?.host ?: p.uri.substringAfter("@", "").substringBefore(":").takeIf { it.isNotBlank() }
+        val port = parsed?.port?.takeIf { it > 0 }?.toString()
+            ?: p.uri.substringAfter("@", "").substringAfter(":", "").substringBefore("?").substringBefore("#")
+                .takeIf { it.toIntOrNull() != null }
+        val userInfo = parsed?.userInfo?.substringBefore(":")
+        val transport = param("type", "network")?.uppercase()?.let { if (it == "RAW") "TCP" else it }
+            ?: if (scheme in listOf("VLESS", "VMESS")) "TCP" else null
+        val security = param("security", "tls")?.lowercase()
+            ?: if (scheme == "TROJAN" || scheme == "HTTPS") "tls" else null
+
+        section("Настройки протокола")
+        field("Имя", p.name)
+        field("Адрес сервера", host)
+        field("Порт", port)
+        field(if (scheme == "VLESS") "UUID" else if (scheme == "VMESS") "ID" else "Пользователь / ключ", userInfo)
+        field("Поток", param("flow"))
+        field("Безопасность", security ?: "none")
+        field("Протокол", scheme)
+        field("Ядро", engineLabel(p.engine))
+
+        section("Другие параметры")
+        field("Сеть", transport)
+        field("Режим XHTTP", param("mode"))
+        field("Путь", param("path", "spx", "serviceName"))
+        field("Host", param("host"))
+        field("ALPN", param("alpn"))
+        field("HTTP Upgrade", param("ed", "early_data"))
+
+        if (security == "reality" || param("pbk", "publicKey", "public_key") != null) {
+            section("Настройки TLS / REALITY")
+            field("TLS", security)
+            field("SNI", param("sni", "serverName", "server_name"))
+            field("Fingerprint", param("fp", "fingerprint", "utlsFingerprint"))
+            field("ALPN", param("alpn"))
+            field("PublicKey", param("pbk", "publicKey", "public_key"))
+            field("ShortId", param("sid", "shortId", "short_id"))
+            field("SpiderX", param("spx", "spiderX", "spider_x"))
+            field("ML-KEM", param("support-x25519mlkem768"))
+        }
+
+        section("Конфигурация ядра")
+        val config = runCatching { NeoTunCore.nativeShareConfig(p.uri) }.getOrNull()
+        val configText = config?.takeIf { it.isNotBlank() }
+            ?: "Для этого формата ядро не возвращает отдельный JSON-конфиг. Используйте исходную ссылку профиля."
+        val configCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = rounded(NeoTunDesign.SURFACE, 14, NeoTunDesign.BORDER, 1)
+        }
+        val configPreview = txt(configText, 11f, NeoTunDesign.TEXT_PRIMARY).apply {
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            maxLines = 12
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        configCard.addView(configPreview)
+        configCard.addView(button("Копировать JSON") {
+            copyText("NeoTUN config", configText, "Конфигурация скопирована")
+        }, margins(top = 12))
+        configCard.addView(button("Копировать исходную ссылку") {
+            copyText("NeoTUN profile", p.uri, "Ссылка профиля скопирована")
+        }, margins(top = 8))
+        body.addView(configCard, margins(start = 16, end = 16, bottom = 12))
+
+        dialog.setContentView(root)
+        dialog.window?.let { window ->
+            window.setBackgroundDrawableResource(android.R.color.transparent)
+            window.setLayout(-1, -1)
+            window.statusBarColor = NeoTunDesign.BACKGROUND
+            window.navigationBarColor = NeoTunDesign.BACKGROUND
+            window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         dialog.show()
+        dialog.window?.setLayout(-1, -1)
     }
 
     private fun rename(p: NeoTunProfile) {
