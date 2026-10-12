@@ -2405,6 +2405,27 @@ class MainActivity : Activity() {
         field("ALPN", param("alpn"))
         field("HTTP Upgrade", param("ed", "early_data"))
 
+        // Display every remaining query parameter too. Exporters frequently add
+        // engine-specific fields (XHTTP padding, mux, packet encoding, etc.); they
+        // must not disappear from the profile inspector just because the UI does
+        // not have a dedicated row for each one.
+        val knownKeys = setOf(
+            "type", "network", "mode", "path", "spx", "serviceName", "service_name",
+            "host", "alpn", "ed", "early_data", "flow", "security", "sni", "serverName",
+            "server_name", "fp", "fingerprint", "utlsFingerprint", "pbk", "publicKey",
+            "public_key", "sid", "shortId", "short_id", "support-x25519mlkem768"
+        )
+        val rawQuery = p.uri.substringBefore("#").substringAfter("?", "")
+        val extraParams = rawQuery.split("&").filter { it.isNotBlank() }.mapNotNull { pair ->
+            val key = decodeUriValue(pair.substringBefore("="))
+            val value = decodeUriValue(pair.substringAfter("=", ""))
+            if (key.isBlank() || knownKeys.any { it.equals(key, true) }) null else key to value
+        }
+        if (extraParams.isNotEmpty()) {
+            section("Дополнительные параметры")
+            extraParams.forEach { (key, value) -> field(key, value) }
+        }
+
         if (security == "reality" || param("pbk", "publicKey", "public_key") != null) {
             section("Настройки TLS / REALITY")
             field("TLS", security)
@@ -2429,8 +2450,8 @@ class MainActivity : Activity() {
         val configPreview = txt(configText, 11f, NeoTunDesign.TEXT_PRIMARY).apply {
             typeface = android.graphics.Typeface.MONOSPACE
             setTextIsSelectable(true)
-            maxLines = 12
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            maxLines = Int.MAX_VALUE
+            ellipsize = null
         }
         configCard.addView(configPreview)
         configCard.addView(button("Копировать JSON") {
