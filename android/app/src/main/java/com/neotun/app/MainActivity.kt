@@ -720,7 +720,7 @@ class MainActivity : Activity() {
         val appearance = settingsSection("ВНЕШНИЙ ВИД И ДОСТУПНОСТЬ")
         appearance.addView(settingsRow(
             "🎨 Тема оформления",
-            themeLabels[prefs.getString("appearance_theme", "dark") ?: "dark"] ?: "Тёмная",
+            when (prefs.getString("appearance_theme", "dark") ?: "dark") { "light" -> "Светлая"; "oled" -> "OLED-чёрная"; else -> "Тёмная" },
             "Тёмная, светлая или OLED-чёрная тема"
         ) { showAppearanceThemeSettings() })
         val fontScale = prefs.getInt("font_scale", 100)
