@@ -213,8 +213,10 @@ class SubscriptionStore(context: Context) {
                 Base64.decode(text.replace("\\s".toRegex(), ""), flags)
                     .toString(StandardCharsets.UTF_8).trim()
             }.getOrNull() ?: continue
-            if (decoded.isNotBlank() && decoded.any { it == '\\n' || it == '\\r' } ||
-                Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss|(?:incy|happ)://)").containsMatchIn(decoded)) {
+            if (decoded.isNotBlank() && (
+                    decoded.contains('\n') || decoded.contains('\r') ||
+                    Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss|(?:incy|happ)://)").containsMatchIn(decoded)
+                )) {
                 return decoded
             }
         }
