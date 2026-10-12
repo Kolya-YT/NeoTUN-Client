@@ -639,10 +639,27 @@ class MainActivity : Activity() {
         }
         bottomActions.visibility = View.VISIBLE
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        val primary = button(if (isRunning()) "Отключиться" else "Подключиться") {
-            if (isRunning()) disconnect() else connect(profile)
+        val running = isRunning()
+        val primary = button(if (running) "Переключить сервер" else "Подключиться") {
+            if (!isRunning()) {
+                connect(profile)
+            } else {
+                val dialog = AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Переключить сервер?")
+                    .setMessage("Текущее соединение будет остановлено и запущено заново через «${profile.name}».")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Переключить") { _, _ ->
+                        disconnect()
+                        handler.postDelayed({
+                            if (!isFinishing) connect(profile)
+                        }, 800L)
+                    }
+                    .create()
+                dialog.setOnShowListener { styleDialog(dialog) }
+                dialog.show()
+            }
         }
-        primary.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, isRunning())
+        primary.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
         row.addView(primary, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(0, 0, dp(6), 0) })
         row.addView(button("⋯  Действия") { profileActions(profile) },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
@@ -657,7 +674,7 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(6), dp(5), dp(6))
+            setPadding(dp(7), dp(7), dp(6), dp(7))
             background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 15,
                 NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
