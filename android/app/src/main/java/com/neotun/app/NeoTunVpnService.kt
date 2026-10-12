@@ -151,10 +151,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             runCatching { commandServer.close() }
         }
         running = false
-        getSharedPreferences(PREFS, MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_RUNNING, false)
-            .apply()
+        // A previous sing-box service can finish destroying after Xray has
+        // already started. Never let that stale teardown overwrite the active
+        // engine's shared connection state.
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        if (prefs.getString(KEY_ENGINE, ENGINE_SING_BOX) == ENGINE_SING_BOX) {
+            prefs.edit().putBoolean(KEY_RUNNING, false).apply()
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -173,10 +176,10 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         NeoTunDiagnostics.log(this, "sing-box: libbox requested serviceStop; running=" + wasRunning)
         val message = if (wasRunning) "sing-box остановил соединение" else
             "sing-box остановил сервис во время запуска. Проверьте конфигурацию и логи libbox."
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-            .putString(KEY_ERROR, message)
-            .putBoolean(KEY_RUNNING, false)
-            .apply()
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        if (prefs.getString(KEY_ENGINE, ENGINE_SING_BOX) == ENGINE_SING_BOX) {
+            prefs.edit().putString(KEY_ERROR, message).putBoolean(KEY_RUNNING, false).apply()
+        }
         NeoTunDiagnostics.error(this, message)
         running = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
