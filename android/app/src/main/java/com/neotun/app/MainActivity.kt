@@ -2695,9 +2695,15 @@ class MainActivity : Activity() {
         if (!isRoutingUrl) return
         val url = when {
             link.contains("://autorouting/", true) ->
-                link.substringAfter("://autorouting/", "").substringAfter('/', "")
-            link.contains("://routing/", true) ->
-                link.substringAfter("://routing/", "").substringAfter('/', "")
+                link.substringAfter("://autorouting/", "")
+            link.contains("://routing/", true) -> {
+                val payload = link.substringAfter("://routing/", "")
+                when {
+                    payload.startsWith("onadd/", true) -> payload.substringAfter("onadd/")
+                    payload.startsWith("add/", true) -> payload.substringAfter("add/")
+                    else -> payload
+                }
+            }
             else -> ""
         }.let { normalizeRoutingUrl(it) }
         if (!url.startsWith("https://", true) && !url.startsWith("http://", true)) {
