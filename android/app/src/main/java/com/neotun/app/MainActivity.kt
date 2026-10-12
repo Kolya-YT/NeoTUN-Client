@@ -465,9 +465,59 @@ class MainActivity : Activity() {
         parent?.visibility = if (error == null) View.GONE else View.VISIBLE
     }
 
+    @Volatile private var xrayStateCheckInProgress = false
+
+    /**
+     * Recover the UI state from Xray's actual native state if the persisted
+     * running flag became stale. This is read-only until native Xray confirms
+     * running=true, and executes off the main thread.
+     */
+    private fun reconcileXrayRunningState() {
+        if (xrayStateCheckInProgress || isFinishing || isDestroyed) return
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+                != NeoTunVpnService.ENGINE_XRAY ||
+            prefs.getBoolean(NeoTunVpnService.KEY_RUNNING, false) ||
+            !prefs.getString(NeoTunVpnService.KEY_ERROR, null).isNullOrBlank()) return
+
+        xrayStateCheckInProgress = true
+        Thread({
+            val actuallyRunning = runCatching {
+                val response = NeoTunXrayBridge.nativeInvoke(
+                    JSONObject()
+                        .put("apiVersion", 3)
+                        .put("method", "getXrayState")
+                        .put("payload", JSONObject())
+                        .toString()
+                )
+                val root = JSONObject(response)
+                root.optBoolean("success", false) &&
+                    (root.optJSONObject("data")?.optBoolean("running", false) == true)
+            }.getOrDefault(false)
+
+            runOnUiThread {
+                xrayStateCheckInProgress = false
+                if (isFinishing || isDestroyed || !actuallyRunning) return@runOnUiThread
+                val latest = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                // Re-check that Xray is still the selected engine and no
+                // disconnect/error was recorded while the native query ran.
+                if (latest.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+                        == NeoTunVpnService.ENGINE_XRAY &&
+                    !latest.getBoolean(NeoTunVpnService.KEY_RUNNING, false) &&
+                    latest.getString(NeoTunVpnService.KEY_ERROR, null).isNullOrBlank()) {
+                    NeoTunDiagnostics.log(this, "UI state reconciled from native Xray state: running=true")
+                    latest.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).apply()
+                    updateHomeLiveData()
+                    NeoTunHomeWidget.refreshAll(this)
+                }
+            }
+        }, "NeoTun-Xray-State-Reconcile").start()
+    }
+
     private fun updateHomeLiveData() {
         if (screen != Screen.HOME || isFinishing) return
         val running = isRunning()
+        if (!running) reconcileXrayRunningState()
         if (lastWidgetRunning != running) {
             lastWidgetRunning = running
             NeoTunHomeWidget.refreshAll(this)
