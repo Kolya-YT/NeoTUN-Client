@@ -713,7 +713,8 @@ class MainActivity : Activity() {
         }
         info.addView(txt(profile.name, if (compact) 13f else 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            // Preserve the start of long subscription names while keeping rows aligned.
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
         })
         val detail = if (compact) maskUri(profile.uri) else protocolLabel(profile) + "  ·  " + maskUri(profile.uri)
         info.addView(txt(detail, 10f, NeoTunDesign.TEXT_MUTED).apply {
@@ -1477,8 +1478,9 @@ class MainActivity : Activity() {
     private fun startVpnFromPrefs() {
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         val engine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
-        // Reflect the user's action immediately. The service clears this flag if startup fails.
-        prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).apply()
+        // The VPN service owns the running flag and sets it only after its engine starts.
+        // Never show "connected" optimistically while the service is still starting.
+        prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         if (engine == NeoTunVpnService.ENGINE_XRAY) {
             val uri = prefs.getString(NeoTunVpnService.KEY_URI, null)
             if (uri.isNullOrBlank()) {
