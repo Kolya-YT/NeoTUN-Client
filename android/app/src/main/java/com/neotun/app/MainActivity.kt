@@ -45,7 +45,6 @@ class MainActivity : Activity() {
     private var trafficLastTx = -1L
     private var trafficLastAt = 0L
     private var lastWidgetRunning: Boolean? = null
-    private var profileSearchQuery: String = ""
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
     private var homeRxValue: TextView? = null
@@ -428,38 +427,6 @@ class MainActivity : Activity() {
         addBackHeader("Серверы", allProfiles.size.toString() + " серверов • " + subscriptions.all().size + " подписок")
         content.addView(button("＋  Импортировать сервер или подписку") { showImportMenu() }, margins(bottom = 10))
 
-        val searchRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val searchInput = EditText(this).apply {
-            setSingleLine(true)
-            textSize = 14f * fontScaleFactor()
-            setTextColor(NeoTunDesign.TEXT_PRIMARY)
-            setHintTextColor(NeoTunDesign.TEXT_MUTED)
-            hint = "Поиск по имени, адресу или протоколу"
-            setPadding(dp(13), 0, dp(10), 0)
-            background = rounded(NeoTunDesign.SURFACE_INPUT, 13, NeoTunDesign.BORDER, 1)
-            setText(profileSearchQuery)
-        }
-        searchRow.addView(searchInput, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-            setMargins(0, 0, dp(8), 0)
-        })
-        searchInput.setSingleLine(true)
-        searchInput.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
-        searchInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                profileSearchQuery = searchInput.text.toString().trim()
-                renderProfiles()
-                true
-            } else false
-        }
-        searchRow.addView(button(if (profileSearchQuery.isBlank()) "Найти" else "Сбросить") {
-            profileSearchQuery = if (profileSearchQuery.isBlank()) searchInput.text.toString().trim() else ""
-            renderProfiles()
-        }, LinearLayout.LayoutParams(dp(96), dp(48)))
-        content.addView(searchRow, margins(bottom = 8))
-
         val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
         val sortMode = prefs.getString("profiles_sort", "default") ?: "default"
         val sortLabel = when (sortMode) {
@@ -472,7 +439,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        toolsRow.addView(txt("СОРТИРОВКА", 10f, NeoTunDesign.TEXT_MUTED, Typeface.BOLD), 
+        toolsRow.addView(txt("СЕРВЕРА", 10f, NeoTunDesign.TEXT_MUTED, Typeface.BOLD),
             LinearLayout.LayoutParams(0, dp(40), 1f))
         toolsRow.addView(button("⇅  $sortLabel") {
             val next = when (sortMode) {
@@ -488,20 +455,14 @@ class MainActivity : Activity() {
 
         val selected = selectedProfileId()
         val subs = subscriptions.all()
-        val query = profileSearchQuery.trim()
-        val filteredProfiles = if (query.isBlank()) allProfiles else allProfiles.filter { profile ->
-            profile.name.contains(query, ignoreCase = true) ||
-                profile.uri.contains(query, ignoreCase = true) ||
-                protocolLabel(profile).contains(query, ignoreCase = true)
-        }
         val profiles = when (sortMode) {
-            "name" -> filteredProfiles.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }
-            "protocol" -> filteredProfiles.sortedBy { protocolLabel(it).lowercase(java.util.Locale.ROOT) }
-            "ping" -> filteredProfiles.sortedWith(compareBy<NeoTunProfile> {
+            "name" -> allProfiles.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }
+            "protocol" -> allProfiles.sortedBy { protocolLabel(it).lowercase(java.util.Locale.ROOT) }
+            "ping" -> allProfiles.sortedWith(compareBy<NeoTunProfile> {
                 val value = pingResults[it.id]?.removeSuffix("мс")?.toLongOrNull()
                 value == null
             }.thenBy { pingResults[it.id]?.removeSuffix("мс")?.toLongOrNull() ?: Long.MAX_VALUE })
-            else -> filteredProfiles
+            else -> allProfiles
         }
 
         if (subs.isNotEmpty()) {
@@ -546,22 +507,6 @@ class MainActivity : Activity() {
                 margins(top = 8, bottom = 16))
             empty.addView(button("＋  Добавить сервер или подписку") { showImportMenu() })
             content.addView(empty)
-            return
-        }
-
-        if (profiles.isEmpty()) {
-            val empty = card().apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(20), dp(22), dp(20), dp(22)) }
-            empty.addView(txt("Ничего не найдено", 18f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD, Gravity.CENTER))
-            empty.addView(txt(
-                "Нет серверов, соответствующих запросу «$query». Проверьте название, адрес или протокол.",
-                12f, NeoTunDesign.TEXT_MUTED, Gravity.CENTER
-            ), margins(top = 7))
-            empty.addView(button("Сбросить поиск") {
-                profileSearchQuery = ""
-                renderProfiles()
-            }, margins(top = 12))
-            content.addView(empty, margins(bottom = 10))
-            renderProfileBottomActions(allProfiles.firstOrNull { it.id == selected })
             return
         }
 
