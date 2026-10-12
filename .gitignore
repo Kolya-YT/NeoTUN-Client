@@ -1,0 +1,49 @@
+# AI Assistant Audits, Reports & Temporary Plans
+JNI_AUDIT_REPORT.md
+WINDOWS_AUDIT_REPORT.md
+ALIGNMENT_AUDIT_AND_PLAN.md
+implementation_plan.md
+HANDOFF_REPORT.md
+*_AUDIT_REPORT.md
+*AUDIT*.md
+*REPORT*.md
+*PLAN*.md
+*.patch
+
+# AI Studio artifacts & local config
+.aistudio/
+.vite/
+
+# Node & Web
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust
+core/target/
+**/target/
+Cargo.lock
+
+# .NET / C# / WPF
+bin/
+obj/
+**/bin/
+**/obj/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+dist/NeoTUN-Windows/
+
+# Android
+.gradle/
+android/app/build/
+**/build/
+local.properties
+*.apk
+*.aab
+
+# Go / xraybridge
+xraybridge/bin/
+*.so

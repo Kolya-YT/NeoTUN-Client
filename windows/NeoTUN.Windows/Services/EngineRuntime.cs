@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace NeoTUN.Windows.Services;
 
@@ -23,6 +24,10 @@ internal sealed class EngineRuntime : IDisposable
     private long _totalUpload;
     private long _totalDownload;
     private int _stopRequested;
+    private int _isStarting;
+    private readonly System.Collections.Generic.List<string> _singBoxErrors = new();
+    private readonly System.Collections.Generic.List<string> _xrayErrors = new();
+    private readonly object _errorSync = new();
     private readonly string _dataDirectory;
     private readonly string _runtimeDirectory;
     private readonly string _logPath;
@@ -36,8 +41,8 @@ internal sealed class EngineRuntime : IDisposable
         {
             lock (_sync)
             {
-                if (_singBox is not { HasExited: false }) return false;
-                return _xray is null || _xray is { HasExited: false };
+                if (_singBox is null || SafeHasExited(_singBox)) return false;
+                return _xray is null || !SafeHasExited(_xray);
             }
         }
     }
@@ -57,6 +62,12 @@ internal sealed class EngineRuntime : IDisposable
             throw new InvalidOperationException("Для создания системного TUN нужны права администратора. Запусти NeoTUN от имени администратора.");
         if (IsRunning) return;
         Interlocked.Exchange(ref _stopRequested, 0);
+        Interlocked.Exchange(ref _isStarting, 1);
+        lock (_errorSync)
+        {
+            _singBoxErrors.Clear();
+            _xrayErrors.Clear();
+        }
         if (_singBox is not null || _xray is not null) await StopAsync();
 
         var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
@@ -92,7 +103,12 @@ internal sealed class EngineRuntime : IDisposable
             ["secret"] = apiSecret
         };
         await File.WriteAllTextAsync(singBoxConfigPath,
-            singBoxRoot.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+            singBoxRoot.ToJsonString(new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                // Explicitly enable reflection metadata for JsonNode serialization in the published app.
+                TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+            }),
             new UTF8Encoding(false), cancellationToken);
 
         try
@@ -104,7 +120,13 @@ internal sealed class EngineRuntime : IDisposable
                 if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
                 var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
                 await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
-                await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
+                WriteLog($"Validating Xray config at {xrayConfigPath}...");
+                try {
+                    await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
+                } catch (Exception ex) {
+                    WriteLog($"Xray config validation failed: {ex.Message}");
+                    throw;
+                }
                 _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
                 xrayStarted = true;
                 await WaitForSocks5Async(IPAddress.Loopback, 10808, TimeSpan.FromSeconds(8), cancellationToken);
@@ -115,23 +137,23 @@ internal sealed class EngineRuntime : IDisposable
             var singBoxProcess = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
             lock (_sync) _singBox = singBoxProcess;
             singBoxStarted = true;
-            await Task.Delay(900, cancellationToken);
-            // Keep a local process reference: a concurrent disconnect may clear _singBox
-            // while startup is waiting, and must not turn a startup failure into NullReferenceException.
-            if (singBoxProcess.HasExited)
+
+            // Wait up to 900ms or wake immediately if sing-box exits early
+            var exitTask = singBoxProcess.WaitForExitAsync(cancellationToken);
+            var completed = await Task.WhenAny(Task.Delay(900, cancellationToken), exitTask);
+
+            // Keep a local process reference: a concurrent disconnect or early crash may clear _singBox,
+            // but SafeHasExited must not turn a process exit into NullReferenceException or InvalidOperationException.
+            if (completed == exitTask || SafeHasExited(singBoxProcess))
             {
                 var exit = SafeExitCode(singBoxProcess);
-                throw new InvalidOperationException($"sing-box завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN.");
+                var detail = GetRecentErrors("sing-box");
+                var message = string.IsNullOrWhiteSpace(detail)
+                    ? $"sing-box завершился сразу после запуска (код {exit}). Проверь журнал NeoTUN."
+                    : $"sing-box завершился сразу после запуска (код {exit}): {Environment.NewLine}{detail}";
+                throw new InvalidOperationException(message);
             }
-        }
-        catch
-        {
-            if (singBoxStarted) await StopSingBoxAsync();
-            if (xrayStarted) await StopXrayAsync();
-            throw;
-        }
-        try
-        {
+
             _totalUpload = 0;
             _totalDownload = 0;
             await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), cancellationToken);
@@ -157,17 +179,21 @@ internal sealed class EngineRuntime : IDisposable
         }
         catch (Exception ex)
         {
-            WriteLog("Runtime startup finalization failed; cleaning up started processes: " + ex);
+            WriteLog("Runtime startup failed; cleaning up started processes: " + ex);
             if (_trafficMonitor is not null)
             {
                 try { await _trafficMonitor.DisposeAsync(); }
                 catch (Exception cleanupError) { WriteLog("Traffic monitor cleanup warning: " + cleanupError.Message); }
                 _trafficMonitor = null;
             }
-            await StopSingBoxAsync();
-            await StopXrayAsync();
+            if (singBoxStarted) await StopSingBoxAsync();
+            if (xrayStarted) await StopXrayAsync();
             StateChanged?.Invoke(false, "Ошибка запуска: " + ex.Message);
             throw;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isStarting, 0);
         }
     }
 
@@ -250,7 +276,7 @@ internal sealed class EngineRuntime : IDisposable
                 .ToArray();
 
             var ipv6Enabled = ReadBool("Ipv6Enabled", false);
-            var mtu = Math.Clamp(ReadInt("Mtu", 1500), 1280, 1500);
+            var mtu = Math.Clamp(ReadInt("Mtu", 1400), 1280, 1500);
             if (singBoxRoot["inbounds"] is JsonArray inbounds)
             {
                 foreach (var inbound in inbounds.OfType<JsonObject>())
@@ -419,8 +445,8 @@ internal sealed class EngineRuntime : IDisposable
         var domesticTag = AddDnsServer(servers, domestic, "neotun-domestic");
         dns["servers"] = servers;
 
-        // Xray bridge runtime deliberately provides a bootstrap DNS server with
-        // detour=direct. Overwriting dns.final with a user DNS server can send DNS
+        // Xray bridge runtime deliberately provides a bootstrap DNS server.
+        // Overwriting dns.final with a user DNS server can send DNS
         // packets back through the SOCKS proxy (and stall startup / name resolution).
         // Keep the engine's explicit final server; custom DNS is still available for
         // domain-specific rules below. For profiles without an engine-selected final,
@@ -508,10 +534,14 @@ internal sealed class EngineRuntime : IDisposable
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_singBox is null || _singBox.HasExited)
+            if (_singBox is null || SafeHasExited(_singBox))
             {
                 var exitCode = _singBox is null ? -1 : SafeExitCode(_singBox);
-                throw new InvalidOperationException($"sing-box завершился до готовности API (код {exitCode}).");
+                var detail = GetRecentErrors("sing-box");
+                var message = string.IsNullOrWhiteSpace(detail)
+                    ? $"sing-box завершился до готовности API (код {exitCode})."
+                    : $"sing-box завершился до готовности API (код {exitCode}): {Environment.NewLine}{detail}";
+                throw new InvalidOperationException(message);
             }
 
             try
@@ -552,10 +582,14 @@ internal sealed class EngineRuntime : IDisposable
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_xray is null || _xray.HasExited)
+            if (_xray is null || SafeHasExited(_xray))
             {
                 var exitCode = _xray is null ? -1 : SafeExitCode(_xray);
-                throw new InvalidOperationException($"Xray завершился до готовности SOCKS5 (код {exitCode}). Проверь журнал NeoTUN.");
+                var detail = GetRecentErrors("xray");
+                var message = string.IsNullOrWhiteSpace(detail)
+                    ? $"Xray завершился до готовности SOCKS5 (код {exitCode}). Проверь журнал NeoTUN."
+                    : $"Xray завершился до готовности SOCKS5 (код {exitCode}): {Environment.NewLine}{detail}";
+                throw new InvalidOperationException(message);
             }
 
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -602,6 +636,7 @@ internal sealed class EngineRuntime : IDisposable
             RedirectStandardError = true,
             WorkingDirectory = Path.GetDirectoryName(executable)!
         };
+        start.Environment["ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER"] = "true";
         foreach (var arg in values) start.ArgumentList.Add(arg);
         using var process = new Process { StartInfo = start };
         var stdout = new StringBuilder();
@@ -633,14 +668,25 @@ internal sealed class EngineRuntime : IDisposable
             RedirectStandardError = true,
             WorkingDirectory = Path.GetDirectoryName(executable)!
         };
+        start.Environment["ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER"] = "true";
         var runtimePath = Path.GetDirectoryName(executable)!;
         var existingPath = start.Environment.TryGetValue("PATH", out var pathValue) ? pathValue : Environment.GetEnvironmentVariable("PATH");
         start.Environment["PATH"] = string.IsNullOrWhiteSpace(existingPath)
             ? runtimePath
             : runtimePath + Path.PathSeparator + existingPath;
         var process = new Process { StartInfo = start, EnableRaisingEvents = true };
-        process.OutputDataReceived += (_, e) => { if (e.Data is not null) WriteLog(name + ": " + e.Data); };
-        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) WriteLog(name + ": " + e.Data); };
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is null) return;
+            WriteLog(name + ": " + e.Data);
+            RecordRecentError(name, e.Data);
+        };
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is null) return;
+            WriteLog(name + ": " + e.Data);
+            RecordRecentError(name, e.Data);
+        };
         process.Exited += (_, _) =>
         {
             var exitCode = SafeExitCode(process);
@@ -650,6 +696,11 @@ internal sealed class EngineRuntime : IDisposable
             // Kill() during a normal disconnect also raises Exited (usually with code -1).
             // Do not report an intentional stop as a runtime crash.
             if (Volatile.Read(ref _stopRequested) != 0) return;
+
+            // When startup is in progress, StartAsync handles process failure directly
+            // and synchronously so it can report the exact cause, cleanup safely, and
+            // prevent background Dispose() from racing with startup checks.
+            if (Volatile.Read(ref _isStarting) != 0) return;
 
             StateChanged?.Invoke(false, $"{name} завершился с кодом {exitCode}. Останавливаем оставшийся движок…");
             _ = StopAfterUnexpectedExitAsync(name, exitCode);
@@ -706,15 +757,23 @@ internal sealed class EngineRuntime : IDisposable
         if (current is null) return;
         try
         {
-            if (!current.HasExited)
+            if (!SafeHasExited(current))
             {
-                current.Kill(entireProcessTree: true);
-                await current.WaitForExitAsync();
+                try
+                {
+                    current.Kill(entireProcessTree: true);
+                    await current.WaitForExitAsync();
+                }
+                catch (InvalidOperationException) { }
             }
         }
         catch (InvalidOperationException) { }
         catch (Exception ex) { WriteLog(name + " stop warning: " + ex.Message); }
-        finally { current.Dispose(); }
+        finally
+        {
+            try { current.Dispose(); }
+            catch (Exception ex) { WriteLog(name + " dispose warning: " + ex.Message); }
+        }
         WriteLog(name + " process stopped");
     }
 
@@ -739,8 +798,38 @@ internal sealed class EngineRuntime : IDisposable
             .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
     }
 
-    private static int SafeExitCode(Process process)
+    private void RecordRecentError(string name, string line)
     {
+        if (string.IsNullOrWhiteSpace(line)) return;
+        lock (_errorSync)
+        {
+            var list = name == "sing-box" ? _singBoxErrors : (name == "xray" ? _xrayErrors : null);
+            if (list == null) return;
+            list.Add(line.Trim());
+            if (list.Count > 5000) list.RemoveAt(0);
+        }
+    }
+
+    private string GetRecentErrors(string name)
+    {
+        lock (_errorSync)
+        {
+            var list = name == "sing-box" ? _singBoxErrors : (name == "xray" ? _xrayErrors : null);
+            return list != null ? string.Join(Environment.NewLine, list.TakeLast(500)) : "";
+        }
+    }
+
+    private static bool SafeHasExited(Process? process)
+    {
+        if (process is null) return true;
+        try { return process.HasExited; }
+        catch (InvalidOperationException) { return true; }
+        catch (Exception) { return true; }
+    }
+
+    private static int SafeExitCode(Process? process)
+    {
+        if (process is null) return -1;
         try { return process.ExitCode; } catch { return -1; }
     }
 

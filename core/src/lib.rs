@@ -559,7 +559,7 @@ impl Profile {
                 "inbounds": [{ "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true }],
                 "outbounds": [{ "type": "socks", "tag": "proxy", "server": "127.0.0.1", "server_port": 10808, "version": "5" }, { "type": "direct", "tag": "direct" }, { "type": "block", "tag": "block" }],
                 "dns": {
-                    "servers": [{ "type": "udp", "tag": "bootstrap", "server": "1.1.1.1", "server_port": 53, "detour": "direct" }],
+                    "servers": [{ "type": "udp", "tag": "bootstrap", "server": "1.1.1.1", "server_port": 53 }],
                     "final": "bootstrap",
                     "strategy": "prefer_ipv4"
                 },
@@ -1054,6 +1054,26 @@ mod tests {
         }
         let hysteria = Profile::from_share_uri("hysteria2://password@example.com:443").unwrap();
         assert_eq!(hysteria.engine(), "sing-box");
+    }
+
+    #[test]
+    fn windows_xray_bridge_sing_box_config_omits_empty_direct_detour_on_bootstrap_dns() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:9443?security=reality&type=xhttp&fp=firefox&pbk=public-key&sid=a1baa1&sni=example.com"
+        ).unwrap();
+        assert_eq!(profile.engine(), "xray");
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        let sing_box = &runtime["sing_box_config"];
+        let dns_servers = sing_box["dns"]["servers"].as_array().expect("dns servers must be an array");
+        let bootstrap = dns_servers.iter().find(|s| s["tag"] == "bootstrap").expect("bootstrap dns server must exist");
+        assert_eq!(bootstrap["type"], "udp");
+        assert_eq!(bootstrap["server"], "1.1.1.1");
+        assert_eq!(bootstrap["server_port"], 53);
+        assert!(bootstrap.get("detour").is_none(), "bootstrap DNS must not define detour to direct");
+        assert_eq!(sing_box["dns"]["final"], "bootstrap");
+        assert_eq!(sing_box["outbounds"][0]["type"], "socks");
+        assert_eq!(sing_box["outbounds"][0]["server_port"], 10808);
     }
 
     #[test]
