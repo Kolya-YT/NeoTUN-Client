@@ -633,41 +633,7 @@ class MainActivity : Activity() {
 
     private fun renderProfileBottomActions(profile: NeoTunProfile?) {
         bottomActions.removeAllViews()
-        if (profile == null) {
-            bottomActions.visibility = View.GONE
-            return
-        }
-        bottomActions.visibility = View.VISIBLE
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        val running = isRunning()
-        val primary = button(if (running) "Переключить сервер" else "Подключиться") {
-            if (!isRunning()) {
-                connect(profile)
-            } else {
-                val dialog = AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Переключить сервер?")
-                    .setMessage("Текущее соединение будет остановлено и запущено заново через «${profile.name}».")
-                    .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Переключить") { _, _ ->
-                        disconnect()
-                        handler.postDelayed({
-                            if (!isFinishing) connect(profile)
-                        }, 800L)
-                    }
-                    .create()
-                dialog.setOnShowListener { styleDialog(dialog) }
-                dialog.show()
-            }
-        }
-        primary.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
-        row.addView(primary, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(0, 0, dp(6), 0) })
-        row.addView(button("⋯  Действия") { profileActions(profile) },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(6), 0, 0, 0) })
-        bottomActions.addView(row)
-        bottomActions.addView(txt(profile.name, 10f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER).apply {
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 4))
+        bottomActions.visibility = View.GONE
     }
 
     private fun serverRow(profile: NeoTunProfile, selected: Boolean, compact: Boolean): LinearLayout {
@@ -721,9 +687,21 @@ class MainActivity : Activity() {
         row.addView(pingColumn, LinearLayout.LayoutParams(dp(48), dp(42)).apply {
             setMargins(dp(3), 0, dp(2), 0)
         })
-        row.addView(txt(if (selected) "✓" else "›", if (selected) 18f else 22f,
-            if (selected) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
-            Typeface.BOLD, Gravity.CENTER), LinearLayout.LayoutParams(dp(20), dp(42)))
+        val action = iconButton("⋯", 22) { profileActions(profile) }.apply {
+            background = rounded(
+                if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED,
+                10,
+                if (selected) NeoTunDesign.BORDER_ACCENT else NeoTunDesign.BORDER,
+                1
+            )
+            contentDescription = "Действия для сервера: ${profile.name}"
+        }
+        row.addView(action, LinearLayout.LayoutParams(dp(36), dp(36)).apply {
+            setMargins(dp(2), 0, dp(1), 0)
+        })
+        if (selected) {
+            row.background = rounded(NeoTunDesign.NAV_SELECTED, 15, NeoTunDesign.BORDER_ACCENT, 1)
+        }
         row.minimumHeight = dp(if (compact) 46 else 50)
         return row
     }
