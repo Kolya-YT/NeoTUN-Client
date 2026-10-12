@@ -156,14 +156,21 @@ class SubscriptionStore(context: Context) {
     private fun decodeTextPayload(body: String): String {
         val value = body.trim()
         if (value.isBlank()) return ""
-        for (flags in listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)) {
-            val decoded = runCatching {
-                Base64.decode(value.replace("\\s".toRegex(), ""), flags)
-                    .toString(StandardCharsets.UTF_8).trim()
-            }.getOrNull() ?: continue
-            if (decoded.isNotBlank() && decoded.any { it.isLetterOrDigit() }) return decoded
+        val candidates = linkedSetOf<String>()
+        candidates.add(value)
+        candidates.addAll(value.lineSequence().map { it.trim() }.filter { it.isNotBlank() })
+        candidates.toList().forEach { item ->
+            for (flags in listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)) {
+                val decoded = runCatching {
+                    Base64.decode(item.replace("\\s".toRegex(), ""), flags)
+                        .toString(StandardCharsets.UTF_8).trim()
+                }.getOrNull() ?: continue
+                if (decoded.contains("://routing/", true) ||
+                    decoded.contains("://autorouting/", true) ||
+                    decoded.startsWith("{")) candidates.add(decoded)
+            }
         }
-        return ""
+        return candidates.filter { it != value }.joinToString("\\n")
     }
 
     private fun importRoutingFromSubscription(body: String, routingHeader: String?, autoRoutingHeader: String?) {
@@ -242,24 +249,28 @@ class SubscriptionStore(context: Context) {
         val candidates = linkedSetOf<String>()
 
         fun addLines(value: String) {
-            // Commas are valid in Hysteria2 port-hopping ranges, so they are not
-            // general-purpose link separators. Stop only at whitespace/new URI.
+            // Commas are valid in Hysteria2 port-hopping ranges, so only split
+            // links at whitespace or at the beginning of another URI scheme.
             val linkPattern = Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://.*?(?=(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://|\\s|$)")
             value.lines().forEach { line ->
                 linkPattern.findAll(line).forEach { match ->
-                    val link = match.value.trim().trimEnd(',', ';', '"', '\'')
+                    val link = match.value.trim().trimEnd(',', ';', '"', '\\'')
                     if (link.isNotBlank()) candidates.add(link)
                 }
             }
         }
 
         addLines(text)
-        listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP).forEach { flags ->
-            if (candidates.isNotEmpty()) return@forEach
-            runCatching {
-                Base64.decode(text.replace("\\s".toRegex(), ""), flags)
-                    .toString(StandardCharsets.UTF_8)
-            }.getOrNull()?.let(::addLines)
+        val encodedCandidates = linkedSetOf(text)
+        encodedCandidates.addAll(text.lineSequence().map { it.trim() }.filter { it.isNotBlank() })
+        encodedCandidates.toList().forEach { encoded ->
+            for (flags in listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)) {
+                val decoded = runCatching {
+                    Base64.decode(encoded.replace("\\s".toRegex(), ""), flags)
+                        .toString(StandardCharsets.UTF_8)
+                }.getOrNull() ?: continue
+                addLines(decoded)
+            }
         }
 
         return candidates.filter {
