@@ -580,11 +580,11 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(5), dp(4), dp(4), dp(4))
-            background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 13,
+            setPadding(dp(6), dp(6), dp(5), dp(6))
+            background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 15,
                 NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
-        val iconSize = if (compact) 36 else 38
+        val iconSize = if (compact) 40 else 44
         val flag = FrameLayout(this).apply {
             background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED, 11)
         }
@@ -795,8 +795,8 @@ class MainActivity : Activity() {
     private fun settingsRow(title: String, value: String, summary: String, action: () -> Unit): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(5), dp(11), dp(3), dp(11))
-            minimumHeight = dp(58)
+            setPadding(dp(7), dp(13), dp(5), dp(13))
+            minimumHeight = dp(62)
             isClickable = true
             isFocusable = true
             background = android.graphics.drawable.RippleDrawable(
@@ -2552,14 +2552,14 @@ class MainActivity : Activity() {
             val radius = dp(22).toFloat()
             cornerRadii = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
         }
-        val items = listOf("⌂" to "Главная", "▤" to "Серверы", "⚙" to "Настройки")
+        val items = listOf("◈" to "Главная", "◉" to "Серверы", "☷" to "Настройки")
         items.forEachIndexed { index, pair ->
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(4), dp(5), dp(4), dp(4))
+                setPadding(dp(4), dp(3), dp(4), dp(3))
                 background = if (selected) {
                     GradientDrawable(
                         GradientDrawable.Orientation.LEFT_RIGHT,
@@ -2573,10 +2573,10 @@ class MainActivity : Activity() {
                 contentDescription = pair.second
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 20f,
+            item.addView(txt(pair.first, 22f,
                 if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER))
-            item.addView(txt(pair.second, 10f,
+            item.addView(txt(pair.second, 10.5f,
                 if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
                 if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 2))
             nav.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
