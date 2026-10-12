@@ -271,8 +271,13 @@ impl Profile {
     }
 
     pub fn to_generic_sing_box_json(&self) -> Result<String, String> {
-        if self.protocol == "vless" && self.engine() == "xray" {
-            return Err("VLESS XHTTP uses the Xray runtime and cannot be converted to a sing-box outbound".into());
+        // Run VLESS validation even when the profile is routed to Xray. This
+        // keeps missing REALITY SNI/public-key errors actionable for every engine.
+        if self.protocol == "vless" {
+            let _ = self.to_sing_box_json()?;
+            if self.engine() == "xray" {
+                return Err("VLESS profile uses the Xray runtime and cannot be converted to a sing-box outbound".into());
+            }
         }
         let outbound = match self.protocol.as_str() {
             "vless" => serde_json::from_str::<serde_json::Value>(&self.to_sing_box_json()?).unwrap()["outbounds"][0].clone(),
@@ -1097,19 +1102,17 @@ mod tests {
             "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=www.example.org&fp=firefox&pbk=public-key-value&sid=ab12cd34"
         ).unwrap();
 
-        assert_eq!(profile.engine(), "sing-box");
+        assert_eq!(profile.engine(), "xray");
         let config: serde_json::Value =
-            serde_json::from_str(&profile.to_generic_sing_box_json().unwrap()).unwrap();
-        let outbound = &config["outbounds"][0];
-        assert_eq!(outbound["type"], "vless");
-        assert_eq!(outbound["flow"], "xtls-rprx-vision");
-        assert_eq!(outbound["tls"]["enabled"], true);
-        assert_eq!(outbound["tls"]["server_name"], "www.example.org");
-        assert_eq!(outbound["tls"]["utls"]["enabled"], true);
-        assert_eq!(outbound["tls"]["utls"]["fingerprint"], "firefox");
-        assert_eq!(outbound["tls"]["reality"]["enabled"], true);
-        assert_eq!(outbound["tls"]["reality"]["public_key"], "public-key-value");
-        assert_eq!(outbound["tls"]["reality"]["short_id"], "ab12cd34");
+            serde_json::from_str(&profile.to_sing_box_json().unwrap()).unwrap();
+        assert_eq!(config["engine"], "xray");
+        assert_eq!(config["protocol"], "vless");
+        assert_eq!(config["transport"], "tcp");
+        assert_eq!(config["params"]["flow"], "xtls-rprx-vision");
+        assert_eq!(config["params"]["sni"], "www.example.org");
+        assert_eq!(config["params"]["fp"], "firefox");
+        assert_eq!(config["params"]["pbk"], "public-key-value");
+        assert_eq!(config["params"]["sid"], "ab12cd34");
     }
 
     #[test]
@@ -1125,10 +1128,13 @@ mod tests {
         assert_eq!(profile.params.get("spx").map(String::as_str), Some("/"));
 
         let config: serde_json::Value =
-            serde_json::from_str(&profile.to_generic_sing_box_json().unwrap()).unwrap();
-        assert_eq!(config["outbounds"][0]["tls"]["server_name"], "www.example.org");
-        assert_eq!(config["outbounds"][0]["tls"]["reality"]["public_key"], "YWJjZA");
-        assert_eq!(config["outbounds"][0]["tls"]["reality"]["short_id"], "ab12cd34");
+            serde_json::from_str(&profile.to_sing_box_json().unwrap()).unwrap();
+        assert_eq!(config["engine"], "xray");
+        assert_eq!(config["params"]["sni"], "www.example.org");
+        assert_eq!(config["params"]["pbk"], "YWJjZA");
+        assert_eq!(config["params"]["sid"], "ab12cd34");
+        assert_eq!(config["params"]["fp"], "firefox");
+        assert_eq!(config["params"]["spx"], "/");
     }
 
     #[test]
