@@ -2202,7 +2202,7 @@ class MainActivity : Activity() {
             val newHost = address.text.toString().trim()
             val newPort = port.text.toString().trim()
             if (newHost.isBlank()) { address.error = "Укажите адрес сервера"; return@iconButton }
-            if (newPort.toIntOrNull() !in 1..65535) { port.error = "Порт должен быть от 1 до 65535"; return@iconButton }
+            if (newPort.toIntOrNull()?.let { it in 1..65535 } != true) { port.error = "Порт должен быть от 1 до 65535"; return@iconButton }
             val updated = linkedMapOf<String, String>()
             updated.putAll(query)
             fun setParam(key: String, value: String, aliases: List<String> = emptyList()) {
