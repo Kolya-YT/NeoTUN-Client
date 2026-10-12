@@ -191,7 +191,7 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(4), dp(2), dp(15))
+            setPadding(dp(2), dp(3), dp(2), dp(10))
         }
         val logo = FrameLayout(this).apply {
             background = GradientDrawable(
@@ -218,7 +218,7 @@ class MainActivity : Activity() {
         content.addView(top)
 
         val connection = card().apply {
-            setPadding(dp(16), dp(13), dp(16), dp(13))
+            setPadding(dp(14), dp(12), dp(14), dp(12))
             background = NeoTunDesign.connectionCardDrawable(resources.displayMetrics.density, running)
             elevation = 0f
         }
@@ -239,10 +239,11 @@ class MainActivity : Activity() {
         connection.addView(stateRow)
 
         connection.addView(txt(if (running) "Вы подключены" else "Всё под контролем",
-            25f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+            if (resources.displayMetrics.widthPixels < dp(360)) 22f else 24f,
+            NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 9))
+        }, margins(top = 8))
         connection.addView(txt(
             if (running) "Трафик проходит через выбранный профиль."
             else "Подключитесь к серверу одним нажатием.",
@@ -348,7 +349,7 @@ class MainActivity : Activity() {
                 val chip = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(11), dp(9), dp(13), dp(9))
+                    setPadding(dp(9), dp(8), dp(10), dp(8))
                     background = rounded(
                         if (isSelected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE,
                         14,
@@ -380,8 +381,8 @@ class MainActivity : Activity() {
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 }, margins(top = 2))
-                chip.addView(label, LinearLayout.LayoutParams(dp(112), -2).apply { setMargins(dp(7), 0, 0, 0) })
-                quickRow.addView(chip, LinearLayout.LayoutParams(-2, dp(58)).apply {
+                chip.addView(label, LinearLayout.LayoutParams(dp(if (resources.displayMetrics.widthPixels < dp(360)) 94 else 104), -2).apply { setMargins(dp(6), 0, 0, 0) })
+                quickRow.addView(chip, LinearLayout.LayoutParams(-2, dp(54)).apply {
                     setMargins(0, 0, dp(7), 0)
                 })
             }
@@ -430,7 +431,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(1), dp(42)))
         metrics.addView(speedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
         trafficCard.addView(metrics)
-        content.addView(trafficCard, margins(bottom = 18))
+        content.addView(trafficCard, margins(bottom = 12))
 
         if (selected == null) {
             val hint = txt("Начните с добавления сервера — NeoTUN поддерживает импорт ссылок и подписок.",
