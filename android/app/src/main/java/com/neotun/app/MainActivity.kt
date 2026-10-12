@@ -2046,49 +2046,53 @@ class MainActivity : Activity() {
     }
 
     private fun profileActions(p: NeoTunProfile) {
-        // Keep the first-level menu focused on frequent tasks. Rare maintenance
-        // actions stay grouped under "Ещё", instead of filling the whole screen.
-        val options = arrayOf(
-            "Подключиться",
-            "Редактировать профиль",
-            "Просмотреть конфигурацию",
-            "Копировать ссылку",
-            "Ещё…"
-        )
-        val dialog = AlertDialog.Builder(this).setTitle(p.name)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> selectProfile(p)
-                    1 -> editProfile(p)
-                    2 -> showProfileConfig(p)
-                    3 -> copyText("NeoTUN profile", p.uri, "Ссылка скопирована")
-                    4 -> showMoreProfileActions(p)
-                }
-            }.create()
-        dialog.setOnShowListener { styleDialog(dialog) }
+        val dialog = Dialog(this)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(12))
+            background = rounded(NeoTunDesign.SURFACE, 20, NeoTunDesign.BORDER, 1)
+        }
+        panel.addView(View(this).apply { background = rounded(NeoTunDesign.TEXT_MUTED, 3) },
+            LinearLayout.LayoutParams(dp(32), dp(4)).apply { gravity = Gravity.CENTER; bottomMargin = dp(10) })
+        panel.addView(txt(p.name, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, margins(bottom = 6))
+        fun action(icon: String, label: String, danger: Boolean = false, callback: () -> Unit) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(6), 0, dp(6), 0)
+                background = ColorDrawable(Color.TRANSPARENT)
+                minimumHeight = dp(40)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { dialog.dismiss(); callback() }
+            }
+            row.addView(txt(icon, 17f, if (danger) NeoTunDesign.DANGER else NeoTunDesign.TEXT_MUTED,
+                Typeface.NORMAL, Gravity.CENTER), LinearLayout.LayoutParams(dp(34), -1))
+            row.addView(txt(label, 13f, if (danger) NeoTunDesign.DANGER else NeoTunDesign.TEXT_PRIMARY))
+            panel.addView(row, LinearLayout.LayoutParams(-1, dp(40)))
+        }
+        action("↗", "Подключиться") { selectProfile(p) }
+        action("✎", "Редактировать профиль") { editProfile(p) }
+        action("☷", "Просмотреть конфигурацию") { showProfileConfig(p) }
+        action("▣", "Копировать ссылку") { copyText("NeoTUN profile", p.uri, "Ссылка скопирована") }
+        action("↗", "Поделиться ссылкой") { shareText("NeoTUN · ${p.name}", p.uri) }
+        action("▦", "Показать QR-код") { showProfileQr(p) }
+        action("✎", "Переименовать") { rename(p) }
+        action("⌫", "Удалить профиль", danger = true) { confirmDelete(p) }
+        dialog.setContentView(panel)
+        dialog.window?.let { window ->
+            window.setBackgroundDrawableResource(android.R.color.transparent)
+            window.setLayout(-1, -2)
+            window.setGravity(Gravity.BOTTOM)
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.attributes = window.attributes.apply { dimAmount = 0.45f }
+        }
         dialog.show()
-    }
-
-    private fun showMoreProfileActions(p: NeoTunProfile) {
-        val options = arrayOf(
-            "Поделиться ссылкой",
-            "Показать QR-код",
-            "Возможности ядра",
-            "Переименовать",
-            "Удалить"
-        )
-        val dialog = AlertDialog.Builder(this).setTitle("Дополнительные действия")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> shareText("NeoTUN · ${p.name}", p.uri)
-                    1 -> showProfileQr(p)
-                    2 -> showEngineCapabilities(p)
-                    3 -> rename(p)
-                    4 -> confirmDelete(p)
-                }
-            }.create()
-        dialog.setOnShowListener { styleDialog(dialog) }
-        dialog.show()
+        dialog.window?.setLayout(-1, -2)
+        dialog.window?.setGravity(Gravity.BOTTOM)
     }
 
     private fun showEngineCapabilities(profile: NeoTunProfile) {
@@ -2952,44 +2956,32 @@ class MainActivity : Activity() {
 
     private fun renderNavigation() {
         nav.removeAllViews()
-        nav.setPadding(dp(8), dp(3), dp(8), dp(3))
-        nav.background = GradientDrawable(
-            GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(NeoTunDesign.NAVIGATION, NeoTunDesign.BACKGROUND)
-        ).apply {
-            setStroke(dp(1), NeoTunDesign.BORDER)
-            val radius = dp(22).toFloat()
-            cornerRadii = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
-        }
+        // Compact flat switcher. The page already has its own title, so avoid
+        // duplicating a tall, card-shaped navigation area above the content.
+        nav.setPadding(dp(10), dp(1), dp(10), dp(1))
+        nav.background = ColorDrawable(Color.TRANSPARENT)
         val items = listOf("⌂" to "Главная", "◉" to "Серверы", "⚙" to "Настройки")
         items.forEachIndexed { index, pair ->
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(dp(3), dp(1), dp(3), dp(1))
-                background = if (selected) {
-                    GradientDrawable(
-                        GradientDrawable.Orientation.LEFT_RIGHT,
-                        intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
-                    ).apply { cornerRadius = dp(13).toFloat() }
-                } else {
-                    rounded(Color.TRANSPARENT, 13)
-                }
+                setPadding(dp(6), 0, dp(6), 0)
+                background = if (selected) rounded(NeoTunDesign.BRAND_SOFT, 9) else ColorDrawable(Color.TRANSPARENT)
                 isClickable = true
                 isFocusable = true
                 contentDescription = pair.second
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 19f,
-                if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
+            item.addView(txt(pair.first, 16f,
+                if (selected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_MUTED,
                 Typeface.BOLD, Gravity.CENTER))
-            item.addView(txt(pair.second, 9.5f,
-                if (selected) Color.WHITE else NeoTunDesign.TEXT_MUTED,
-                if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 2))
-            nav.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
-                setMargins(dp(3), 0, dp(3), 0)
+            item.addView(txt(pair.second, 10.5f,
+                if (selected) NeoTunDesign.TEXT_PRIMARY else NeoTunDesign.TEXT_MUTED,
+                if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(start = 4))
+            nav.addView(item, LinearLayout.LayoutParams(0, dp(36), 1f).apply {
+                setMargins(dp(2), 0, dp(2), 0)
             })
         }
     }
