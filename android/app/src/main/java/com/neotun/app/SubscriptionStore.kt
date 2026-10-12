@@ -233,7 +233,7 @@ class SubscriptionStore(context: Context) {
             val linkPattern = Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://.*?(?=(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://|\\s|$)")
             value.lines().forEach { line ->
                 linkPattern.findAll(line).forEach { match ->
-                    val link = match.value.trim().trimEnd(',', ';', '"', '\\'')
+                    val link = match.value.trim().trimEnd(',', ';', '"')
                     if (link.isNotBlank()) candidates.add(link)
                 }
             }
