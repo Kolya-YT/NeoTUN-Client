@@ -1,0 +1,74 @@
+name: RIPDPI Adapter Proof
+
+on:
+  pull_request:
+    paths:
+      - "core/**"
+      - ".github/workflows/ripdpi-adapter-proof.yml"
+      - ".github/ripdpi-upstream.lock"
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - ".github/workflows/ripdpi-adapter-proof.yml"
+      - ".github/ripdpi-upstream.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ripdpi-adapter-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  neotun-contract:
+    name: Test NeoTUN adapter contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout NeoTUN
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            core -> target
+
+      - name: Run adapter contract tests
+        run: cargo test --manifest-path core/Cargo.toml
+
+  upstream-strategy-crate:
+    name: Verify pinned RIPDPI strategy crates independently
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pinned RIPDPI revision
+        uses: actions/checkout@v4
+        with:
+          repository: po4yka/RIPDPI
+          ref: 5ea9c492c0ba1d27cf5223642c1aa36a044aa3d5
+          path: ripdpi-upstream
+
+      - name: Install Rust required for edition 2024
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache upstream Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            ripdpi-upstream/native/rust -> ripdpi-upstream/native/rust/target
+
+      - name: Test packet/desync strategy crate
+        working-directory: ripdpi-upstream/native/rust
+        run: cargo test --locked -p ripdpi-desync
+
+      - name: Test strategy registry without optional Lua strategies
+        working-directory: ripdpi-upstream/native/rust
+        run: cargo test --locked -p ripdpi-strategy-registry
