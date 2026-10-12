@@ -720,26 +720,28 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, margins(top = 3))
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
-        val pingColumn = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            minimumWidth = dp(46)
+        if (!compact) {
+            val pingColumn = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                minimumWidth = dp(46)
+            }
+            val pingLabel = pingResults[profile.id] ?: "Пинг"
+            pingColumn.addView(txt(pingLabel, 9f,
+                if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
+                Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
+                LinearLayout.LayoutParams(-1, dp(15)))
+            pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
+                NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Проверить пинг: ${profile.name}"
+                setOnClickListener { pingSelected(profile) }
+            }, LinearLayout.LayoutParams(-1, dp(27)))
+            row.addView(pingColumn, LinearLayout.LayoutParams(dp(48), dp(42)).apply {
+                setMargins(dp(3), 0, dp(2), 0)
+            })
         }
-        val pingLabel = pingResults[profile.id] ?: "Пинг"
-        pingColumn.addView(txt(pingLabel, 9f,
-            if (pingLabel.endsWith("мс")) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED,
-            Typeface.BOLD, Gravity.CENTER).apply { maxLines = 1 },
-            LinearLayout.LayoutParams(-1, dp(15)))
-        pingColumn.addView(txt(if (profile.id in pingInProgress) "…" else "◴", 21f,
-            NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Проверить пинг: ${profile.name}"
-            setOnClickListener { pingSelected(profile) }
-        }, LinearLayout.LayoutParams(-1, dp(27)))
-        row.addView(pingColumn, LinearLayout.LayoutParams(dp(48), dp(42)).apply {
-            setMargins(dp(3), 0, dp(2), 0)
-        })
         val action = iconButton(if (compact) "›" else "⋯", 22) {
             if (compact) showProfileConfig(profile) else profileActions(profile)
         }.apply {
@@ -947,9 +949,10 @@ class MainActivity : Activity() {
             top.addView(txt(value, 11f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.END).apply {
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
-                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setPadding(dp(7), dp(4), dp(7), dp(4))
+                maxWidth = dp(if (resources.displayMetrics.widthPixels < dp(360)) 100 else 132)
                 background = rounded(NeoTunDesign.BRAND_SOFT, 8)
-            }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(8), 0, 0, 0) })
+            }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(6), 0, 0, 0) })
         }
         top.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER),
             LinearLayout.LayoutParams(dp(20), dp(28)))
