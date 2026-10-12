@@ -1,6 +1,0 @@
-# Reviewed upstream revision for NeoTUN integration.
-# Update this file only after compatibility, license, and regression review.
-repository=https://github.com/po4yka/RIPDPI
-branch=main
-commit=5ea9c492c0ba1d27cf5223642c1aa36a044aa3d5
-status=review-baseline-not-production-integrated
