@@ -83,7 +83,11 @@ class SubscriptionStore(context: Context) {
         val candidate = subscription.copy(id = stableId, url = normalizedUrl)
 
         val response = fetch(candidate.url)
-        val links = decodeLinks(response.body)
+        // Many subscription providers Base64-encode the entire feed, including
+        // routing directives. Decode the feed once and use the same normalized
+        // payload for both server links and routing metadata.
+        val decodedBody = decodeFeedText(response.body)
+        val links = decodeLinks(decodedBody)
         if (links.isEmpty()) error("Подписка не содержит поддерживаемых ссылок")
 
         val parsed = links.mapNotNull { uri ->
@@ -181,11 +185,19 @@ class SubscriptionStore(context: Context) {
         val onAdd = auto || candidate.contains("://routing/onadd/", true)
         val remoteUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
             candidate.contains("://routing/add/http", true)) {
+            // The payload itself may be an HTTP URL, so never split it at the
+            // first slash: that would turn "https://host/file" into "host/file".
             val payload = when {
                 candidate.contains("://autorouting/", true) ->
-                    candidate.substringAfter("://autorouting/", "").substringAfter('/', "")
-                candidate.contains("://routing/", true) ->
-                    candidate.substringAfter("://routing/", "").substringAfter('/', "")
+                    candidate.substringAfter("://autorouting/", "")
+                candidate.contains("://routing/", true) -> {
+                    val path = candidate.substringAfter("://routing/", "")
+                    when {
+                        path.startsWith("onadd/", true) -> path.substringAfter("onadd/")
+                        path.startsWith("add/", true) -> path.substringAfter("add/")
+                        else -> path
+                    }
+                }
                 else -> ""
             }
             payload.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
@@ -206,6 +218,24 @@ class SubscriptionStore(context: Context) {
     private fun normalizeGitHubRawUrl(url: String): String =
         url.replace("https://github.com/", "https://raw.githubusercontent.com/")
             .replace("/blob/", "/")
+
+    private fun decodeFeedText(body: String): String {
+        val text = body.trim()
+        if (text.isEmpty()) return text
+        val hasReadableShareLink = Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://").containsMatchIn(text)
+        if (hasReadableShareLink) return text
+        for (flags in listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)) {
+            val decoded = runCatching {
+                Base64.decode(text.replace("\\s".toRegex(), ""), flags)
+                    .toString(StandardCharsets.UTF_8).trim()
+            }.getOrNull() ?: continue
+            if (decoded.isNotBlank() && decoded.any { it == '\\n' || it == '\\r' } ||
+                Regex("(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss|(?:incy|happ)://)").containsMatchIn(decoded)) {
+                return decoded
+            }
+        }
+        return text
+    }
 
     private fun decodeLinks(body: String): List<String> {
         val text = body.trim()
