@@ -1,6 +1,7 @@
 package com.neotun.app
 
 import android.app.Activity
+import android.app.Dialog
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
@@ -740,14 +741,17 @@ class MainActivity : Activity() {
         row.addView(pingColumn, LinearLayout.LayoutParams(dp(48), dp(42)).apply {
             setMargins(dp(3), 0, dp(2), 0)
         })
-        val action = iconButton("⋯", 22) { profileActions(profile) }.apply {
-            background = rounded(
+        val action = iconButton(if (compact) "›" else "⋯", 22) {
+            if (compact) showProfileConfig(profile) else profileActions(profile)
+        }.apply {
+            background = if (compact) ColorDrawable(Color.TRANSPARENT) else rounded(
                 if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED,
                 10,
                 if (selected) NeoTunDesign.BORDER_ACCENT else NeoTunDesign.BORDER,
                 1
             )
-            contentDescription = "Действия для сервера: ${profile.name}"
+            contentDescription = if (compact) "Просмотреть конфигурацию: ${profile.name}"
+                else "Действия для сервера: ${profile.name}"
         }
         row.addView(action, LinearLayout.LayoutParams(dp(36), dp(36)).apply {
             setMargins(dp(2), 0, dp(1), 0)
