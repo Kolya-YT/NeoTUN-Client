@@ -521,7 +521,7 @@ class MainActivity : Activity() {
             }
             prefs.edit().putString("profiles_sort", next).apply()
             renderProfiles()
-        }, LinearLayout.LayoutParams(-2, dp(40)))
+        }, LinearLayout.LayoutParams(dp(if (resources.displayMetrics.widthPixels < dp(360)) 112 else 132), dp(40)))
         content.addView(toolsRow, margins(bottom = 10))
 
         val selected = selectedProfileId()
@@ -559,7 +559,8 @@ class MainActivity : Activity() {
                 val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 info.addView(txt(sub.name, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
                     maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    // Keep provider and region suffixes visible in long subscription titles.
+                    ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
                 })
                 info.addView(txt(
                     (if (sub.lastUpdated > 0) "Обновлено • " +
