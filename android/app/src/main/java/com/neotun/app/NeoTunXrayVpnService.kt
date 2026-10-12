@@ -448,10 +448,14 @@ class NeoTunXrayVpnService : VpnService() {
 
         running = false
         starting = false
-        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-            .edit()
-            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
-            .apply()
+        // Only Xray may clear the shared running flag while Xray is the
+        // selected engine. A late stop from an old Xray instance must not
+        // mark a newer sing-box session offline.
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+                == NeoTunVpnService.ENGINE_XRAY) {
+            prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -477,11 +481,12 @@ class NeoTunXrayVpnService : VpnService() {
                     .toString(),
             )
         }
-        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-            .edit()
-            .putString(NeoTunVpnService.KEY_ERROR, message)
-            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
-            .apply()
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
+                == NeoTunVpnService.ENGINE_XRAY) {
+            prefs.edit().putString(NeoTunVpnService.KEY_ERROR, message)
+                .putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
+        }
 
         if (tunFd >= 0) {
             runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
