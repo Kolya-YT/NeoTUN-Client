@@ -645,33 +645,10 @@ class MainActivity : Activity() {
         }
 
         val appearance = settingsSection("ВНЕШНИЙ ВИД И ДОСТУПНОСТЬ")
-        val themeLabels = mapOf("dark" to "Тёмная", "light" to "Светлая", "oled" to "OLED-чёрная")
-        val theme = prefs.getString("appearance_theme", "dark") ?: "dark"
-        val themePreview = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            background = rounded(NeoTunDesign.BRAND_SOFT, 14, NeoTunDesign.BORDER_ACCENT, 1)
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { showAppearanceThemeSettings() }
-        }
-        val swatches = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        listOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_VIOLET_LIGHT, NeoTunDesign.BRAND_BLUE).forEach { color ->
-            swatches.addView(View(this).apply { background = rounded(color, 9) },
-                LinearLayout.LayoutParams(dp(18), dp(30)).apply { setMargins(0, 0, dp(4), 0) })
-        }
-        themePreview.addView(swatches)
-        val themeInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        themeInfo.addView(txt("Тема NeoTUN", 13f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
-        themeInfo.addView(txt(themeLabels[theme] ?: "Тёмная", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 3))
-        themePreview.addView(themeInfo, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(8), 0, 0, 0) })
-        themePreview.addView(txt("Настроить  ›", 11f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD))
-        appearance.addView(themePreview, margins(bottom = 6))
         appearance.addView(settingsRow(
-            "🎨 Подробные параметры темы",
-            "Открыть",
-            "Выбрать тёмный, светлый или OLED-режим"
+            "🎨 Тема оформления",
+            themeLabels[prefs.getString("appearance_theme", "dark") ?: "dark"] ?: "Тёмная",
+            "Тёмная, светлая или OLED-чёрная тема"
         ) { showAppearanceThemeSettings() })
         val fontScale = prefs.getInt("font_scale", 100)
         appearance.addView(settingsRow(
