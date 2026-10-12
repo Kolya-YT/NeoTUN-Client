@@ -132,12 +132,18 @@ class RoutingProfileStore(context: Context) {
             if (linkIndex >= 0) {
                 val rest = value.substring(linkIndex)
                 val path = rest.substringAfter("://", "")
-                val mode = path.substringAfter('/', "").substringBefore('/')
-                val payload = path.substringAfter('/', "").substringAfter('/', "")
-                value = if (payload.startsWith("http://", true) || payload.startsWith("https://", true)) {
-                    return null // URL imports are handled by the asynchronous importer.
-                } else payload
+                val mode = path.substringBefore('/')
+                var payload = path.substringAfter('/', "")
                 if (mode.equals("off", true)) return null
+                // Preserve URL schemes in remote payloads. Splitting the payload
+                // on '/' a second time corrupts https://host/path into host/path.
+                if (payload.startsWith("onadd/", true) || payload.startsWith("add/", true)) {
+                    payload = payload.substringAfter('/')
+                }
+                if (payload.startsWith("http://", true) || payload.startsWith("https://", true)) {
+                    return null // URL imports are handled by the asynchronous importer.
+                }
+                value = payload
             }
 
             if (value.startsWith("{")) return runCatching { JSONObject(value) }.getOrNull()
