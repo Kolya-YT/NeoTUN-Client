@@ -1595,30 +1595,88 @@ class MainActivity : Activity() {
 
     private var switchGeneration = 0
     private var isSwitching = false
+    private var switchStopReceiver: android.content.BroadcastReceiver? = null
+    private var pendingStopAcks = mutableSetOf<String>()
+    private var switchStopToken: String? = null
 
     private fun switchServer(profile: NeoTunProfile) {
         if (isFinishing || isDestroyed) return
         isSwitching = true
         val generation = ++switchGeneration
+        val token = generation.toString() + "-" + UUID.randomUUID().toString()
+        switchStopToken = token
+        pendingStopAcks = mutableSetOf("sing-box", "xray")
         setSelectedProfile(profile.id)
         NeoTunDiagnostics.log(this, "Switching server to " +
-            profile.uri.substringBefore("://").lowercase() + "; generation=" + generation)
-        
-        // Immediate UI update to show disconnect/switch progress
+            profile.uri.substringBefore("://").lowercase() + "; generation=" + generation +
+            "; token=" + token)
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
             .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
             .remove(NeoTunVpnService.KEY_ERROR)
             .apply()
-        
-        // Refresh UI immediately to reflect transition state
         if (screen == Screen.HOME) renderHome() else renderProfiles()
 
-        disconnect()
+        // Static flags cannot coordinate services in separate Android processes.
+        // Wait for explicit IPC acknowledgements sent only after native teardown ends.
+        registerSwitchStopReceiver(token, profile, generation)
+        disconnect(token)
+        waitForVpnStopAcks(profile, generation, token)
+    }
 
-        // Do not guess that teardown is complete after a fixed sleep. Poll the
-        // app's own service list and start the selected profile only after both
-        // engine services have actually left the running set.
-        waitForVpnServicesStopped(profile, generation)
+    private fun registerSwitchStopReceiver(token: String, profile: NeoTunProfile, generation: Int) {
+        switchStopReceiver?.let { runCatching { unregisterReceiver(it) } }
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: Intent) {
+                if (intent.action != NeoTunVpnService.ACTION_ENGINE_STOPPED ||
+                    intent.getStringExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN) != token ||
+                    generation != switchGeneration) return
+                val engine = intent.getStringExtra(NeoTunVpnService.EXTRA_ENGINE_NAME) ?: return
+                val success = intent.getBooleanExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, false)
+                pendingStopAcks.remove(engine)
+                NeoTunDiagnostics.log(this@MainActivity, "Engine stop acknowledgement: $engine; success=$success; remaining=" + pendingStopAcks.joinToString(","))
+                if (!success) {
+                    abortServerSwitch(generation, "Не удалось корректно остановить ядро $engine.")
+                } else if (pendingStopAcks.isEmpty()) {
+                    switchStopReceiver?.let { runCatching { unregisterReceiver(it) } }
+                    switchStopReceiver = null
+                    NeoTunDiagnostics.log(this@MainActivity, "Both engine shutdown acknowledgements received; starting selected profile; generation=$generation")
+                    isSwitching = false
+                    switchStopToken = null
+                    connect(profile)
+                }
+            }
+        }
+        switchStopReceiver = receiver
+        ContextCompat.registerReceiver(
+            this, receiver,
+            android.content.IntentFilter(NeoTunVpnService.ACTION_ENGINE_STOPPED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
+
+    private fun waitForVpnStopAcks(profile: NeoTunProfile, generation: Int, token: String, attempt: Int = 0) {
+        if (isFinishing || isDestroyed || generation != switchGeneration || switchStopToken != token) return
+        if (pendingStopAcks.isEmpty()) return
+        if (attempt >= 200) {
+            abortServerSwitch(generation, "Не получено подтверждение остановки ядер за 20 секунд: " + pendingStopAcks.joinToString(","))
+            return
+        }
+        handler.postDelayed({ waitForVpnStopAcks(profile, generation, token, attempt + 1) }, 100L)
+    }
+
+    private fun abortServerSwitch(generation: Int, message: String) {
+        if (generation != switchGeneration) return
+        isSwitching = false
+        switchStopToken = null
+        switchStopReceiver?.let { runCatching { unregisterReceiver(it) } }
+        switchStopReceiver = null
+        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
+            .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+            .putString(NeoTunVpnService.KEY_ERROR, message)
+            .apply()
+        NeoTunDiagnostics.error(this, "Server switch aborted: $message")
+        if (screen == Screen.HOME) renderHome() else renderProfiles()
+        NeoTunHomeWidget.refreshAll(this)
     }
 
     private fun isVpnServiceActiveOrStarting(): Boolean {
@@ -1627,41 +1685,7 @@ class MainActivity : Activity() {
             NeoTunXrayVpnService.isEngineBusy
     }
 
-    private fun waitForVpnServicesStopped(profile: NeoTunProfile, generation: Int, attempt: Int = 0) {
-        if (isFinishing || isDestroyed || generation != switchGeneration) return
-        val activeEngines = buildList {
-            if (NeoTunVpnService.isEngineBusy) add("sing-box")
-            if (NeoTunXrayVpnService.isEngineBusy) add("Xray")
-        }
-        val stillRunning = activeEngines.isNotEmpty()
-
-        if (!stillRunning) {
-            NeoTunDiagnostics.log(this, "Both VPN engines stopped; starting selected profile; generation=" + generation)
-            isSwitching = false
-            connect(profile)
-            return
-        }
-
-        // Native sing-box shutdown may take longer while active TUN flows are draining.
-        // Keep the strict no-overlapping-TUN rule, but allow up to 20 seconds for
-        // service teardown before reporting a failed switch.
-        if (attempt >= 200) {
-            isSwitching = false
-            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
-                .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
-                .putString(NeoTunVpnService.KEY_ERROR,
-                    "Не удалось остановить предыдущее соединение за 20 секунд. Повторите переключение.")
-                .apply()
-            NeoTunDiagnostics.error(this, "Server switch aborted: native VPN engines did not stop within 20 seconds; remaining=" + activeEngines.joinToString(","))
-            if (screen == Screen.HOME) renderHome() else renderProfiles()
-            NeoTunHomeWidget.refreshAll(this)
-            return
-        }
-
-        handler.postDelayed({ waitForVpnServicesStopped(profile, generation, attempt + 1) }, 100L)
-    }
-
-    private fun disconnect() {
+    private fun disconnect(switchToken: String? = null) {
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
 
         // Shared preferences can be stale during engine switches or after a
@@ -1672,6 +1696,9 @@ class MainActivity : Activity() {
             Intent(this, NeoTunXrayVpnService::class.java).setAction(NeoTunXrayVpnService.ACTION_DISCONNECT),
         )
         stopTargets.forEach { target ->
+            if (!switchToken.isNullOrBlank()) {
+                target.putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, switchToken)
+            }
             runCatching {
                 // Deliver an explicit disconnect command instead of stopService():
                 // stopService() can synchronously invoke onDestroy on the main
