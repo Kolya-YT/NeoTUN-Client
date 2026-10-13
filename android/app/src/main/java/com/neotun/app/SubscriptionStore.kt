@@ -5,6 +5,7 @@ import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -160,24 +161,26 @@ class SubscriptionStore(context: Context) {
             ?: routingHeader?.takeIf { it.isNotBlank() }
             ?: lines.firstOrNull { it.contains("://routing/", true) }
             ?: return
-        if (candidate.equals("off", true) ||
-            candidate.contains("://routing/off", true) ||
-            candidate.contains("://autorouting/off", true)) {
+        val decodedCandidate = decodeRoutingDirective(candidate)
+        if (decodedCandidate.equals("off", true) ||
+            decodedCandidate.contains("://routing/off", true) ||
+            decodedCandidate.contains("://autorouting/off", true)) {
             routingProfiles.setEnabled(false)
             return
         }
 
-        val auto = candidate.contains("://autorouting/", true)
-        val onAdd = auto || candidate.contains("://routing/onadd/", true)
-        val remoteUrl = if (auto || candidate.contains("://routing/onadd/http", true) ||
-            candidate.contains("://routing/add/http", true)) {
+        val directive = decodedCandidate
+        val auto = directive.contains("://autorouting/", true)
+        val onAdd = auto || directive.contains("://routing/onadd/", true)
+        val remoteUrl = if (auto || directive.contains("://routing/onadd/http", true) ||
+            directive.contains("://routing/add/http", true)) {
             // The payload itself may be an HTTP URL, so never split it at the
             // first slash: that would turn "https://host/file" into "host/file".
             val payload = when {
                 candidate.contains("://autorouting/", true) ->
-                    candidate.substringAfter("://autorouting/", "")
+                    directive.substringAfter("://autorouting/", "")
                 candidate.contains("://routing/", true) -> {
-                    val path = candidate.substringAfter("://routing/", "")
+                    val path = directive.substringAfter("://routing/", "")
                     when {
                         path.startsWith("onadd/", true) -> path.substringAfter("onadd/")
                         path.startsWith("add/", true) -> path.substringAfter("add/")
@@ -194,16 +197,40 @@ class SubscriptionStore(context: Context) {
         val profileJson = if (remoteUrl != null) {
             runCatching { RoutingProfileStore.decode(fetch(remoteUrl).body) }.getOrNull()
         } else {
-            RoutingProfileStore.decode(candidate)
+            RoutingProfileStore.decode(directive)
         } ?: return
         val shouldActivate = onAdd || routingProfiles.all().isEmpty()
         routingProfiles.save(profileJson, sourceUrl = sourceUrl, activate = shouldActivate)
         if (shouldActivate) routingProfiles.setEnabled(true)
     }
 
-    private fun normalizeGitHubRawUrl(url: String): String =
-        url.replace("https://github.com/", "https://raw.githubusercontent.com/")
-            .replace("/blob/", "/")
+    private fun decodeRoutingDirective(candidate: String): String {
+        val value = candidate.trim().trimStart('\uFEFF')
+        if (value.contains("://", true)) return value
+        val compact = value.replace("\\s".toRegex(), "")
+        for (flags in listOf(Base64.DEFAULT, Base64.URL_SAFE or Base64.NO_WRAP)) {
+            val decoded = runCatching {
+                Base64.decode(compact, flags).toString(StandardCharsets.UTF_8)
+                    .trim().trimStart('\uFEFF')
+            }.getOrNull() ?: continue
+            if (decoded.contains("://routing/", true) ||
+                decoded.contains("://autorouting/", true) ||
+                decoded.equals("off", true)) return decoded
+        }
+        return value
+    }
+
+    private fun normalizeGitHubRawUrl(url: String): String = runCatching {
+        val uri = URI(url)
+        if (!uri.scheme.equals("https", true) ||
+            !uri.host.equals("github.com", true)) return@runCatching url
+        val path = uri.rawPath ?: return@runCatching url
+        val marker = path.indexOf("/blob/", ignoreCase = true)
+        if (marker < 0) return@runCatching url
+        val rawPath = path.removeRange(marker, marker + "/blob/".length)
+        "https://raw.githubusercontent.com$rawPath" +
+            (uri.rawQuery?.let { "?$it" } ?: "")
+    }.getOrDefault(url)
 
     private fun decodeFeedText(body: String): String {
         val text = body.trim()
