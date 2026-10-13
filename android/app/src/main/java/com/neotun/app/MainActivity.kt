@@ -706,8 +706,12 @@ class MainActivity : Activity() {
             groupProfiles.forEachIndexed { index, profile ->
                 val row = serverRow(profile, profile.id == selected, compact = false)
                 row.setOnClickListener {
-                    setSelectedProfile(profile.id)
-                    renderProfiles()
+                    if (profile.id != selectedProfileId() && isRunning()) {
+                        switchServer(profile)
+                    } else {
+                        setSelectedProfile(profile.id)
+                        renderProfiles()
+                    }
                 }
                 row.setOnLongClickListener {
                     setSelectedProfile(profile.id)
