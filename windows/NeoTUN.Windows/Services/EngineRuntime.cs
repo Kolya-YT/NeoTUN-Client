@@ -197,8 +197,7 @@ internal sealed class EngineRuntime : IDisposable
         }
     }
 
-    public async Task StopAsync()
-    {
+    public async Task StopAsync()    {
         Interlocked.Exchange(ref _stopRequested, 1);
         if (_trafficMonitor is not null)
         {
@@ -330,34 +329,109 @@ internal sealed class EngineRuntime : IDisposable
                     remainingRules.Add(rule.DeepClone());
             }
 
-            JsonObject? MakeRule(string field, string[] values, string outbound)
+            // Happ/INCY GeoSite and GeoIP values refer to Xray .dat data, not
+            // literal domains or IP addresses. Convert only known compatible labels
+            // to sing-box remote binary rule-sets, matching the Android adapter.
+            var supportedGeoSites = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                if (values.Length == 0) return null;
+                "whitelist", "category-ru", "category-geoblock-ru", "apple", "google-play",
+                "google-deepmind", "microsoft", "github", "telegram", "youtube", "twitch",
+                "twitch-ads", "pinterest", "steam", "epicgames", "riot", "escapefromtarkov",
+                "faceit", "category-ads", "origin", "win-spy", "private", "torrent"
+            };
+            var supportedGeoIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { "direct", "whitelist", "private" };
+
+            string? NormalizeGeoToken(string value)
+            {
+                var token = value.Trim();
+                var separator = token.IndexOf(':');
+                if (separator <= 0) return null;
+                var kind = token[..separator].Trim().ToLowerInvariant();
+                var label = token[(separator + 1)..].Trim().ToLowerInvariant();
+                if (label == "epic-games") label = "epicgames";
+                if (label is "category-geoblockru") label = "category-geoblock-ru";
+                if (kind == "geosite" && supportedGeoSites.Contains(label)) return kind + ":" + label;
+                if (kind == "geoip" && supportedGeoIps.Contains(label)) return kind + ":" + label;
+                return null;
+            }
+
+            string RuleSetTag(string token) =>
+                "neotun-" + token.Replace(':', '-') .Replace('_', '-');
+
+            string RuleSetUrl(string token)
+            {
+                var separator = token.IndexOf(':');
+                var kind = token[..separator];
+                var label = token[(separator + 1)..];
+                var repository = kind == "geosite" ? "roscomvpn-geosite" : "roscomvpn-geoip";
+                return $"https://cdn.jsdelivr.net/gh/hydraponique/{repository}/release/sing-box/{label}.srs";
+            }
+
+            JsonObject? MakeRule(string field, string[] values, string outbound, string[]? geoTokens = null)
+            {
+                if (values.Length == 0 && (geoTokens is null || geoTokens.Length == 0)) return null;
                 var rule = new JsonObject { ["outbound"] = outbound };
-                rule[field] = new JsonArray(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
+                if (values.Length > 0)
+                    rule[field] = new JsonArray(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
+                if (geoTokens is { Length: > 0 })
+                    rule["rule_set"] = new JsonArray(geoTokens.Select(RuleSetTag).Distinct()
+                        .Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
                 return rule;
             }
 
-            var blockDomains = ReadLines("BlockSites")
+            string[] ReadGeoTokens(string key) => ReadLines(key)
+                .Select(NormalizeGeoToken).Where(v => v is not null).Cast<string>().Distinct().ToArray();
+
+            var blockRaw = ReadLines("BlockSites");
+            var proxyRaw = ReadLines("ProxySites");
+            var directRaw = ReadLines("DirectSites");
+            var blockDomains = blockRaw.Where(v => !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) &&
+                    !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase))
                 .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
-            var proxyDomains = ReadLines("ProxySites")
+            var proxyDomains = proxyRaw.Where(v => !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) &&
+                    !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase))
                 .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
-            var directDomains = ReadLines("DirectSites")
+            var directDomains = directRaw.Where(v => !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) &&
+                    !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase))
                 .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
-            var blockIps = ReadLines("BlockIp").Where(IsIpOrCidr).ToArray();
-            var proxyIps = ReadLines("ProxyIp").Where(IsIpOrCidr).ToArray();
-            var directIps = ReadLines("DirectIp").Where(IsIpOrCidr).ToArray();
+            var blockGeo = ReadGeoTokens("BlockSites").Concat(ReadGeoTokens("BlockIp")).Distinct().ToArray();
+            var proxyGeo = ReadGeoTokens("ProxySites").Concat(ReadGeoTokens("ProxyIp")).Distinct().ToArray();
+            var directGeo = ReadGeoTokens("DirectSites").Concat(ReadGeoTokens("DirectIp")).Distinct().ToArray();
+            var blockIps = ReadLines("BlockIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
+                    !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
+            var proxyIps = ReadLines("ProxyIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
+                    !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
+            var directIps = ReadLines("DirectIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
+                    !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
+            var allGeoTokens = blockGeo.Concat(proxyGeo).Concat(directGeo).Distinct().ToArray();
+            var ruleSets = new JsonArray();
+            foreach (var token in allGeoTokens)
+            {
+                var separator = token.IndexOf(':');
+                ruleSets.Add(new JsonObject
+                {
+                    ["type"] = "remote",
+                    ["tag"] = RuleSetTag(token),
+                    ["format"] = "binary",
+                    ["url"] = RuleSetUrl(token),
+                    ["download_detour"] = "direct",
+                    ["update_interval"] = "24h"
+                });
+            }
+            if (ruleSets.Count > 0) route["rule_set"] = ruleSets;
+
             var processExclusions = ReadLines("ProcessExclusions")
                 .Where(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
                     name == Path.GetFileName(name) && !name.Contains('/') && !name.Contains((char)92) && !name.Contains(':'))
                 .ToArray();
             route["find_process"] = processExclusions.Length > 0;
 
-            var groups = new Dictionary<string, (string[] Domains, string[] Ips)>
+            var groups = new Dictionary<string, (string[] Domains, string[] Ips, string[] Geo)>
             {
-                ["block"] = (blockDomains, blockIps),
-                ["proxy"] = (proxyDomains, proxyIps),
-                ["direct"] = (directDomains, directIps)
+                ["block"] = (blockDomains, blockIps, blockGeo),
+                ["proxy"] = (proxyDomains, proxyIps, proxyGeo),
+                ["direct"] = (directDomains, directIps, directGeo)
             };
             var order = ReadInt("RouteOrder", 0) switch
             {
@@ -373,8 +447,8 @@ internal sealed class EngineRuntime : IDisposable
             foreach (var tag in order)
             {
                 var group = groups[tag];
-                var domains = MakeRule("domain_suffix", group.Domains, tag);
-                var ips = MakeRule("ip_cidr", group.Ips, tag);
+                var domains = MakeRule("domain_suffix", group.Domains, tag, group.Geo);
+                var ips = MakeRule("ip_cidr", group.Ips, tag, group.Geo);
                 if (domains is not null) mergedRules.Add(domains);
                 if (ips is not null) mergedRules.Add(ips);
             }
@@ -384,7 +458,11 @@ internal sealed class EngineRuntime : IDisposable
             ApplyDnsPreferences(singBoxRoot, ReadString("RemoteDns", ""), ReadString("DomesticDns", ""),
                 ReadLines("DomesticDnsDomains"));
 
-            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, processExclusions={processExclusions.Length}.");
+            var unsupportedGeoCount = new[] { "BlockSites", "ProxySites", "DirectSites", "BlockIp", "ProxyIp", "DirectIp" }
+                .SelectMany(ReadLines)
+                .Count(v => (v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) ||
+                    v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase)) && NormalizeGeoToken(v) is null);
+            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, geoRuleSets={allGeoTokens.Length}, unsupportedGeoRules={unsupportedGeoCount}, processExclusions={processExclusions.Length}.");
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or FormatException)
         {
@@ -397,8 +475,7 @@ internal sealed class EngineRuntime : IDisposable
         var domain = value.Trim().TrimStart('*').TrimStart('.');
         if (domain.Length == 0 || domain.Any(char.IsWhiteSpace) || domain.Contains('/') ||
             domain.Contains(':') || domain.StartsWith("geosite", StringComparison.OrdinalIgnoreCase))
-            return null;
-        return "." + domain;
+            return null;        return "." + domain;
     }
 
     private static bool IsIpOrCidr(string value)
@@ -597,8 +674,7 @@ internal sealed class EngineRuntime : IDisposable
             try
             {
                 using var client = new TcpClient();
-                await client.ConnectAsync(address, port, attempt.Token);
-                await using var stream = client.GetStream();
+                await client.ConnectAsync(address, port, attempt.Token);                await using var stream = client.GetStream();
                 var greeting = new byte[] { 0x05, 0x01, 0x00 };
                 await stream.WriteAsync(greeting, attempt.Token);
 
@@ -797,46 +873,3 @@ internal sealed class EngineRuntime : IDisposable
         return new System.Security.Principal.WindowsPrincipal(identity)
             .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
     }
-
-    private void RecordRecentError(string name, string line)
-    {
-        if (string.IsNullOrWhiteSpace(line)) return;
-        lock (_errorSync)
-        {
-            var list = name == "sing-box" ? _singBoxErrors : (name == "xray" ? _xrayErrors : null);
-            if (list == null) return;
-            list.Add(line.Trim());
-            if (list.Count > 5000) list.RemoveAt(0);
-        }
-    }
-
-    private string GetRecentErrors(string name)
-    {
-        lock (_errorSync)
-        {
-            var list = name == "sing-box" ? _singBoxErrors : (name == "xray" ? _xrayErrors : null);
-            return list != null ? string.Join(Environment.NewLine, list.TakeLast(500)) : "";
-        }
-    }
-
-    private static bool SafeHasExited(Process? process)
-    {
-        if (process is null) return true;
-        try { return process.HasExited; }
-        catch (InvalidOperationException) { return true; }
-        catch (Exception) { return true; }
-    }
-
-    private static int SafeExitCode(Process? process)
-    {
-        if (process is null) return -1;
-        try { return process.ExitCode; } catch { return -1; }
-    }
-
-    private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
-
-    public void Dispose()
-    {
-        try { StopAsync().GetAwaiter().GetResult(); } catch { }
-    }
-}
