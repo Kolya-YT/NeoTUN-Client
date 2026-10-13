@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Windows runtime now uses a lifecycle generation to preserve a concurrent disconnect across stale-process cleanup: `StartAsync` cleans old processes without invoking the public disconnect path, checks the captured generation before resetting the stop flag, and `StopAsync` increments the generation before cancelling startup. Windows CI and rapid connect/disconnect/reconnect testing are still required (commit `4978f38`).
+
 - [x] Created this parity matrix and work order (commit `8860cae`).
 - [x] Windows subscription refresh validates that supported profiles exist before replacing stored profiles or importing routing directives (commit `f93e7ac`).
 - [x] Windows routing import accepts typed JSON booleans/numbers, array or string route order, DNS aliases, IPv6, MTU and process exclusions (commit `ccf4728`).
