@@ -459,12 +459,38 @@ internal sealed class EngineRuntime : IDisposable
                 ["proxy"] = (proxyDomains, proxyIps, proxySiteGeo, proxyIpGeo),
                 ["direct"] = (directDomains, directIps, directSiteGeo, directIpGeo)
             };
-            var order = ReadInt("RouteOrder", 0) switch
+            var rawOrder = ReadString("RouteOrderRaw", "").Split(
+                new[] { ',', ';', '|', '>', '-', ' ', '\\t', '\\r', '\\n' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var requestedOrder = rawOrder
+                .Select(value => value.ToLowerInvariant() switch
+                {
+                    "block" or "reject" => "block",
+                    "proxy" => "proxy",
+                    "direct" => "direct",
+                    _ => null
+                })
+                .Where(value => value is not null)
+                .Cast<string>()
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            string[] order;
+            if (requestedOrder.Count > 0)
             {
-                1 => new[] { "block", "direct", "proxy" },
-                2 => new[] { "proxy", "block", "direct" },
-                _ => new[] { "block", "proxy", "direct" }
-            };
+                foreach (var fallback in new[] { "block", "proxy", "direct" })
+                    if (!requestedOrder.Contains(fallback, StringComparer.Ordinal))
+                        requestedOrder.Add(fallback);
+                order = requestedOrder.ToArray();
+            }
+            else
+            {
+                order = ReadInt("RouteOrder", 0) switch
+                {
+                    1 => new[] { "block", "direct", "proxy" },
+                    2 => new[] { "proxy", "block", "direct" },
+                    _ => new[] { "block", "proxy", "direct" }
+                };
+            }
             var mergedRules = new JsonArray();
             foreach (var rule in endpointRules) mergedRules.Add(rule);
             foreach (var rule in dnsRules) mergedRules.Add(rule);
@@ -492,7 +518,7 @@ internal sealed class EngineRuntime : IDisposable
                 .SelectMany(ReadLines)
                 .Count(v => (v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) ||
                     v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase)) && NormalizeGeoToken(v) is null);
-            WriteLog($"Applied saved Windows routing preferences: enabled={routingEnabled}, globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, geoRuleSets={allGeoTokens.Length}, unsupportedGeoRules={unsupportedGeoCount}, processExclusions={processExclusions.Length}.");
+            WriteLog($"Applied saved Windows routing preferences: enabled={routingEnabled}, globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={string.Join(",", order)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, geoRuleSets={allGeoTokens.Length}, unsupportedGeoRules={unsupportedGeoCount}, processExclusions={processExclusions.Length}.");
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or FormatException)
         {
