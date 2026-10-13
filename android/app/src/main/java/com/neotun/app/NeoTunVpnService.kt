@@ -58,6 +58,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             }
             // Wait for an in-flight native startup to unwind before closing the shared
             // CommandServer. Otherwise shutdown may report completion before startup creates it.
+            val switchToken = intent.getStringExtra(EXTRA_SWITCH_TOKEN)
             val startupWorker = startupThread
             Thread({
                 if (startupWorker != null && startupWorker !== Thread.currentThread()) {
@@ -68,6 +69,15 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 closeNativeResources()
                 isEngineBusy = false
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
+                if (!switchToken.isNullOrBlank()) {
+                    sendBroadcast(
+                        Intent(ACTION_ENGINE_STOPPED)
+                            .setPackage(packageName)
+                            .putExtra(EXTRA_SWITCH_TOKEN, switchToken)
+                            .putExtra(EXTRA_ENGINE_NAME, "sing-box")
+                            .putExtra(EXTRA_STOP_SUCCESS, true),
+                    )
+                }
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
                 // Use stopSelf(), not stopSelf(startId): duplicate start commands
                 // can advance startId while this single teardown worker is running.
@@ -397,5 +407,9 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         const val ENGINE_SING_BOX = "sing-box"
         const val ENGINE_XRAY = "xray"
         const val ACTION_DISCONNECT = "com.neotun.app.action.DISCONNECT_SINGBOX"
+        const val ACTION_ENGINE_STOPPED = "com.neotun.app.action.ENGINE_STOPPED"
+        const val EXTRA_SWITCH_TOKEN = "neotun.switch.token"
+        const val EXTRA_ENGINE_NAME = "neotun.switch.engine"
+        const val EXTRA_STOP_SUCCESS = "neotun.switch.success"
     }
 }
