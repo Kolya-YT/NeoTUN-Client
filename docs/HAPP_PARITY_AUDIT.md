@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Android sing-box config now assigns `domain_resolver` (`remote-dns`) to proxy outbounds with hostname endpoints when no resolver is already defined. The supplied Hysteria2 logs show endpoint lookups for `fi2.neotunnel.ru` falling back to `[::1]:53` and being refused after TUN startup; the resolver is now explicitly tied to the app's configured DNS server. Verify the emitted config against the bundled libbox version and confirm on-device that endpoint DNS succeeds and the switch completes (commit `b2641e1`).
+
 - [x] Changed Android disconnect/switch requests to call `stopService()` directly for both sing-box and Xray instead of relying only on starting each service with an `ACTION_DISCONNECT` command and `stopSelf(startId)`. Each stop request logs whether Android accepted it. This is a targeted lifecycle fix for the observed switch timeout; native cleanup remains in each service's `onDestroy`, and the generation guards must prevent a stale startup from reviving it. Device verification and CI are still pending (commit `2a23052`).
 
 - [x] Android switch-timeout diagnostics now list the exact still-reported VPN service names when `ActivityManager` prevents a server switch. This follows the user's device log: sing-box/Hysteria2 had active DNS and outbound flows, Xray emitted `onDestroy`, but the switch still timed out after six seconds. The next device run must identify which service remains before changing teardown semantics (commit `148784d`).
