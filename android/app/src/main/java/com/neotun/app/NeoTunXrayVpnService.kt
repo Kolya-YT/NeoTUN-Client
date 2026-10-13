@@ -79,6 +79,13 @@ class NeoTunXrayVpnService : VpnService() {
                         running = true
                         starting = false
                     } catch (t: Throwable) {
+                        // A synchronous native start can fail after the user has
+                        // already requested disconnect or selected another engine.
+                        // Do not let that stale failure stop or overwrite the new run.
+                        if (destroyed || generation != startupGeneration) {
+                            NeoTunDiagnostics.log(this, "Ignoring stale Xray startup failure after lifecycle changed")
+                            return@post
+                        }
                         NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", t)
                         if (isGeoDataIntegrityError(t)) {
                             NeoTunDiagnostics.log(this, "Обнаружена ошибка чтения GeoIP/GeoSite. Обновляю геобазы и повторяю запуск один раз.")
@@ -105,6 +112,10 @@ class NeoTunXrayVpnService : VpnService() {
                                             running = true
                                             starting = false
                                         } catch (retryError: Throwable) {
+                                            if (destroyed || generation != startupGeneration) {
+                                                NeoTunDiagnostics.log(this, "Ignoring stale Xray retry failure after lifecycle changed")
+                                                return@post
+                                            }
                                             NeoTunDiagnostics.error(this, "Повторный запуск Xray после обновления GeoData не удался", retryError)
                                             stopWithError(retryError.message ?: "Xray не запустился после обновления геобаз")
                                         }
