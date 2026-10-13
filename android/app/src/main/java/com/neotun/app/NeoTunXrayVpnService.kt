@@ -50,6 +50,7 @@ class NeoTunXrayVpnService : VpnService() {
                 try {
                     stopTunnel()
                     nativeCleanupComplete = true
+                    isEngineBusy = false
                     NeoTunDiagnostics.log(this, "Xray native teardown completed")
                 } catch (error: Throwable) {
                     NeoTunDiagnostics.error(this, "Xray teardown failed", error)
@@ -65,6 +66,7 @@ class NeoTunXrayVpnService : VpnService() {
         if (teardownInProgress || running || starting) return START_NOT_STICKY
         destroyed = false
         nativeCleanupComplete = false
+        isEngineBusy = true
         val generation = ++startupGeneration
         starting = true
 
@@ -483,6 +485,7 @@ class NeoTunXrayVpnService : VpnService() {
             runCatching { stopTunnel() }
                 .onFailure { NeoTunDiagnostics.error(this, "Xray onDestroy cleanup failed", it) }
         }
+        isEngineBusy = false
         super.onDestroy()
     }
 
@@ -564,6 +567,7 @@ class NeoTunXrayVpnService : VpnService() {
                 runCatching { NeoTunXrayBridge.nativeResetDns() }
                 runCatching { NeoTunXrayBridge.nativeInit(null) }
                 nativeCleanupComplete = true
+                isEngineBusy = false
             } catch (error: Throwable) {
                 NeoTunDiagnostics.error(this, "Xray error cleanup failed", error)
             } finally {
@@ -623,6 +627,7 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     companion object {
+        @Volatile var isEngineBusy: Boolean = false
         const val EXTRA_URI = "neotun.xray.uri"
         const val ACTION_DISCONNECT = "com.neotun.app.action.DISCONNECT_XRAY"
     }
