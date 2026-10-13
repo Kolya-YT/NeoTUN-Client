@@ -460,7 +460,7 @@ internal sealed class EngineRuntime : IDisposable
                 ["direct"] = (directDomains, directIps, directSiteGeo, directIpGeo)
             };
             var rawOrder = ReadString("RouteOrderRaw", "").Split(
-                new[] { ',', ';', '|', '>', '-', ' ', '\\t', '\\r', '\\n' },
+                new[] { ',', ';', '|', '>', '-', ' ', '\t', '\r', '\n' },
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var requestedOrder = rawOrder
                 .Select(value => value.ToLowerInvariant() switch
