@@ -42,31 +42,50 @@ object NeoTunGeoData {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         var changed = false
 
+        val needsGeoIp = hasGeoToken(profile, listOf("BlockIp", "DirectIp", "ProxyIp"), "geoip:")
+        val needsGeoSite = hasGeoToken(profile, listOf("BlockSites", "DirectSites", "ProxySites"), "geosite:")
         val profileGeoIpUrl = profileUrl(profile, listOf("Geoipurl", "GeoIPurl", "GeoipUrl", "GeoIPURL"))
         val profileGeoSiteUrl = profileUrl(profile, listOf("Geositeurl", "GeoSiteurl", "GeositeUrl", "GeoSiteURL"))
         val geoIpUrls = listOfNotNull(profileGeoIpUrl, DEFAULT_GEOIP_URL, FALLBACK_GEOIP_URL).distinct()
         val geoSiteUrls = listOfNotNull(profileGeoSiteUrl, DEFAULT_GEOSITE_URL, FALLBACK_GEOSITE_URL).distinct()
 
-        if (forceRefresh || needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L))) {
+        // Ordinary Xray profiles do not need either geodata database. Do not
+        // make a server connection depend on unrelated downloads that its rules
+        // never reference. GeoIP and GeoSite are also independent requirements.
+        if (needsGeoIp && (forceRefresh || needsRefresh(geoIp, prefs.getLong("geoip_updated", 0L)))) {
             changed = downloadAny(context, geoIpUrls, geoIp, GEOIP) || changed
             if (geoIp.isFile && geoIp.length() > 0L) {
                 prefs.edit().putLong("geoip_updated", geoIp.lastModified()).apply()
             }
         }
-        if (forceRefresh || needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L))) {
+        if (needsGeoSite && (forceRefresh || needsRefresh(geoSite, prefs.getLong("geosite_updated", 0L)))) {
             changed = downloadAny(context, geoSiteUrls, geoSite, GEOSITE) || changed
             if (geoSite.isFile && geoSite.length() > 0L) {
                 prefs.edit().putLong("geosite_updated", geoSite.lastModified()).apply()
             }
         }
 
-        if (!geoIp.isFile || geoIp.length() < 1024L) {
+        if (needsGeoIp && (!geoIp.isFile || geoIp.length() < 1024L)) {
             error("Не удалось получить geoip.dat. Проверьте интернет и URL GeoIP в профиле маршрутизации.")
         }
-        if (!geoSite.isFile || geoSite.length() < 1024L) {
+        if (needsGeoSite && (!geoSite.isFile || geoSite.length() < 1024L)) {
             error("Не удалось получить geosite.dat. Проверьте интернет и URL GeoSite в профиле маршрутизации.")
         }
-        return NeoTunGeoDataResult(geoIp.length(), geoSite.length(), changed)
+        return NeoTunGeoDataResult(
+            if (needsGeoIp && geoIp.isFile) geoIp.length() else 0L,
+            if (needsGeoSite && geoSite.isFile) geoSite.length() else 0L,
+            changed,
+        )
+    }
+
+    private fun hasGeoToken(profile: JSONObject?, keys: List<String>, prefix: String): Boolean {
+        if (profile == null) return false
+        return keys.any { key ->
+            val values = profile.optJSONArray(key) ?: return@any false
+            (0 until values.length()).any { index ->
+                values.optString(index).trim().startsWith(prefix, ignoreCase = true)
+            }
+        }
     }
 
     private fun downloadAny(context: Context, sources: List<String>, target: File, label: String): Boolean {
