@@ -72,6 +72,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         Thread({
             try {
                 if (generation != startupGeneration) return@Thread
+                NeoTunDiagnostics.log(this, "sing-box: initializing native libbox")
+                NeoTunApplication.initializeLibbox(this)
                 NeoTunDiagnostics.log(this, "sing-box: creating Android platform adapter")
                 val newPlatform = NeoTunPlatform(this)
                 platform = newPlatform
