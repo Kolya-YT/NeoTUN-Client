@@ -1658,14 +1658,17 @@ class MainActivity : Activity() {
             return
         }
 
-        if (attempt >= 60) {
+        // Native sing-box shutdown may take longer while active TUN flows are draining.
+        // Keep the strict no-overlapping-TUN rule, but allow up to 20 seconds for
+        // service teardown before reporting a failed switch.
+        if (attempt >= 200) {
             isSwitching = false
             getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
                 .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
                 .putString(NeoTunVpnService.KEY_ERROR,
-                    "Не удалось подтвердить остановку предыдущего соединения. Повторите переключение.")
+                    "Не удалось остановить предыдущее соединение за 20 секунд. Повторите переключение.")
                 .apply()
-            NeoTunDiagnostics.error(this, "Server switch aborted: VPN services did not stop within 6 seconds; remaining=" + activeServices.joinToString(","))
+            NeoTunDiagnostics.error(this, "Server switch aborted: VPN services did not stop within 20 seconds; remaining=" + activeServices.joinToString(","))
             if (screen == Screen.HOME) renderHome() else renderProfiles()
             NeoTunHomeWidget.refreshAll(this)
             return
