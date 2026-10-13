@@ -37,6 +37,8 @@ public partial class MainWindow : Window
     private AppSettings _settings = new();
 
     private bool _isExplicitExit;
+    private Task? _connectionOperation;
+    private bool _switchingProfile;
 
     public MainWindow()
     {
@@ -143,7 +145,14 @@ public partial class MainWindow : Window
 
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        await ConnectSelectedProfileAsync();
+        var operation = ConnectSelectedProfileAsync();
+        _connectionOperation = operation;
+        try { await operation; }
+        finally
+        {
+            if (ReferenceEquals(_connectionOperation, operation))
+                _connectionOperation = null;
+        }
     }
 
     private async Task ConnectSelectedProfileAsync()
@@ -190,6 +199,13 @@ public partial class MainWindow : Window
         {
             _vm.IsConnected = false;
             _vm.IsConnecting = false;
+            if (_switchingProfile && ex is OperationCanceledException)
+            {
+                _vm.Status = "Переключение сервера…";
+                _vm.Notice = "Предыдущее подключение отменено. Запускаем выбранный сервер…";
+                AddLog("Connection startup cancelled for server switch.");
+                return;
+            }
             _vm.Status = "Ошибка подключения: " + ex.Message;
             _vm.Notice = "Не удалось установить соединение. Проверьте параметры профиля или журнал.";
             UpdateHeroConnectionVisuals(false);
@@ -264,16 +280,34 @@ public partial class MainWindow : Window
         if (sender is not Button { Tag: ServerProfile profile }) return;
         if (_vm.SelectedProfile?.Id == profile.Id) return;
 
-        // Do not overlap a second start with an in-flight startup. The user can
-        // retry the selection once the current attempt has reached a stable state.
-        if (_vm.IsConnecting)
+        var wasConnecting = _vm.IsConnecting;
+        var reconnect = _vm.IsConnected || wasConnecting;
+        if (wasConnecting)
         {
-            _vm.Notice = "Дождитесь завершения подключения перед переключением сервера.";
-            return;
-        }
+            // Cancel and await the existing startup before changing the selected
+            // URI. EngineRuntime cancellation releases any in-flight readiness wait.
+            _switchingProfile = true;
+            _vm.Notice = $"Переключение на {profile.Name}: отменяем предыдущий запуск…";
+            var pendingConnect = _connectionOperation;
+            try
+            {
+                try { await _runtime.StopAsync(); }
+                catch (Exception ex) { AddLog("Stop during server switch: " + ex.Message); }
+                if (pendingConnect != null)
+                {
+                    try { await pendingConnect; }
+                    catch (Exception ex) { AddLog("Pending startup ended during server switch: " + ex.Message); }
+                }
+            }
+            finally { _switchingProfile = false; }
 
-        var reconnect = _vm.IsConnected;
-        if (reconnect)
+            if (_vm.IsConnecting || _runtime.IsRunning)
+            {
+                _vm.Notice = "Не удалось подтвердить остановку предыдущего запуска. Новый сервер не запущен.";
+                return;
+            }
+        }
+        else if (reconnect)
         {
             _vm.Notice = $"Переключение на {profile.Name}: останавливаем текущее соединение…";
             await DisconnectAsync();
