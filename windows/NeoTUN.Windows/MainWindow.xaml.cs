@@ -303,7 +303,11 @@ public partial class MainWindow : Window
         {
             _vm.Notice = $"Переключение на {profile.Name}: останавливаем текущее соединение…";
             await DisconnectAsync();
-            if (_vm.IsConnecting || _vm.IsConnected) return;
+            if (_vm.IsConnecting || _vm.IsConnected || _runtime.IsRunning)
+            {
+                _vm.Notice = "Не удалось подтвердить остановку предыдущего соединения. Новый сервер не запущен.";
+                return;
+            }
         }
 
         _vm.SelectedProfile = profile;
