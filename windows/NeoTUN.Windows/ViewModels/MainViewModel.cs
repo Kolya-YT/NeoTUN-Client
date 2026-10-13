@@ -14,6 +14,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private ServerProfile? _selectedProfile;
     private RoutingProfile? _activeRoutingProfile;
+    private bool _routingEnabled = true;
     private string _status = "Готово к подключению";
     private string _activePage = "Главная";
     private bool _isConnected;
@@ -62,6 +63,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 _activeRoutingProfile = value;
                 OnPropertyChanged();
             }
+        }
+    }
+
+    public bool RoutingEnabled
+    {
+        get => _routingEnabled;
+        set
+        {
+            if (_routingEnabled == value) return;
+            _routingEnabled = value;
+            _routingProfileStore.SetEnabled(value);
+            OnPropertyChanged();
+            Notice = value
+                ? "Пользовательские правила маршрутизации включены. Переподключитесь, чтобы применить изменения."
+                : "Пользовательские правила маршрутизации выключены. Переподключитесь, чтобы применить изменения.";
         }
     }
 
@@ -217,6 +233,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             RoutingProfiles.Add(rp);
 
         ActiveRoutingProfile = _routingProfileStore.Active();
+        _routingEnabled = _routingProfileStore.IsEnabled();
+        OnPropertyChanged(nameof(RoutingEnabled));
     }
 
     public void RefreshFilter()
