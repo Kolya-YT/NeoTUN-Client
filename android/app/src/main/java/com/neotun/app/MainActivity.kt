@@ -307,11 +307,17 @@ class MainActivity : Activity() {
         val enabled = selected?.dpiBypassEnabled ?: false
         dpiSwitch.isChecked = enabled
         dpiSwitch.setOnCheckedChangeListener { _, isChecked ->
-            // Update the profile in the store
-            selected?.let {
-                store.save(it.copy(dpiBypassEnabled = isChecked))
+            // Persist the profile option and apply the strategy to the next
+            // sing-box config. If connected, restart this profile so the new
+            // TLS record-fragmentation setting takes effect immediately.
+            val updated = selected?.copy(dpiBypassEnabled = isChecked)
+            if (updated != null) {
+                store.save(updated)
+                NeoTunCore.nativeSetDpiConfig(isChecked, 1200)
+                if (isRunning()) switchServer(updated)
+            } else {
+                NeoTunCore.nativeSetDpiConfig(isChecked, 1200)
             }
-            NeoTunCore.nativeSetDpiConfig(isChecked.toString())
         }
         serverCard.addView(dpiSwitch)
         content.addView(serverCard, margins(top = 9))
@@ -1247,7 +1253,7 @@ class MainActivity : Activity() {
                 profile.uri.substringBefore("://").lowercase() + " -> " + activeProfile.engine)
         }
 
-        NeoTunCore.nativeSetDpiConfig(profile.dpiBypassEnabled.toString())
+        NeoTunCore.nativeSetDpiConfig(profile.dpiBypassEnabled, 1200)
 
         // Happ/INCY geosite/geoip tokens point to Xray .dat geodata. sing-box
         // cannot consume those tokens as plain domains, so don't silently let
