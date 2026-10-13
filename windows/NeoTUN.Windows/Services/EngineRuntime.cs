@@ -67,7 +67,6 @@ internal sealed class EngineRuntime : IDisposable
         // sets it intentionally, and resetting it before that cleanup would either
         // hide a concurrent disconnect or make the new startup cancel itself.
         Interlocked.Exchange(ref _stopRequested, 0);
-        Interlocked.Exchange(ref _isStarting, 1);
         lock (_errorSync)
         {
             _singBoxErrors.Clear();
@@ -128,6 +127,12 @@ internal sealed class EngineRuntime : IDisposable
 
         try
         {
+            // Keep the startup marker scoped to the try/finally below. Preflight
+            // failures (missing runtime files or invalid generated config) must not
+            // leave the runtime permanently marked as starting.
+            Interlocked.Exchange(ref _isStarting, 1);
+            EnsureStartupActive(cancellationToken);
+
             if (runtime.Engine == "xray")
             {
                 if (runtime.XrayJson is null) throw new InvalidOperationException("Для этого профиля не сформирована конфигурация Xray.");
