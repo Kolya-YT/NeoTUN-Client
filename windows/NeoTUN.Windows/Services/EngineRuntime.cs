@@ -799,3 +799,12 @@ internal sealed class EngineRuntime : IDisposable
         if (Interlocked.Exchange(ref _stopRequested, 1) != 0) return;
         WriteLog($"Unexpected {name} exit ({exitCode}); stopping the remaining runtime processes.");
         try
+        {
+            await StopAsync();
+            StateChanged?.Invoke(false, $"{name} завершился с кодом {exitCode}; остальные процессы остановлены.");
+        }
+        catch (Exception ex)
+        {
+            WriteLog($"Runtime cleanup after unexpected {name} exit failed: {ex}");
+            StateChanged?.Invoke(false, $"Ошибка очистки после завершения {name}: {ex.Message}");
+        }
