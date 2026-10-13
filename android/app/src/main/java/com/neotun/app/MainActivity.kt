@@ -304,10 +304,13 @@ class MainActivity : Activity() {
         serverCard.addView(txt("DPI Обход", 14f, NeoTunDesign.TEXT_PRIMARY),
             LinearLayout.LayoutParams(0, -2, 1f))
         val dpiSwitch = Switch(this)
-        val dpiPrefs = getSharedPreferences("dpi_prefs", MODE_PRIVATE)
-        dpiSwitch.isChecked = dpiPrefs.getBoolean("enabled", false)
+        val enabled = selected?.dpiBypassEnabled ?: false
+        dpiSwitch.isChecked = enabled
         dpiSwitch.setOnCheckedChangeListener { _, isChecked ->
-            dpiPrefs.edit().putBoolean("enabled", isChecked).apply()
+            // Update the profile in the store
+            selected?.let {
+                store.save(it.copy(dpiBypassEnabled = isChecked))
+            }
             NeoTunCore.nativeSetDpiConfig(isChecked.toString())
         }
         serverCard.addView(dpiSwitch)
@@ -1243,6 +1246,8 @@ class MainActivity : Activity() {
             NeoTunDiagnostics.log(this, "Profile engine refreshed: " +
                 profile.uri.substringBefore("://").lowercase() + " -> " + activeProfile.engine)
         }
+
+        NeoTunCore.nativeSetDpiConfig(profile.dpiBypassEnabled.toString())
 
         // Happ/INCY geosite/geoip tokens point to Xray .dat geodata. sing-box
         // cannot consume those tokens as plain domains, so don't silently let
@@ -2284,6 +2289,11 @@ class MainActivity : Activity() {
         val publicKey = EditText(this).apply { setText(first("pbk", "publicKey", "public_key")); hint = "REALITY PublicKey"; isSingleLine = true }
         val shortId = EditText(this).apply { setText(first("sid", "shortId", "short_id")); hint = "REALITY ShortId"; isSingleLine = true }
         val spiderX = EditText(this).apply { setText(first("spx", "spiderX", "spider_x")); hint = "REALITY SpiderX"; isSingleLine = true }
+        val dpiSwitch = Switch(this).apply {
+            text = "DPI Обход"
+            isChecked = p.dpiBypassEnabled
+            setPadding(dp(20), dp(10), dp(20), dp(10))
+        }
 
         val dialog = Dialog(this)
         val root = LinearLayout(this).apply {
@@ -2336,7 +2346,7 @@ class MainActivity : Activity() {
                 toast("Не удалось определить ядро для этой ссылки")
                 return@iconButton
             }
-            store.save(p.copy(name = profileName.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine))
+            store.save(p.copy(name = profileName.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine, dpiBypassEnabled = dpiSwitch.isChecked))
             dialog.dismiss()
             renderProfiles()
             toast("Профиль сохранён")
@@ -2382,6 +2392,7 @@ class MainActivity : Activity() {
         field("PublicKey", publicKey)
         field("ShortId", shortId)
         field("SpiderX", spiderX)
+        body.addView(dpiSwitch, margins(top = 12))
         body.addView(txt(
             "Неизвестные параметры ссылки сохраняются. Для профилей из подписки изменения могут быть заменены при следующем обновлении подписки.",
             11f, NeoTunDesign.TEXT_MUTED

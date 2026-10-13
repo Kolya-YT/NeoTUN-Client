@@ -1232,5 +1232,4 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeGetDpiState(mut _env
         ConnectionState::FallbackTunnelActive => 1,
         _ => 2
     }
-    }
 }

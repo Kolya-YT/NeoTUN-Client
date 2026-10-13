@@ -13,6 +13,7 @@ data class NeoTunProfile(
     val uri: String,
     val engine: String,
     val sourceSubscriptionId: String? = null,
+    val dpiBypassEnabled: Boolean = false,
 )
 
 class ProfileStore(context: Context) {
@@ -150,7 +151,8 @@ class ProfileStore(context: Context) {
                     .put("name", profile.name)
                     .put("uri", profile.uri)
                     .put("engine", profile.engine)
-                    .put("sourceSubscriptionId", profile.sourceSubscriptionId ?: ""),
+                    .put("sourceSubscriptionId", profile.sourceSubscriptionId ?: "")
+                    .put("dpiBypassEnabled", profile.dpiBypassEnabled),
             )
         }
         prefs.edit().putString(KEY_PROFILES, array.toString()).apply()
