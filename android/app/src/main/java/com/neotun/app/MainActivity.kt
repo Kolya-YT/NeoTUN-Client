@@ -2329,7 +2329,7 @@ class MainActivity : Activity() {
                 toast("Не удалось определить ядро для этой ссылки")
                 return@iconButton
             }
-            store.save(p.copy(name = profileName.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine, dpiBypassEnabled = dpiSwitch.isChecked))
+            store.save(p.copy(name = profileName.text.toString().trim().ifBlank { p.name }, uri = newUri, engine = engine))
             dialog.dismiss()
             renderProfiles()
             toast("Профиль сохранён")
@@ -2375,7 +2375,6 @@ class MainActivity : Activity() {
         field("PublicKey", publicKey)
         field("ShortId", shortId)
         field("SpiderX", spiderX)
-        body.addView(dpiSwitch, margins(top = 12))
         body.addView(txt(
             "Неизвестные параметры ссылки сохраняются. Для профилей из подписки изменения могут быть заменены при следующем обновлении подписки.",
             11f, NeoTunDesign.TEXT_MUTED
