@@ -230,21 +230,35 @@ public sealed class RoutingProfileStore
 
     private static JsonObject? TryParseJsonOrBase64(string text)
     {
-        try
+        var candidate = text.Trim().TrimStart('\uFEFF');
+        if (candidate.StartsWith("{", StringComparison.Ordinal))
         {
-            if (JsonNode.Parse(text) is JsonObject obj) return obj;
+            try
+            {
+                if (JsonNode.Parse(candidate) is JsonObject obj) return obj;
+            }
+            catch (JsonException) { }
         }
-        catch { }
+
+        // Happ/INCY exports may use URL-safe Base64 and omit padding.
+        // Ignore whitespace, normalize the alphabet, and restore padding before decoding.
+        var encoded = string.Concat(candidate.Where(c => !char.IsWhiteSpace(c)))
+            .Replace('-', '+')
+            .Replace('_', '/')
+            .TrimEnd('=');
+        if (encoded.Length == 0) return null;
+        encoded = encoded.PadRight(encoded.Length + ((4 - encoded.Length % 4) % 4), '=');
 
         try
         {
-            var bytes = Convert.FromBase64String(text.Trim());
-            var json = Encoding.UTF8.GetString(bytes);
-            if (JsonNode.Parse(json) is JsonObject obj) return obj;
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded)).TrimStart('\uFEFF');
+            if (!json.TrimStart().StartsWith("{", StringComparison.Ordinal)) return null;
+            return JsonNode.Parse(json) as JsonObject;
         }
-        catch { }
-
-        return null;
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            return null;
+        }
     }
 
     private static string? ReadString(JsonNode? node)
