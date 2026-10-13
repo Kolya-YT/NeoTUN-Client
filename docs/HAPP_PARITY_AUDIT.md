@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Removed the unused experimental DPI packet-shaping module (`app/applet/core/src/dpi/{mod,controller,shaper}.rs`). It was a standalone packet-splitting prototype, not a verified working traffic path. The architecture note now explicitly marks DPI shaping as removed and prohibits restoring a UI toggle or packet shaper during routine stabilization. No DPI control was found in the current Android `MainActivity.kt`; the removed Rust module was under the applet core tree. Changes: `20db876`, `ecfe66e`, `76c2786`, `11a1284`.
+
 - [x] Android home status reconciliation no longer refuses to trust a running native Xray core solely because a stale persisted error remains. It confirms the selected engine and unchanged profile URI, then repairs the running flag and clears the stale error; this targets the reported mismatch where diagnostics show `getXrayState: running=true` while the dashboard says ready to connect (commit `48e60b5`). CI and device-side confirmation remain pending.
 
 - [x] Xray `onDestroy()` and `stopWithError()` now increment the startup generation, invalidating outstanding GeoData preparation/retry callbacks on teardown and failure so delayed work cannot resurrect a stopped run (commit `e15967e`). CI and Android device validation remain pending.
