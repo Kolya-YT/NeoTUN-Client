@@ -63,6 +63,6 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.10.0")
-    implementation("com.github.singbox-android:libbox:1.14.2")
+    implementation("com.github.singbox-android:libbox:1.14.3")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }
