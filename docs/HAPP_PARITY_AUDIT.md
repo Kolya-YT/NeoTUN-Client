@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Corrected the engine-switch regression test fixture: Hysteria2 legitimately generates a `hysteria2` sing-box outbound, while ordinary VLESS generates `vless` and Xray profiles use the `socks` bridge. Windows CI had caught the test incorrectly asserting `vless` for every sing-box profile (run `38455382834`, failure was in the shared Rust test, not the Windows UI/runtime build). Fix committed as `49ae029`; rerun CI before marking it green.
+
 - [x] Android sing-box config now assigns `domain_resolver` (`remote-dns`) to proxy outbounds with hostname endpoints when no resolver is already defined. The supplied Hysteria2 logs show endpoint lookups for `fi2.neotunnel.ru` falling back to `[::1]:53` and being refused after TUN startup; the resolver is now explicitly tied to the app's configured DNS server. Verify the emitted config against the bundled libbox version and confirm on-device that endpoint DNS succeeds and the switch completes (commit `b2641e1`).
 
 - [x] Changed Android disconnect/switch requests to call `stopService()` directly for both sing-box and Xray instead of relying only on starting each service with an `ACTION_DISCONNECT` command and `stopSelf(startId)`. Each stop request logs whether Android accepted it. This is a targeted lifecycle fix for the observed switch timeout; native cleanup remains in each service's `onDestroy`, and the generation guards must prevent a stale startup from reviving it. Device verification and CI are still pending (commit `2a23052`).
