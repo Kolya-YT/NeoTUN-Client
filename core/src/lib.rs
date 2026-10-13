@@ -1068,6 +1068,47 @@ mod tests {
     }
 
     #[test]
+    fn alternating_profiles_select_their_own_engine_without_stale_runtime_config() {
+        let profiles = [
+            (
+                "vless://123e4567-e89b-12d3-a456-426614174000@reality.example:443?security=reality&type=tcp&fp=chrome&pbk=public-key&sid=abcd&sni=www.example.org",
+                "xray",
+            ),
+            (
+                "vless://123e4567-e89b-12d3-a456-426614174000@tls.example:443?security=tls&type=ws&path=%2Fneo",
+                "sing-box",
+            ),
+            (
+                "vless://123e4567-e89b-12d3-a456-426614174000@xhttp.example:443?security=tls&type=xhttp&path=%2Fneo",
+                "xray",
+            ),
+            (
+                "vless://123e4567-e89b-12d3-a456-426614174000@tcp.example:443?security=none&type=tcp",
+                "sing-box",
+            ),
+        ];
+
+        for (uri, expected_engine) in profiles {
+            let profile = Profile::from_share_uri(uri).unwrap();
+            assert_eq!(profile.engine(), expected_engine, "profile={}", profile.address);
+
+            let runtime: serde_json::Value =
+                serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+            assert_eq!(runtime["engine"], expected_engine, "profile={}", profile.address);
+
+            if expected_engine == "xray" {
+                assert!(runtime.get("xray_config").is_some(), "Xray config missing for {}", profile.address);
+                // Windows still uses sing-box as the TUN/routing bridge, while Xray
+                // owns the selected profile's VLESS protocol connection.
+                assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
+            } else {
+                assert!(runtime.get("xray_config").is_none(), "stale Xray config for {}", profile.address);
+                assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
+            }
+        }
+    }
+
+    #[test]
     fn windows_xray_bridge_sing_box_config_omits_empty_direct_detour_on_bootstrap_dns() {
         let profile = Profile::from_share_uri(
             "vless://123e4567-e89b-12d3-a456-426614174000@example.com:9443?security=reality&type=xhttp&fp=firefox&pbk=public-key&sid=a1baa1&sni=example.com"
