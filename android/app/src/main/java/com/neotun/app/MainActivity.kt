@@ -1565,10 +1565,16 @@ class MainActivity : Activity() {
         setSelectedProfile(profile.id)
         NeoTunDiagnostics.log(this, "Switching server to " +
             profile.uri.substringBefore("://").lowercase() + "; generation=" + generation)
+        
+        // Immediate UI update to show disconnect/switch progress
         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
             .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
             .remove(NeoTunVpnService.KEY_ERROR)
             .apply()
+        
+        // Refresh UI immediately to reflect transition state
+        if (screen == Screen.HOME) renderHome() else renderProfiles()
+
         disconnect()
 
         // Wait for the active engine to release its TUN before starting the next
@@ -1578,7 +1584,6 @@ class MainActivity : Activity() {
             NeoTunDiagnostics.log(this, "Starting selected profile after tunnel teardown; generation=" + generation)
             connect(profile)
         }, 2_500L)
-        renderProfiles()
     }
 
     private fun disconnect() {
