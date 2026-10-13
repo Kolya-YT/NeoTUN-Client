@@ -31,7 +31,6 @@ public partial class MainWindow : Window
     private readonly PingService _pingService = new();
     private readonly EngineRuntime _runtime;
 
-    private TrafficMonitor? _trafficMonitor;
     private System.Windows.Forms.NotifyIcon? _notifyIcon;
     private readonly string _dataDirectory;
     private readonly string _appSettingsPath;
@@ -51,6 +50,19 @@ public partial class MainWindow : Window
 
         _runtime = new EngineRuntime();
         _runtime.LogLine += msg => Dispatcher.Invoke(() => AddLog(msg));
+        _runtime.TrafficUpdated += (upload, download, totalUpload, totalDownload) =>
+            Dispatcher.BeginInvoke(() => _vm.UpdateTraffic(download, upload, totalDownload, totalUpload));
+        _runtime.StateChanged += (connected, message) => Dispatcher.BeginInvoke(() =>
+        {
+            // The click handler owns connect/disconnect transitions. This callback
+            // handles asynchronous engine exits without racing an active operation.
+            if (connected || _vm.IsConnecting) return;
+            _vm.IsConnected = false;
+            _vm.Status = message;
+            _vm.Notice = message;
+            UpdateHeroConnectionVisuals(false);
+            UpdateTrayStatus(false);
+        });
 
         LoadAppSettings();
         InitializeSystemTray();
@@ -170,8 +182,6 @@ public partial class MainWindow : Window
             UpdateHeroConnectionVisuals(true);
             UpdateTrayStatus(true, profile.Name);
 
-            // Start Traffic Monitoring via sing-box Clash WebSocket API
-            await StartTrafficMonitoringAsync();
         }
         catch (Exception ex)
         {
@@ -194,12 +204,6 @@ public partial class MainWindow : Window
 
         try
         {
-            if (_trafficMonitor != null)
-            {
-                await _trafficMonitor.DisposeAsync();
-                _trafficMonitor = null;
-            }
-
             await _runtime.StopAsync();
             _vm.IsConnected = false;
             _vm.IsConnecting = false;
@@ -229,39 +233,6 @@ public partial class MainWindow : Window
             await Task.Delay(500);
         }
         Connect_Click(sender, e);
-    }
-
-    private async Task StartTrafficMonitoringAsync()
-    {
-        try
-        {
-            if (_trafficMonitor != null)
-            {
-                await _trafficMonitor.DisposeAsync();
-                _trafficMonitor = null;
-            }
-
-            // Port 9090 is Clash API port in sing-box config
-            _trafficMonitor = new TrafficMonitor(9090, "neotun");
-            long totalRx = 0;
-            long totalTx = 0;
-
-            _trafficMonitor.SampleReceived += (up, down) =>
-            {
-                totalRx += down;
-                totalTx += up;
-                Dispatcher.Invoke(() =>
-                {
-                    _vm.UpdateTraffic(down, up, totalRx, totalTx);
-                });
-            };
-
-            _trafficMonitor.Start();
-        }
-        catch (Exception ex)
-        {
-            AddLog("Traffic monitor start error: " + ex.Message);
-        }
     }
 
     private void UpdateHeroConnectionVisuals(bool isRunning)
