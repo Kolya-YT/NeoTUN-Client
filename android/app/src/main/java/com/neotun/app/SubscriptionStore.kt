@@ -177,9 +177,9 @@ class SubscriptionStore(context: Context) {
             // The payload itself may be an HTTP URL, so never split it at the
             // first slash: that would turn "https://host/file" into "host/file".
             val payload = when {
-                candidate.contains("://autorouting/", true) ->
+                directive.contains("://autorouting/", true) ->
                     directive.substringAfter("://autorouting/", "")
-                candidate.contains("://routing/", true) -> {
+                directive.contains("://routing/", true) -> {
                     val path = directive.substringAfter("://routing/", "")
                     when {
                         path.startsWith("onadd/", true) -> path.substringAfter("onadd/")
