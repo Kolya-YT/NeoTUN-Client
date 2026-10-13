@@ -709,6 +709,20 @@ impl Profile {
             _ => {}
         }
 
+        // Apply sing-box's real TLS record-fragmentation strategy only to
+        // stream-based TLS transports. It changes the TLS handshake emitted by
+        // the proxy outbound; it is not a universal DPI bypass and is deliberately
+        // not enabled for QUIC, plaintext, or REALITY profiles.
+        let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
+        let supports_tls_record_fragmentation =
+            self.protocol == "trojan"
+            || (matches!(self.protocol.as_str(), "vless" | "vmess")
+                && self.params.get("security").is_some_and(|value| value.eq_ignore_ascii_case("tls")));
+        if dpi_enabled && supports_tls_record_fragmentation
+            && outbound.get("tls").and_then(|tls| tls.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false) {
+            outbound["tls"]["record_fragment"] = serde_json::Value::Bool(true);
+        }
+
         let config = serde_json::json!({
             "log": {"level": "info"},
             "inbounds": [{
