@@ -108,11 +108,6 @@ public sealed class SubscriptionStore
         string? routingHeader = response.Headers.TryGetValues("routing", out var rVals) ? rVals.FirstOrDefault() : null;
         string? autoRoutingHeader = response.Headers.TryGetValues("autorouting", out var arVals) ? arVals.FirstOrDefault() : null;
 
-        if (routingProfileStore != null)
-        {
-            ImportRoutingIfPresent(body + "\n" + decodedBody, routingHeader, autoRoutingHeader, routingProfileStore);
-        }
-
         var links = ExtractLinks(decodedBody);
         if (links.Count == 0)
         {
@@ -139,6 +134,17 @@ public sealed class SubscriptionStore
         }
 
         var importedCount = profileStore.ReplaceFromSubscription(subscription.Id, parsedProfiles);
+        if (importedCount <= 0)
+            throw new InvalidDataException("В подписке нет поддерживаемых профилей; сохранённые данные не изменены.");
+
+        // Apply routing metadata only after a valid feed has produced and saved
+        // supported profiles. A failed/unsupported refresh must not change the
+        // active routing configuration.
+        if (routingProfileStore != null)
+        {
+            ImportRoutingIfPresent(body + "\n" + decodedBody, routingHeader, autoRoutingHeader, routingProfileStore);
+        }
+
         subscription.LastUpdated = DateTimeOffset.UtcNow;
         subscription.ProfileCount = importedCount;
         Save(subscription);
