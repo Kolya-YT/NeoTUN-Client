@@ -83,7 +83,13 @@ object NeoTunGeoData {
         return keys.any { key ->
             val values = profile.optJSONArray(key) ?: return@any false
             (0 until values.length()).any { index ->
-                values.optString(index).trim().startsWith(prefix, ignoreCase = true)
+                val token = values.optString(index).trim()
+                // Only complete geodata tokens should trigger downloads. A
+                // literal domain containing "geoip:" is not a valid Xray rule.
+                val label = token.takeIf { it.startsWith(prefix, ignoreCase = true) }
+                    ?.substringAfter(':')
+                    ?: return@any false
+                label.isNotBlank() && label.matches(Regex("[a-zA-Z0-9_.-]+"))
             }
         }
     }
