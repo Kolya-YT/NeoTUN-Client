@@ -1481,6 +1481,25 @@ class MainActivity : Activity() {
         }
         root.put("dns", dnsConfig)
 
+        // Resolve proxy endpoint hostnames through the explicit DNS configuration.
+        // Without this, libbox may fall back to Android's loopback resolver after
+        // the VPN TUN has taken over system DNS (observed as [::1]:53 refused),
+        // leaving Hysteria2/VLESS unable to resolve their own server hostname.
+        val outboundsForResolver = root.optJSONArray("outbounds") ?: JSONArray()
+        for (i in 0 until outboundsForResolver.length()) {
+            val outbound = outboundsForResolver.optJSONObject(i) ?: continue
+            val type = outbound.optString("type")
+            if (type in setOf("direct", "block", "dns")) continue
+            val server = outbound.optString("server").trim()
+            if (server.isBlank() || server.startsWith("[") ||
+                server.matches(Regex("[0-9.]+")) ||
+                server.matches(Regex("[0-9a-fA-F:]+")) ||
+                outbound.has("domain_resolver")) continue
+            outbound.put("domain_resolver", JSONObject()
+                .put("server", "remote-dns")
+                .put("strategy", if (ipv6) "prefer_ipv4" else "ipv4_only"))
+        }
+
         val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
         route.put("auto_detect_interface", true)
         val routing = RoutingProfileStore(this).active()
