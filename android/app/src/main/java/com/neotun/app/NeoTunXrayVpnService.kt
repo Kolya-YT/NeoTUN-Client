@@ -408,8 +408,18 @@ class NeoTunXrayVpnService : VpnService() {
         // A running Xray instance does not prove packets are flowing. Expose
         // Xray's own traffic counters on loopback so diagnostics can distinguish
         // "core alive" from "TUN/outbound actually carrying traffic".
+        val xrayAccessLog = java.io.File(filesDir, "xray-access.log").absolutePath
+        val xrayErrorLog = java.io.File(filesDir, "xray-error.log").absolutePath
+        // "running=true" only confirms lifecycle state. Keep Xray's own error and
+        // access logs so transport/TLS/REALITY/dial failures are visible on-device.
         val config = JSONObject()
-            .put("log", JSONObject().put("loglevel", "warning"))
+            .put(
+                "log",
+                JSONObject()
+                    .put("loglevel", "info")
+                    .put("access", xrayAccessLog)
+                    .put("error", xrayErrorLog),
+            )
             .put("metrics", JSONObject().put("listen", "127.0.0.1:49227"))
             .put(
                 "policy",
@@ -554,11 +564,30 @@ class NeoTunXrayVpnService : VpnService() {
                             "Xray traffic metrics: $counters"
                         },
                     )
+                    logXrayFileTail("error", xrayErrorLog)
+                    logXrayFileTail("access", xrayAccessLog)
                 } catch (error: Throwable) {
                     NeoTunDiagnostics.error(this, "Xray traffic metrics unavailable", error)
                 }
             }, "NeoTUN-Xray-Traffic-Metrics").start()
         }, 8000L)
+    }
+
+    private fun logXrayFileTail(label: String, path: String) {
+        try {
+            val file = java.io.File(path)
+            if (!file.isFile || file.length() == 0L) {
+                NeoTunDiagnostics.log(this, "Xray $label log: empty")
+                return
+            }
+            val lines = file.readLines(Charsets.UTF_8).takeLast(20)
+            lines.forEach { line ->
+                // Do not dump config or share-link values into diagnostics.
+                NeoTunDiagnostics.log(this, "Xray $label: " + line.take(1200))
+            }
+        } catch (error: Throwable) {
+            NeoTunDiagnostics.error(this, "Cannot read Xray $label log", error)
+        }
     }
 
     override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
