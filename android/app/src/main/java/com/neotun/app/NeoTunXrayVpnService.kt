@@ -442,6 +442,7 @@ class NeoTunXrayVpnService : VpnService() {
 
     override fun onDestroy() {
         destroyed = true
+        startupGeneration++
         starting = false
         mainHandler.removeCallbacksAndMessages(null)
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
@@ -489,6 +490,9 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun stopWithError(message: String) {
+        // Invalidate every outstanding GeoData/start/retry callback before
+        // publishing the failure so delayed work cannot resurrect this run.
+        startupGeneration++
         NeoTunDiagnostics.error(this, "Остановка с ошибкой: $message")
         running = false
         starting = false
