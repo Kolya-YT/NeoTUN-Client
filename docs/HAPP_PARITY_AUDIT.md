@@ -19,7 +19,7 @@
 | Subscription URL refresh | Present; inspect merge and failure paths | Present in `SubscriptionStore.RefreshAsync` | Test Base64/plain feeds, duplicate links, empty/invalid feeds, failed refresh without data loss |
 | Manual profile management | Present in `ProfileStore.kt` and main UI | Present in profile store and server UI | Compare rename, copy, delete, pin/sort/group, import/export and QR workflows |
 | Routing profiles / Happ-INCY deep links | Present in `RoutingProfileStore.kt` and routing screen | Present in `RoutingProfileStore.cs` and routing UI | Compare JSON/Base64/deep-link formats, header directives, route ordering and unknown fields |
-| Proxy / Direct / Block rules | Adapter code present; engine parity not guaranteed | Runtime settings conversion present; engine parity not guaranteed | Test domain, IP/CIDR, GeoSite/GeoIP and precedence independently for Xray and sing-box; verify Hysteria2 limitations |
+| Proxy / Direct / Block rules | Adapter code present; engine parity not guaranteed | Domain/IP and supported GeoSite/GeoIP conversion now present in source; CI and runtime validation pending | Verify remote rule-set URLs/downloads, rule order, unknown-token reporting and real traffic; test Xray and Hysteria2 separately |
 | DNS, MTU, IPv6 | Settings and service integration present | Settings/runtime path present; full device validation outstanding | Confirm each setting reaches the active engine and resets correctly after disconnect |
 | Engine lifecycle and tunnel | Android Xray and sing-box services present | Runtime manager launches sing-box/Xray; README says Windows route/TUN lifecycle remains unverified | Validate connect/disconnect/reconnect, route cleanup, DNS, TCP/UDP, sleep/resume and failure rollback |
 | Ping / latency | Present in UI/runtime areas; parity to be tested | Ping service and selected-profile status present | Confirm checks do not disconnect or alter the active tunnel |
@@ -28,7 +28,7 @@
 | App exclusions | Android exclusions are documented for Xray and sing-box | Platform equivalent requires audit | Keep Android-only feature explicit unless a valid Windows equivalent exists |
 | Widgets / Quick Settings tile | Widget and tile sources present | No Android-equivalent widget requirement on desktop | Test widget/tile against the same real connection lifecycle |
 | Theme / text size / UI preferences | Shared design tokens and settings areas exist | WPF theme manager/settings exist | Inventory actual preferences and make supported options consistent |
-| GeoIP / GeoSite data | Geo-data helper and routing settings present | Runtime/routing support needs per-engine verification | Verify download, cache, update failure behavior, formats and engine consumption |
+| GeoIP / GeoSite data | Android sing-box adapter maps supported tokens to remote binary `.srs` rule-sets; Xray path uses `.dat` data | Added matching remote binary `.srs` rule-set definitions, direct download detour and separate GeoSite/GeoIP matchers; pending CI/runtime checks | Verify upstream files exist, cold-start download, offline/failure behavior, Xray `.dat` path and actual traffic routing |
 | App update | Android updater present | Windows release/installer workflow present | Test upgrade-over-existing-install and preserve user data |
 | Diagnostics / logs | Diagnostics source present | Logs page and runtime logs present | Ensure logs redact credentials, UUIDs and subscription tokens |
 | Protocol-specific advanced settings | Some Xray/sing-box configuration support present; complete Happ parity not yet established | Importer recognizes schemes but recognition alone does not prove support | Compare Happ controls and generated configs for TLS/Reality, transport, XHTTP, flow, SNI, fingerprint, ALPN and protocol-specific fields |
@@ -51,3 +51,15 @@
 5. **Settings and auxiliary features:** compare QR, clipboard, exclusions, widgets, updater, themes, diagnostics and advanced protocol settings.
 6. **Temporary UI parity:** align supported screens and state transitions with the current Happ interaction model, without a broad visual redesign.
 7. **Regression and release:** run CI, review logs and verify real-device/real-PC behavior before claiming completion.
+
+## Work log (2026-10-13)
+
+- [x] Created this parity matrix and work order (commit `8860cae`).
+- [x] Windows subscription refresh validates that supported profiles exist before replacing stored profiles or importing routing directives (commit `f93e7ac`).
+- [x] Windows routing import accepts typed JSON booleans/numbers, array or string route order, DNS aliases, IPv6, MTU and process exclusions (commit `ccf4728`).
+- [x] Windows routing deep-link decoder accepts path payloads as well as query payloads (commit `6d912c9`; Windows CI passed including app-start smoke test and installer packaging).
+- [x] Windows sing-box runtime now maps supported Happ/INCY GeoSite/GeoIP tokens to remote binary rule-sets, separates domain matchers from GeoSite matchers and IP matchers from GeoIP matchers, and uses the direct outbound for downloads (implementation commits `832bae2`, `697ba5a`, `b02e7d6`; source-boundary cleanup `f4e2778`).
+- [ ] Confirm latest Windows CI for GeoSite/GeoIP support succeeds.
+- [ ] Verify remote `.srs` endpoints and sing-box config validation with the pinned sing-box version.
+- [ ] Validate on Windows with a real profile: DIRECT for selected domestic rules, PROXY for selected proxy rules, BLOCK for selected block rules; include cold start with empty geodata cache.
+- [ ] Continue the audit: Xray `.dat` lifecycle, subscription edge cases, Android/Windows profile management parity, protocol engine coverage, real TCP/UDP and cleanup.
