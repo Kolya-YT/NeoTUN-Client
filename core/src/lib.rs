@@ -1189,7 +1189,10 @@ mod tests {
             assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
         }
 
-        for transport in ["tcp", "ws", "grpc", "httpupgrade", "http", "xhttp", "splithttp"] {
+        // Xray REALITY supports only RAW/TCP, gRPC and XHTTP transports.
+        // Reject incompatible combinations instead of treating every VLESS
+        // transport as a valid Xray profile.
+        for transport in ["tcp", "grpc", "xhttp", "splithttp"] {
             let uri = format!("vless://123e4567-e89b-12d3-a456-426614174000@example.com:9443?security=reality&type={transport}&fp=firefox&pbk=public-key&sid=a1baa1&sni=example.com");
             let profile = Profile::from_share_uri(&uri).unwrap();
             assert_eq!(profile.engine(), "xray", "REALITY transport={transport}");
@@ -1197,6 +1200,13 @@ mod tests {
                 serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
             assert_eq!(runtime["engine"], "xray", "REALITY transport={transport}");
             assert_eq!(runtime["xray_config"]["outbounds"][0]["protocol"], "vless");
+        }
+
+        for transport in ["ws", "httpupgrade", "mkcp"] {
+            let uri = format!("vless://123e4567-e89b-12d3-a456-426614174000@example.com:9443?security=reality&type={transport}&fp=firefox&pbk=public-key&sid=a1baa1&sni=example.com");
+            let profile = Profile::from_share_uri(&uri).unwrap();
+            assert!(profile.to_windows_runtime_json().is_err(),
+                "REALITY transport={transport} must be rejected");
         }
 
         for transport in ["xhttp", "splithttp"] {
