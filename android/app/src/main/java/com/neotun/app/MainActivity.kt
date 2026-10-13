@@ -2845,10 +2845,16 @@ class MainActivity : Activity() {
     private fun handleWidgetToggleIntent(intent: Intent?) {
         if (intent?.action != ACTION_WIDGET_TOGGLE) return
         intent.action = null
-        // Let the initial screen finish before toggling the active profile.
+        // Serialize widget taps with profile switching. Rapid taps can otherwise
+        // enqueue connect/disconnect commands while native TUN teardown is running.
         handler.post {
-            if (isFinishing) return@post
-            if (isRunning()) {
+            if (isFinishing || isDestroyed) return@post
+            if (isSwitching) {
+                NeoTunDiagnostics.log(this, "Widget toggle ignored: profile switch is already in progress")
+                NeoTunHomeWidget.refreshAll(this)
+                return@post
+            }
+            if (isVpnServiceActiveOrStarting()) {
                 disconnect()
             } else {
                 val profile = selectedProfile(store.all())
