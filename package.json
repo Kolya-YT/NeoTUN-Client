@@ -1,8 +1,0 @@
-{
-  "name": "neotun-client",
-  "version": "1.0.0",
-  "description": "Android and Windows VPN client",
-  "scripts": {
-    "dev": "python3 -m http.server 3000"
-  }
-}
