@@ -1,3 +1,9 @@
+pub mod dpi;
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+use crate::dpi::controller::{ConnectionController, ConnectionState};
+use crate::dpi::shaper::DpiConfig;
+use jni::sys::{jboolean, jint};
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
 use jni::JNIEnv;
@@ -1207,3 +1213,24 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeShareEngine(mut env:
  env.new_string(value).map(JString::into_raw).unwrap_or(std::ptr::null_mut())
 }
 
+
+lazy_static! {
+    static ref DPI_CONTROLLER: Mutex<ConnectionController> = Mutex::new(ConnectionController::new(DpiConfig { enabled: false, fragmentation_threshold: 1200, out_of_order: false }));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeSetDpiConfig(mut _env: JNIEnv, _class: JClass, enabled: jboolean, threshold: jint) -> () {
+    let mut controller = DPI_CONTROLLER.lock().unwrap();
+    controller.set_enabled(enabled == 1, threshold as usize);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeGetDpiState(mut _env: JNIEnv, _class: JClass) -> jint {
+    let controller = DPI_CONTROLLER.lock().unwrap();
+    match controller.get_state() {
+        ConnectionState::DpiBypassing => 0,
+        ConnectionState::FallbackTunnelActive => 1,
+        _ => 2
+    }
+    }
+}

@@ -301,6 +301,17 @@ class MainActivity : Activity() {
             isFocusable = true
             setOnClickListener { showScreen(Screen.PROFILES) }
         }
+        serverCard.addView(txt("DPI Обход", 14f, NeoTunDesign.TEXT_PRIMARY),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        val dpiSwitch = Switch(this)
+        val dpiPrefs = getSharedPreferences("dpi_prefs", MODE_PRIVATE)
+        dpiSwitch.isChecked = dpiPrefs.getBoolean("enabled", false)
+        dpiSwitch.setOnCheckedChangeListener { _, isChecked ->
+            dpiPrefs.edit().putBoolean("enabled", isChecked).apply()
+            NeoTunCore.nativeSetDpiConfig(isChecked.toString())
+        }
+        serverCard.addView(dpiSwitch)
+        content.addView(serverCard, margins(top = 9))
         val flag = FrameLayout(this).apply {
             background = rounded(NeoTunDesign.SURFACE_RAISED, 12)
             addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 20f,
@@ -1206,6 +1217,11 @@ class MainActivity : Activity() {
     }
 
     private fun connect(profile: NeoTunProfile, skipGeoWarning: Boolean = false) {
+        if (isRunning()) {
+            disconnect()
+            handler.postDelayed({ connect(profile, skipGeoWarning) }, 500)
+            return
+        }
         // Engine choice is derived from the URI by the native core. Older app
         // versions persisted VLESS as sing-box, so never trust the cached engine
         // field when starting a connection.
@@ -3408,8 +3424,7 @@ class MainActivity : Activity() {
         }
     }
     private fun isRunning(): Boolean {
-        return getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-            .getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+        return NeoTunVpnService.isServiceRunning || getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).getBoolean(NeoTunVpnService.KEY_RUNNING, false)
     }
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     private fun fontScaleFactor(): Float =

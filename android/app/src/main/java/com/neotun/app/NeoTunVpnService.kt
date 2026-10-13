@@ -111,6 +111,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                     .putBoolean(KEY_RUNNING, true)
                     .apply()
                 running = true
+                isServiceRunning = true
                 starting = false
                 NeoTunDiagnostics.log(this, "sing-box: startup completed")
             } catch (error: Throwable) {
@@ -150,7 +151,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             runCatching { commandServer.closeService() }
             runCatching { commandServer.close() }
         }
-        running = false
+        running = false; isServiceRunning = false
         // A previous sing-box service can finish destroying after Xray has
         // already started. Never let that stale teardown overwrite the active
         // engine's shared connection state.
@@ -181,7 +182,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             prefs.edit().putString(KEY_ERROR, message).putBoolean(KEY_RUNNING, false).apply()
         }
         NeoTunDiagnostics.error(this, message)
-        running = false
+        running = false; isServiceRunning = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -233,7 +234,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         startupGeneration++
         starting = false
         NeoTunDiagnostics.error(this, "sing-box stopped: " + message)
-        running = false
+        running = false; isServiceRunning = false
         getSharedPreferences(PREFS, MODE_PRIVATE)
             .edit()
             .putString(KEY_ERROR, message)
@@ -291,6 +292,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     companion object {
+        var isServiceRunning: Boolean = false
         const val EXTRA_CONFIG = "neotun.config"
         const val PREFS = "neotun"
         const val KEY_CONFIG = "config"
