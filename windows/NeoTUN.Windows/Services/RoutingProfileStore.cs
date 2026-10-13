@@ -325,7 +325,7 @@ public sealed class RoutingProfileStore
         if (node is JsonArray array)
             values = array.Select(ReadString);
         else if (node is JsonValue value && value.TryGetValue<string>(out var text))
-            values = text.Split(new[] { ',', ';', '|', '>', '-', ' ', '\\t', '\\r', '\\n' },
+            values = text.Split(new[] { ',', ';', '|', '>', '-', ' ', '\t', '\r', '\n' },
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         else
             return null; // Numeric legacy presets are handled by RouteOrder.
