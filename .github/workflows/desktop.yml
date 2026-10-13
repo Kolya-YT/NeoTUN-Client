@@ -203,6 +203,10 @@ jobs:
               @{ type = "direct"; tag = "direct" },
               @{ type = "block"; tag = "block" }
             )
+            dns = @{
+              servers = @(@{ type = "local"; tag = "system" })
+              final = "system"
+            }
             route = @{
               rule_set = $ruleSets
               rules = $rules
