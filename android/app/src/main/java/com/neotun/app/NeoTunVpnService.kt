@@ -25,9 +25,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     @Volatile private var nativeCloseStarted = false
     @Volatile private var disconnectRequested = false
     @Volatile private var startupThread: Thread? = null
+    private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
+            intent.getStringExtra(EXTRA_SWITCH_TOKEN)?.takeIf { it.isNotBlank() }?.let {
+                pendingSwitchStopTokens.add(it)
+            }
             // A widget tap or profile switch may deliver duplicate disconnect
             // intents while the startup worker is still unwinding. Only one
             // worker may own native shutdown; a second worker could clear the
@@ -58,7 +62,6 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             }
             // Wait for an in-flight native startup to unwind before closing the shared
             // CommandServer. Otherwise shutdown may report completion before startup creates it.
-            val switchToken = intent.getStringExtra(EXTRA_SWITCH_TOKEN)
             val startupWorker = startupThread
             Thread({
                 if (startupWorker != null && startupWorker !== Thread.currentThread()) {
@@ -69,14 +72,15 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 closeNativeResources()
                 isEngineBusy = false
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
-                if (!switchToken.isNullOrBlank()) {
+                pendingSwitchStopTokens.toList().forEach { token ->
                     sendBroadcast(
                         Intent(ACTION_ENGINE_STOPPED)
                             .setPackage(packageName)
-                            .putExtra(EXTRA_SWITCH_TOKEN, switchToken)
+                            .putExtra(EXTRA_SWITCH_TOKEN, token)
                             .putExtra(EXTRA_ENGINE_NAME, "sing-box")
                             .putExtra(EXTRA_STOP_SUCCESS, true),
                     )
+                    pendingSwitchStopTokens.remove(token)
                 }
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
                 // Use stopSelf(), not stopSelf(startId): duplicate start commands
