@@ -24,6 +24,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     @Volatile private var startupGeneration = 0
     @Volatile private var nativeCloseStarted = false
     @Volatile private var disconnectRequested = false
+    @Volatile private var startupThread: Thread? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
@@ -42,7 +43,15 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
             }
+            // Wait for an in-flight native startup to unwind before closing the shared
+            // CommandServer. Otherwise shutdown may report completion before startup creates it.
+            val startupWorker = startupThread
             Thread({
+                if (startupWorker != null && startupWorker !== Thread.currentThread()) {
+                    NeoTunDiagnostics.log(this, "sing-box: waiting for startup worker before native teardown")
+                    runCatching { startupWorker.join() }
+                        .onFailure { NeoTunDiagnostics.error(this, "sing-box: waiting for startup worker failed", it) }
+                }
                 closeNativeResources()
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
@@ -90,7 +99,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             )
             return START_NOT_STICKY
         }
-        Thread({
+        val startupWorker = Thread({
             // Keep this startup's server local so a stale startup can clean up
             // its own native resources without touching a newer connection.
             var startupServer: CommandServer? = null
@@ -109,8 +118,12 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 newServer.start()
                 NeoTunDiagnostics.log(this, "sing-box: CommandServer started")
                 if (generation != startupGeneration) {
-                    runCatching { newServer.closeService() }
-                    runCatching { newServer.close() }
+                    // During explicit disconnect, the stop worker joins this thread
+                    // and owns cleanup, avoiding a double-close race.
+                    if (!disconnectRequested) {
+                        runCatching { newServer.closeService() }
+                        runCatching { newServer.close() }
+                    }
                     return@Thread
                 }
 
@@ -127,8 +140,12 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 NeoTunDiagnostics.log(this, "sing-box: starting engine on background thread")
                 newServer.startOrReloadService(normalizedConfig, OverrideOptions())
                 if (generation != startupGeneration) {
-                    runCatching { newServer.closeService() }
-                    runCatching { newServer.close() }
+                    // During explicit disconnect, the stop worker joins this thread
+                    // and owns cleanup, avoiding a double-close race.
+                    if (!disconnectRequested) {
+                        runCatching { newServer.closeService() }
+                        runCatching { newServer.close() }
+                    }
                     return@Thread
                 }
                 getSharedPreferences(PREFS, MODE_PRIVATE)
@@ -152,14 +169,20 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                     // Disconnect/restart invalidated this generation while native
                     // initialization was in flight. Close only this thread's server;
                     // the shared commandServer field may already point to a new run.
-                    startupServer?.let { staleServer ->
-                        runCatching { staleServer.closeService() }
-                        runCatching { staleServer.close() }
+                    if (!disconnectRequested) {
+                        startupServer?.let { staleServer ->
+                            runCatching { staleServer.closeService() }
+                            runCatching { staleServer.close() }
+                        }
                     }
                     NeoTunDiagnostics.log(this, "sing-box: startup cancelled; stale native resources cleaned up")
                 }
+            } finally {
+                if (startupThread === Thread.currentThread()) startupThread = null
             }
-        }, "NeoTUN-singbox-startup").start()
+        }, "NeoTUN-singbox-startup")
+        startupThread = startupWorker
+        startupWorker.start()
         return START_NOT_STICKY
     }
 
