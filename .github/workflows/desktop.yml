@@ -148,6 +148,82 @@ jobs:
           & (Join-Path $runtime "sing-box.exe") version
           & (Join-Path $runtime "xray.exe") version
 
+      - name: Validate remote GeoSite/GeoIP rule sets and sing-box config
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = Join-Path (Resolve-Path "dist/NeoTUN-Windows") "runtime"
+          $singBox = Join-Path $runtime "sing-box.exe"
+          $geoSites = @(
+            "whitelist", "category-ru", "category-geoblock-ru", "apple", "google-play",
+            "google-deepmind", "microsoft", "github", "telegram", "youtube", "twitch",
+            "twitch-ads", "pinterest", "steam", "epicgames", "riot", "escapefromtarkov",
+            "faceit", "category-ads", "origin", "win-spy", "private", "torrent"
+          )
+          $geoIps = @("direct", "whitelist", "private")
+          $ruleSets = @()
+          foreach ($label in $geoSites) {
+            $url = "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/sing-box/$label.srs"
+            $response = Invoke-WebRequest -Uri $url -TimeoutSec 45
+            if ($response.StatusCode -ne 200 -or $response.RawContentLength -lt 16) {
+              throw "GeoSite rule set is missing or empty: $url"
+            }
+            Write-Host "Verified GeoSite $label.srs ($($response.RawContentLength) bytes)"
+            $ruleSets += @{
+              type = "remote"
+              tag = "neotun-geosite-$label"
+              format = "binary"
+              url = $url
+              http_client = @{ detour = "direct" }
+              update_interval = "24h"
+            }
+          }
+          foreach ($label in $geoIps) {
+            $url = "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geoip/release/sing-box/$label.srs"
+            $response = Invoke-WebRequest -Uri $url -TimeoutSec 45
+            if ($response.StatusCode -ne 200 -or $response.RawContentLength -lt 16) {
+              throw "GeoIP rule set is missing or empty: $url"
+            }
+            Write-Host "Verified GeoIP $label.srs ($($response.RawContentLength) bytes)"
+            $ruleSets += @{
+              type = "remote"
+              tag = "neotun-geoip-$label"
+              format = "binary"
+              url = $url
+              http_client = @{ detour = "direct" }
+              update_interval = "24h"
+            }
+          }
+          $rules = @(
+            @{ rule_set = @("neotun-geosite-category-ru", "neotun-geoip-direct"); outbound = "direct" },
+            @{ rule_set = @("neotun-geosite-torrent"); outbound = "block" }
+          )
+          $config = @{
+            log = @{ level = "warn" }
+            inbounds = @()
+            outbounds = @(
+              @{ type = "direct"; tag = "direct" },
+              @{ type = "block"; tag = "block" }
+            )
+            route = @{
+              rule_set = $ruleSets
+              rules = $rules
+              final = "direct"
+            }
+            experimental = @{
+              cache_file = @{
+                enabled = $true
+                path = (Join-Path $env:RUNNER_TEMP "neotun-geodata-validation.db")
+              }
+            }
+          }
+          $configPath = Join-Path $env:RUNNER_TEMP "neotun-geodata-validation.json"
+          $config | ConvertTo-Json -Depth 30 | Set-Content -Path $configPath -Encoding utf8
+          & $singBox check -c $configPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Pinned sing-box rejected the remote GeoSite/GeoIP rule-set configuration."
+          }
+          Write-Host "All configured remote rule-set URLs and sing-box 1.14.3 config validated."
 
       - name: Smoke-test Windows app startup
         shell: pwsh
