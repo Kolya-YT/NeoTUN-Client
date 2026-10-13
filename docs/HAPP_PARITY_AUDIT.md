@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Android switch-timeout diagnostics now list the exact still-reported VPN service names when `ActivityManager` prevents a server switch. This follows the user's device log: sing-box/Hysteria2 had active DNS and outbound flows, Xray emitted `onDestroy`, but the switch still timed out after six seconds. The next device run must identify which service remains before changing teardown semantics (commit `148784d`).
+
 - [x] Removed the unused experimental DPI packet-shaping module (`app/applet/core/src/dpi/{mod,controller,shaper}.rs`). It was a standalone packet-splitting prototype, not a verified working traffic path. The architecture note now explicitly marks DPI shaping as removed and prohibits restoring a UI toggle or packet shaper during routine stabilization. No DPI control was found in the current Android `MainActivity.kt`; the removed Rust module was under the applet core tree. Changes: `20db876`, `ecfe66e`, `76c2786`, `11a1284`.
 
 - [x] Android home status reconciliation no longer refuses to trust a running native Xray core solely because a stale persisted error remains. It confirms the selected engine and unchanged profile URI, then repairs the running flag and clears the stale error; this targets the reported mismatch where diagnostics show `getXrayState: running=true` while the dashboard says ready to connect (commit `48e60b5`). CI and device-side confirmation remain pending.
