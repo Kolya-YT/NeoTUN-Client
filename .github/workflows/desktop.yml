@@ -174,7 +174,6 @@ jobs:
               tag = "neotun-geosite-$label"
               format = "binary"
               url = $url
-              http_client = @{ detour = "direct" }
               update_interval = "24h"
             }
           }
@@ -190,7 +189,6 @@ jobs:
               tag = "neotun-geoip-$label"
               format = "binary"
               url = $url
-              http_client = @{ detour = "direct" }
               update_interval = "24h"
             }
           }
@@ -209,6 +207,7 @@ jobs:
               rule_set = $ruleSets
               rules = $rules
               final = "direct"
+              default_domain_resolver = "system"
             }
             experimental = @{
               cache_file = @{
