@@ -197,8 +197,7 @@ internal sealed class EngineRuntime : IDisposable
         }
     }
 
-    public async Task StopAsync()    {
-        Interlocked.Exchange(ref _stopRequested, 1);
+    public async Task StopAsync()    {        Interlocked.Exchange(ref _stopRequested, 1);
         if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
@@ -395,10 +394,15 @@ internal sealed class EngineRuntime : IDisposable
             var directDomains = directRaw.Where(v => !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) &&
                     !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase))
                 .Select(NormalizeDomainSuffix).Where(v => v is not null).Cast<string>().ToArray();
-            var blockGeo = ReadGeoTokens("BlockSites").Concat(ReadGeoTokens("BlockIp")).Distinct().ToArray();
-            var proxyGeo = ReadGeoTokens("ProxySites").Concat(ReadGeoTokens("ProxyIp")).Distinct().ToArray();
-            var directGeo = ReadGeoTokens("DirectSites").Concat(ReadGeoTokens("DirectIp")).Distinct().ToArray();
-            var blockIps = ReadLines("BlockIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
+            var blockSiteGeo = ReadGeoTokens("BlockSites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
+            var proxySiteGeo = ReadGeoTokens("ProxySites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
+            var directSiteGeo = ReadGeoTokens("DirectSites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
+            var blockIpGeo = ReadGeoTokens("BlockIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
+            var proxyIpGeo = ReadGeoTokens("ProxyIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
+            var directIpGeo = ReadGeoTokens("DirectIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
+            var blockGeo = blockSiteGeo.Concat(blockIpGeo).Distinct().ToArray();
+            var proxyGeo = proxySiteGeo.Concat(proxyIpGeo).Distinct().ToArray();
+            var directGeo = directSiteGeo.Concat(directIpGeo).Distinct().ToArray();            var blockIps = ReadLines("BlockIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
                     !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
             var proxyIps = ReadLines("ProxyIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
                     !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
@@ -427,11 +431,11 @@ internal sealed class EngineRuntime : IDisposable
                 .ToArray();
             route["find_process"] = processExclusions.Length > 0;
 
-            var groups = new Dictionary<string, (string[] Domains, string[] Ips, string[] Geo)>
+            var groups = new Dictionary<string, (string[] Domains, string[] Ips, string[] SiteGeo, string[] IpGeo)>
             {
-                ["block"] = (blockDomains, blockIps, blockGeo),
-                ["proxy"] = (proxyDomains, proxyIps, proxyGeo),
-                ["direct"] = (directDomains, directIps, directGeo)
+                ["block"] = (blockDomains, blockIps, blockSiteGeo, blockIpGeo),
+                ["proxy"] = (proxyDomains, proxyIps, proxySiteGeo, proxyIpGeo),
+                ["direct"] = (directDomains, directIps, directSiteGeo, directIpGeo)
             };
             var order = ReadInt("RouteOrder", 0) switch
             {
@@ -447,8 +451,8 @@ internal sealed class EngineRuntime : IDisposable
             foreach (var tag in order)
             {
                 var group = groups[tag];
-                var domains = MakeRule("domain_suffix", group.Domains, tag, group.Geo);
-                var ips = MakeRule("ip_cidr", group.Ips, tag, group.Geo);
+                var domains = MakeRule("domain_suffix", group.Domains, tag, group.SiteGeo);
+                var ips = MakeRule("ip_cidr", group.Ips, tag, group.IpGeo);
                 if (domains is not null) mergedRules.Add(domains);
                 if (ips is not null) mergedRules.Add(ips);
             }
@@ -597,8 +601,7 @@ internal sealed class EngineRuntime : IDisposable
 
     private async Task WaitForClashApiAsync(
         int port,
-        string secret,
-        TimeSpan timeout,
+        string secret,        TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
@@ -798,78 +801,3 @@ internal sealed class EngineRuntime : IDisposable
             if (_trafficMonitor is not null)
             {
                 await _trafficMonitor.DisposeAsync();
-                _trafficMonitor = null;
-            }
-            await StopSingBoxAsync();
-            await StopXrayAsync();
-        }
-        catch (Exception ex)
-        {
-            WriteLog("Runtime cleanup after unexpected exit failed: " + ex.Message);
-        }
-        finally
-        {
-            StateChanged?.Invoke(false, $"Отключено: {name} завершился с кодом {exitCode}. Проверь журнал.");
-            WriteLog("Runtime cleanup after unexpected exit completed.");
-        }
-    }
-
-    private async Task StopSingBoxAsync()
-    {
-        Process? current;
-        lock (_sync) { current = _singBox; _singBox = null; }
-        await StopProcessAsync(current, "sing-box");
-    }
-
-    private async Task StopXrayAsync()
-    {
-        Process? current;
-        lock (_sync) { current = _xray; _xray = null; }
-        await StopProcessAsync(current, "xray");
-    }
-
-    private async Task StopProcessAsync(Process? current, string name)
-    {
-        if (current is null) return;
-        try
-        {
-            if (!SafeHasExited(current))
-            {
-                try
-                {
-                    current.Kill(entireProcessTree: true);
-                    await current.WaitForExitAsync();
-                }
-                catch (InvalidOperationException) { }
-            }
-        }
-        catch (InvalidOperationException) { }
-        catch (Exception ex) { WriteLog(name + " stop warning: " + ex.Message); }
-        finally
-        {
-            try { current.Dispose(); }
-            catch (Exception ex) { WriteLog(name + " dispose warning: " + ex.Message); }
-        }
-        WriteLog(name + " process stopped");
-    }
-
-    private void WriteLog(string line)
-    {
-        var entry = $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] {line}";
-        try { File.AppendAllText(_logPath, entry + Environment.NewLine, Encoding.UTF8); } catch { }
-        LogLine?.Invoke(entry);
-    }
-
-    private static int GetAvailableLoopbackPort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
-    }
-
-    private static bool IsAdministrator()
-    {
-        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-        return new System.Security.Principal.WindowsPrincipal(identity)
-            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-    }
