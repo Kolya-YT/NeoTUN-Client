@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using NeoTUN.Windows.Models;
 
 namespace NeoTUN.Windows.Services;
@@ -154,29 +155,74 @@ public sealed class SubscriptionStore
 
     private static string DecodeFeedText(string raw)
     {
-        var clean = string.Concat(raw.Where(c => !char.IsWhiteSpace(c)));
+        var text = raw.Trim().TrimStart('\uFEFF');
+        if (text.Length == 0 || Regex.IsMatch(text, @"(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://"))
+            return text;
+
+        if (TryDecodeBase64(text, out var decoded) &&
+            Regex.IsMatch(decoded, @"(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://"))
+            return decoded;
+
+        return raw;
+    }
+
+    private static bool TryDecodeBase64(string value, out string decoded)
+    {
+        decoded = "";
+        var clean = string.Concat(value.Where(c => !char.IsWhiteSpace(c)));
+        if (clean.Length == 0) return false;
+
+        // Subscription feeds commonly use URL-safe Base64 and may omit padding.
+        clean = clean.Replace('-', '+').Replace('_', '/');
+        clean = clean.TrimEnd('=');
+        clean = clean.PadRight(clean.Length + ((4 - clean.Length % 4) % 4), '=');
         try
         {
-            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(clean));
-            if (decoded.Contains("://", StringComparison.Ordinal)) return decoded;
+            decoded = Encoding.UTF8.GetString(Convert.FromBase64String(clean)).TrimStart('\uFEFF');
+            return decoded.Length > 0;
         }
-        catch (FormatException) { }
-        return raw;
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 
     private static List<string> ExtractLinks(string text)
     {
-        var list = new List<string>();
-        foreach (var line in text.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        // Some providers put several share links on one line. Match each URI
+        // without splitting commas that are valid inside Hysteria2 port ranges.
+        const string linkPattern = @"(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://.*?(?=(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://|\s|$)";
+        var links = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddLinks(string value)
         {
-            var trimmed = line.Trim().Trim('\uFEFF');
-            if (trimmed.StartsWith("#")) continue;
-            if (SupportedSchemes.Any(s => trimmed.StartsWith(s, StringComparison.OrdinalIgnoreCase)))
+            foreach (var line in value.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                list.Add(trimmed);
+                var trimmed = line.Trim().Trim('\uFEFF');
+                if (trimmed.StartsWith("#", StringComparison.Ordinal)) continue;
+
+                foreach (Match match in Regex.Matches(trimmed, linkPattern))
+                {
+                    var candidate = match.Value.Trim().TrimEnd(',', ';', '"', '\'');
+                    if (candidate.Length == 0 ||
+                        !SupportedSchemes.Any(s => candidate.StartsWith(s, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+                    if (seen.Add(candidate)) links.Add(candidate);
+                }
             }
         }
-        return list;
+
+        AddLinks(text);
+
+        // A few feeds encode individual lines rather than the complete response.
+        foreach (var line in text.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (Regex.IsMatch(line, @"(?i)(?:vless|vmess|trojan|hysteria2|hy2|tuic|ss)://")) continue;
+            if (TryDecodeBase64(line, out var decoded)) AddLinks(decoded);
+        }
+
+        return links;
     }
 
     private static void ImportRoutingIfPresent(
