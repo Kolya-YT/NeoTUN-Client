@@ -140,6 +140,7 @@ public sealed class RoutingProfileStore
                 profile.Ipv6Enabled,
                 profile.Mtu,
                 profile.RouteOrder,
+                profile.RouteOrderRaw,
                 profile.RemoteDns,
                 profile.DomesticDns,
                 profile.DomesticDnsDomains,
@@ -175,6 +176,7 @@ public sealed class RoutingProfileStore
                 Name = ReadString(decoded["Name"]) ?? "Импортированный профиль",
                 GlobalProxy = ReadBoolean(decoded["GlobalProxy"], fallback: true),
                 RouteOrder = ParseOrder(decoded["RouteOrder"]),
+                RouteOrderRaw = ParseOrderRaw(decoded["RouteOrder"]),
                 RemoteDns = ReadString(decoded["RemoteDNS"]) ?? ReadString(decoded["RemoteDns"]) ?? "https://8.8.8.8/dns-query",
                 DomesticDns = ReadString(decoded["DomesticDNS"]) ?? ReadString(decoded["DomesticDns"]) ?? "https://77.88.8.8/dns-query",
                 DomesticDnsDomains = ExtractList(decoded["DomesticDNSDomains"] ?? decoded["DomesticDnsDomains"]),
@@ -315,6 +317,38 @@ public sealed class RoutingProfileStore
                 return number;
         }
         return fallback;
+    }
+
+    private static string? ParseOrderRaw(JsonNode? node)
+    {
+        IEnumerable<string?> values;
+        if (node is JsonArray array)
+            values = array.Select(ReadString);
+        else if (node is JsonValue value && value.TryGetValue<string>(out var text))
+            values = text.Split(new[] { ',', ';', '|', '>', '-', ' ', '\\t', '\\r', '\\n' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        else
+            return null; // Numeric legacy presets are handled by RouteOrder.
+
+        var normalized = values
+            .Select(value => value?.Trim().ToLowerInvariant())
+            .Select(value => value switch
+            {
+                "block" or "reject" => "block",
+                "proxy" => "proxy",
+                "direct" => "direct",
+                _ => null
+            })
+            .Where(value => value is not null)
+            .Cast<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (normalized.Count == 0) return null;
+        foreach (var fallback in new[] { "block", "proxy", "direct" })
+            if (!normalized.Contains(fallback, StringComparer.Ordinal))
+                normalized.Add(fallback);
+        return string.Join(",", normalized);
     }
 
     private static int ParseOrder(JsonNode? node)
