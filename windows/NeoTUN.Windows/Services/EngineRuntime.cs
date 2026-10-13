@@ -197,7 +197,8 @@ internal sealed class EngineRuntime : IDisposable
         }
     }
 
-    public async Task StopAsync()    {        Interlocked.Exchange(ref _stopRequested, 1);        if (_trafficMonitor is not null)
+    public async Task StopAsync()    {        Interlocked.Exchange(ref _stopRequested, 1);
+            if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
             _trafficMonitor = null;
@@ -392,11 +393,13 @@ internal sealed class EngineRuntime : IDisposable
             var blockSiteGeo = ReadGeoTokens("BlockSites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
             var proxySiteGeo = ReadGeoTokens("ProxySites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
             var directSiteGeo = ReadGeoTokens("DirectSites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
-            var blockIpGeo = ReadGeoTokens("BlockIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();            var proxyIpGeo = ReadGeoTokens("ProxyIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
+            var blockIpGeo = ReadGeoTokens("BlockIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
+            var proxyIpGeo = ReadGeoTokens("ProxyIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
             var directIpGeo = ReadGeoTokens("DirectIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
             var blockGeo = blockSiteGeo.Concat(blockIpGeo).Distinct().ToArray();
             var proxyGeo = proxySiteGeo.Concat(proxyIpGeo).Distinct().ToArray();
-            var directGeo = directSiteGeo.Concat(directIpGeo).Distinct().ToArray();            var blockIps = ReadLines("BlockIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
+            var directGeo = directSiteGeo.Concat(directIpGeo).Distinct().ToArray();
+            var blockIps = ReadLines("BlockIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
                     !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
             var proxyIps = ReadLines("ProxyIp").Where(v => !v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase) &&
                     !v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)).Where(IsIpOrCidr).ToArray();
@@ -477,7 +480,8 @@ internal sealed class EngineRuntime : IDisposable
         var domain = value.Trim().TrimStart('*').TrimStart('.');
         if (domain.Length == 0 || domain.Any(char.IsWhiteSpace) || domain.Contains('/') ||
             domain.Contains(':') || domain.StartsWith("geosite", StringComparison.OrdinalIgnoreCase))
-            return null;        return "." + domain;
+            return null;
+            return "." + domain;
     }
 
     private static bool IsIpOrCidr(string value)
