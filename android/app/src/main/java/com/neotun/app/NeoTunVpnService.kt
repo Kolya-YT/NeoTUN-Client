@@ -28,6 +28,14 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
+            // A widget tap or profile switch may deliver duplicate disconnect
+            // intents while the startup worker is still unwinding. Only one
+            // worker may own native shutdown; a second worker could clear the
+            // busy flag before the first worker has released the TUN.
+            if (disconnectRequested) {
+                NeoTunDiagnostics.log(this, "sing-box: duplicate disconnect ignored; teardown already in progress")
+                return START_NOT_STICKY
+            }
             disconnectRequested = true
             startupGeneration++
             starting = false
