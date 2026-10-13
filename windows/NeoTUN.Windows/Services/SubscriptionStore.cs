@@ -253,8 +253,7 @@ public sealed class SubscriptionStore
                 candidate.Contains("://routing/off", StringComparison.OrdinalIgnoreCase) ||
                 candidate.Contains("://autorouting/off", StringComparison.OrdinalIgnoreCase))
             {
-                // Routing enable/disable is not yet a persisted Windows setting.
-                // Do not reinterpret an explicit "off" directive as a profile.
+                routingProfileStore.SetEnabled(false);
                 return;
             }
 
