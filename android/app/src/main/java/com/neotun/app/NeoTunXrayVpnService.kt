@@ -23,17 +23,44 @@ class NeoTunXrayVpnService : VpnService() {
     @Volatile private var starting = false
     @Volatile private var destroyed = false
     @Volatile private var startupGeneration = 0
+    @Volatile private var teardownInProgress = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
             startupGeneration++
             starting = false
-            stopTunnel()
-            stopSelf(startId)
+            if (teardownInProgress) {
+                NeoTunDiagnostics.log(this, "Xray disconnect already in progress; ignoring duplicate request")
+                return START_NOT_STICKY
+            }
+            teardownInProgress = true
+            mainHandler.removeCallbacksAndMessages(null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            // Xray native stop can block while releasing its TUN and DNS state.
+            // Keep the service alive until the worker completes so a profile switch
+            // cannot start another VPN service concurrently.
+            Thread({
+                try {
+                    stopTunnel()
+                    NeoTunDiagnostics.log(this, "Xray native teardown completed")
+                } catch (error: Throwable) {
+                    NeoTunDiagnostics.error(this, "Xray teardown failed", error)
+                } finally {
+                    mainHandler.post {
+                        teardownInProgress = false
+                        stopSelf(startId)
+                    }
+                }
+            }, "NeoTUN-xray-stop").start()
             return START_NOT_STICKY
         }
-        if (running || starting) return START_NOT_STICKY
+        if (teardownInProgress || running || starting) return START_NOT_STICKY
         destroyed = false
         val generation = ++startupGeneration
         starting = true
@@ -451,6 +478,7 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun stopTunnel() {
+        NeoTunDiagnostics.log(this, "Xray teardown: running=$running, tunFd=$tunFd")
         if (running || tunFd >= 0) {
             runCatching {
                 NeoTunXrayBridge.nativeInvoke(
