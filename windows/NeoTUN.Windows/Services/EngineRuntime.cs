@@ -197,8 +197,10 @@ internal sealed class EngineRuntime : IDisposable
         }
     }
 
-    public async Task StopAsync()    {        Interlocked.Exchange(ref _stopRequested, 1);
-            if (_trafficMonitor is not null)
+    public async Task StopAsync()
+    {
+        Interlocked.Exchange(ref _stopRequested, 1);
+        if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
             _trafficMonitor = null;
@@ -409,7 +411,6 @@ internal sealed class EngineRuntime : IDisposable
             var ruleSets = new JsonArray();
             foreach (var token in allGeoTokens)
             {
-                var separator = token.IndexOf(':');
                 ruleSets.Add(new JsonObject
                 {
                     ["type"] = "remote",
@@ -481,7 +482,7 @@ internal sealed class EngineRuntime : IDisposable
         if (domain.Length == 0 || domain.Any(char.IsWhiteSpace) || domain.Contains('/') ||
             domain.Contains(':') || domain.StartsWith("geosite", StringComparison.OrdinalIgnoreCase))
             return null;
-            return "." + domain;
+        return "." + domain;
     }
 
     private static bool IsIpOrCidr(string value)
@@ -798,4 +799,3 @@ internal sealed class EngineRuntime : IDisposable
         if (Interlocked.Exchange(ref _stopRequested, 1) != 0) return;
         WriteLog($"Unexpected {name} exit ({exitCode}); stopping the remaining runtime processes.");
         try
-        {
