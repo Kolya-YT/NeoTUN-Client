@@ -25,10 +25,14 @@ class NeoTunXrayVpnService : VpnService() {
     @Volatile private var startupGeneration = 0
     @Volatile private var teardownInProgress = false
     @Volatile private var nativeCleanupComplete = false
+    private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
+            intent.getStringExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN)?.takeIf { it.isNotBlank() }?.let {
+                pendingSwitchStopTokens.add(it)
+            }
             startupGeneration++
             starting = false
             // ACTION_DISCONNECT may instantiate an otherwise idle service.
@@ -40,7 +44,6 @@ class NeoTunXrayVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             teardownInProgress = true
-            val switchToken = intent.getStringExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN)
             mainHandler.removeCallbacksAndMessages(null)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -62,14 +65,15 @@ class NeoTunXrayVpnService : VpnService() {
                 } catch (error: Throwable) {
                     NeoTunDiagnostics.error(this, "Xray teardown failed", error)
                 } finally {
-                    if (!switchToken.isNullOrBlank()) {
+                    pendingSwitchStopTokens.toList().forEach { token ->
                         sendBroadcast(
                             Intent(NeoTunVpnService.ACTION_ENGINE_STOPPED)
                                 .setPackage(packageName)
-                                .putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, switchToken)
+                                .putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, token)
                                 .putExtra(NeoTunVpnService.EXTRA_ENGINE_NAME, "xray")
                                 .putExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, stopSucceeded),
                         )
+                        pendingSwitchStopTokens.remove(token)
                     }
                     mainHandler.post {
                         teardownInProgress = false
