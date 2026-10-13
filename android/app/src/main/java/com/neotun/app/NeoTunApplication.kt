@@ -28,34 +28,35 @@ class NeoTunApplication : Application() {
         val processName = currentProcessName()
         NeoTunDiagnostics.log(this, "Application onCreate; process=" + processName)
 
-        // NeoTunXrayVpnService runs in the :xray process. Do not initialize
-        // libbox there: libbox and the native Xray engine both embed a Go
-        // runtime and must never be loaded into the same Android process.
-        if (processName != packageName) {
-            return
-        }
+        // Keep app launch independent from the native Go/libbox runtime.
+        // Initialize libbox lazily in the sing-box foreground service instead.
+    }
 
-        runCatching {
+    /**
+     * Must be called only from the sing-box service process, before creating
+     * CommandServer. Do not call from NeoTunXrayVpnService's :xray process.
+     */
+    companion object {
+        @Volatile private var libboxReady = false
+
+        @Synchronized
+        fun initializeLibbox(context: android.content.Context) {
+            if (libboxReady) return
+            val app = context.applicationContext
+            val working = app.getExternalFilesDir(null) ?: app.filesDir
+            NeoTunDiagnostics.log(app, "sing-box: Libbox.setup starting; workingPath=" + working.path)
             Libbox.setLocale(Locale.getDefault().toLanguageTag())
-            val working = getExternalFilesDir(null) ?: filesDir
-            NeoTunDiagnostics.log(this, "sing-box: Libbox.setup starting; workingPath=" + working.path)
+            val version = app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: "0.1.0"
             Libbox.setup(SetupOptions().apply {
-            basePath = filesDir.path
-            workingPath = working.path
-            tempPath = cacheDir.path
-            appVersion = packageManager
-                .getPackageInfo(packageName, 0)
-                .versionName ?: "0.1.0"
-            appMarketingVersion = packageManager
-                .getPackageInfo(packageName, 0)
-                .versionName ?: "0.1.0"
+                basePath = app.filesDir.path
+                workingPath = working.path
+                tempPath = app.cacheDir.path
+                appVersion = version
+                appMarketingVersion = version
                 debug = true
             })
-            NeoTunDiagnostics.log(this, "sing-box: Libbox.setup completed")
-        }.onFailure {
-            // A native-engine setup failure must not crash the entire app before
-            // the home screen is shown. The VPN service reports errors on connect.
-            NeoTunDiagnostics.error(this, "sing-box: Libbox.setup failed; app launch will continue", it)
+            libboxReady = true
+            NeoTunDiagnostics.log(app, "sing-box: Libbox.setup completed")
         }
     }
 
