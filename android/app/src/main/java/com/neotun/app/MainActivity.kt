@@ -1621,14 +1621,16 @@ class MainActivity : Activity() {
             NeoTunVpnService::class.java.name,
             NeoTunXrayVpnService::class.java.name,
         )
-        val stillRunning = runCatching {
+        val activeServices = runCatching {
             (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
                 .getRunningServices(Int.MAX_VALUE)
-                .any { it.service.className in serviceNames }
+                .filter { it.service.className in serviceNames }
+                .map { it.service.className.substringAfterLast('.') }
         }.getOrElse {
             NeoTunDiagnostics.error(this, "Unable to verify VPN service shutdown", it)
-            true
+            listOf("unknown")
         }
+        val stillRunning = activeServices.isNotEmpty()
 
         if (!stillRunning) {
             NeoTunDiagnostics.log(this, "Both VPN services stopped; starting selected profile; generation=" + generation)
@@ -1644,7 +1646,7 @@ class MainActivity : Activity() {
                 .putString(NeoTunVpnService.KEY_ERROR,
                     "Не удалось подтвердить остановку предыдущего соединения. Повторите переключение.")
                 .apply()
-            NeoTunDiagnostics.error(this, "Server switch aborted: VPN services did not stop within 6 seconds")
+            NeoTunDiagnostics.error(this, "Server switch aborted: VPN services did not stop within 6 seconds; remaining=" + activeServices.joinToString(","))
             if (screen == Screen.HOME) renderHome() else renderProfiles()
             NeoTunHomeWidget.refreshAll(this)
             return
