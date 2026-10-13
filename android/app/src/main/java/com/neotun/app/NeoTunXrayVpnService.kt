@@ -31,6 +31,10 @@ class NeoTunXrayVpnService : VpnService() {
         if (intent?.action == ACTION_DISCONNECT) {
             startupGeneration++
             starting = false
+            // ACTION_DISCONNECT may instantiate an otherwise idle service.
+            // Keep Xray marked busy until native cleanup has completed, or the
+            // switch waiter can start sing-box/Xray while stopTunnel is running.
+            isEngineBusy = true
             if (teardownInProgress) {
                 NeoTunDiagnostics.log(this, "Xray disconnect already in progress; ignoring duplicate request")
                 return START_NOT_STICKY
@@ -57,7 +61,9 @@ class NeoTunXrayVpnService : VpnService() {
                 } finally {
                     mainHandler.post {
                         teardownInProgress = false
-                        stopSelf(startId)
+                        // Newer duplicate start commands may advance startId.
+                        // stopSelf(startId) would then leave the service alive.
+                        stopSelf()
                     }
                 }
             }, "NeoTUN-xray-stop").start()
