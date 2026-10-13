@@ -53,6 +53,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                         .onFailure { NeoTunDiagnostics.error(this, "sing-box: waiting for startup worker failed", it) }
                 }
                 closeNativeResources()
+                isEngineBusy = false
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
                 stopSelf(startId)
@@ -63,6 +64,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
 
         disconnectRequested = false
         nativeCloseStarted = false
+        isEngineBusy = true
         val generation = ++startupGeneration
         starting = true
         NeoTunDiagnostics.clear(this)
@@ -218,6 +220,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         startupGeneration++
         starting = false
         closeNativeResources()
+        isEngineBusy = false
         running = false; isServiceRunning = false
         // A previous sing-box service can finish destroying after Xray has
         // already started. Never let that stale teardown overwrite the active
@@ -366,6 +369,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     companion object {
+        @Volatile var isEngineBusy: Boolean = false
         var isServiceRunning: Boolean = false
         const val EXTRA_CONFIG = "neotun.config"
         const val PREFS = "neotun"
