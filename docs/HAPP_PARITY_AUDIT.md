@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Xray startup-failure cleanup now also runs native stop, TUN-fd release, DNS reset and native reinitialization on a worker thread. The error state is recorded before cleanup, and the service only stops after asynchronous cleanup completes, avoiding another main-thread stall on malformed profiles or native startup errors (commit `1b7fc80`). Android CI and device verification remain open.
+
 - [x] Xray explicit disconnect now invalidates queued startup/GeoData callbacks and runs native stop, DNS reset and TUN-fd cleanup on a dedicated worker instead of the Android main thread. The service remains alive until cleanup finishes, preserving the switcher's service-exit gate; duplicate disconnect commands are ignored while teardown is active (commit `7cc804a`). Android CI and device-side Xray↔sing-box rapid-switch checks remain required.
 
 - [x] sing-box disconnect now waits for the in-flight startup worker to exit before closing its shared `CommandServer`. This addresses a concrete teardown race where shutdown could observe no server, finish early, and allow a new profile to start while native startup was still constructing/starting TUN resources. During an explicit disconnect, stale-start cleanup is handed to the stop worker to avoid double-closing the same server (commit `c8b9a00`). Android CI and rapid-switch/device verification remain required.
