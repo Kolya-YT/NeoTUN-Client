@@ -31,6 +31,9 @@ public sealed class RoutingProfile : INotifyPropertyChanged
 
     public string? SourceUrl { get; set; }
 
+    // Preserves arbitrary Happ/INCY ordering while RouteOrder remains the legacy UI preset.
+    public string? RouteOrderRaw { get; set; }
+
     public DateTimeOffset? UpdatedAt { get; set; }
 
     public bool GlobalProxy
