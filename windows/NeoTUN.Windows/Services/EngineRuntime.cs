@@ -810,13 +810,107 @@ internal sealed class EngineRuntime : IDisposable
         }
     }
     
+    private async Task StopSingBoxAsync()
+    {
+        Process? current;
+        lock (_sync) { current = _singBox; _singBox = null; }
+        await StopProcessAsync(current, "sing-box");
+    }
+
+    private async Task StopXrayAsync()
+    {
+        Process? current;
+        lock (_sync) { current = _xray; _xray = null; }
+        await StopProcessAsync(current, "xray");
+    }
+
+    private async Task StopProcessAsync(Process? current, string name)
+    {
+        if (current is null) return;
+        try
+        {
+            if (!SafeHasExited(current))
+            {
+                try
+                {
+                    current.Kill(entireProcessTree: true);
+                    await current.WaitForExitAsync();
+                }
+                catch (InvalidOperationException) { }
+            }
+        }
+        catch (InvalidOperationException) { }
+        catch (Exception ex) { WriteLog(name + " stop warning: " + ex.Message); }
+        finally
+        {
+            try { current.Dispose(); }
+            catch (Exception ex) { WriteLog(name + " dispose warning: " + ex.Message); }
+        }
+        WriteLog(name + " process stopped");
+    }
+
+    private void WriteLog(string line)
+    {
+        var entry = $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] {line}";
+        try { File.AppendAllText(_logPath, entry + Environment.NewLine, Encoding.UTF8); } catch { }
+        LogLine?.Invoke(entry);
+    }
+
+    private static int GetAvailableLoopbackPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    private static bool IsAdministrator()
+    {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        return new System.Security.Principal.WindowsPrincipal(identity)
+            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+    }
+
+    private void RecordRecentError(string name, string line)
+    {
+        if (string.IsNullOrWhiteSpace(line)) return;
+        lock (_errorSync)
+        {
+            var list = name == "sing-box" ? _singBoxErrors : (name == "xray" ? _xrayErrors : null);
+            if (list == null) return;
+            list.Add(line.Trim());
+            if (list.Count > 5000) list.RemoveAt(0);
+        }
+    }
+
+    private string GetRecentErrors(string name)
+    {
+        lock (_errorSync)
+        {
+            var list = name == "sing-box" ? _singBoxErrors : (name == "xray" ? _xrayErrors : null);
+            return list != null ? string.Join(Environment.NewLine, list.TakeLast(500)) : "";
+        }
+    }
+
+    private static bool SafeHasExited(Process? process)
+    {
+        if (process is null) return true;
+        try { return process.HasExited; }
+        catch (InvalidOperationException) { return true; }
+        catch (Exception) { return true; }
+    }
+
+    private static int SafeExitCode(Process? process)
+    {
+        if (process is null) return -1;
+        try { return process.ExitCode; } catch { return -1; }
+    }
+
+    private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
+
     public void Dispose()
     {
-        _trafficMonitor?.Dispose();
+        // Dispose must not leave the tunnel engines running during application shutdown.
+        try { StopAsync().GetAwaiter().GetResult(); } catch (Exception ex) { WriteLog("Runtime dispose cleanup failed: " + ex.Message); }
         _trafficMonitor = null;
-
-        // Dispose can be called by the UI during shutdown; do not block its thread.
-        _ = StopAsync();
-        GC.SuppressFinalize(this);
     }
 }
