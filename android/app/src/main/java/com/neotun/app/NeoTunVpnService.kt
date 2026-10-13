@@ -22,13 +22,30 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     @Volatile private var running = false
     @Volatile private var starting = false
     @Volatile private var startupGeneration = 0
+    @Volatile private var nativeCloseStarted = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
             startupGeneration++
             starting = false
-            stopServiceInternal()
-            stopSelf(startId)
+            running = false
+            isServiceRunning = false
+            NeoTunDiagnostics.log(this, "sing-box: disconnect requested; closing native engine off main thread")
+            // libbox shutdown can block while draining TUN flows. Do not perform
+            // native teardown on Android's main thread; keep this service alive
+            // until teardown finishes so the switch waiter cannot race a new TUN.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            Thread({
+                closeNativeResources()
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
+                NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
+                stopSelf(startId)
+            }, "NeoTUN-singbox-stop").start()
             return START_NOT_STICKY
         }
         if (running || starting) return START_NOT_STICKY
@@ -157,13 +174,23 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         super.onDestroy()
     }
 
+    private fun closeNativeResources() {
+        synchronized(this) {
+            if (nativeCloseStarted) return
+            nativeCloseStarted = true
+        }
+        if (::commandServer.isInitialized) {
+            runCatching { commandServer.closeService() }
+                .onFailure { NeoTunDiagnostics.error(this, "sing-box: closeService failed", it) }
+            runCatching { commandServer.close() }
+                .onFailure { NeoTunDiagnostics.error(this, "sing-box: close failed", it) }
+        }
+    }
+
     private fun stopServiceInternal() {
         startupGeneration++
         starting = false
-        if (::commandServer.isInitialized) {
-            runCatching { commandServer.closeService() }
-            runCatching { commandServer.close() }
-        }
+        closeNativeResources()
         running = false; isServiceRunning = false
         // A previous sing-box service can finish destroying after Xray has
         // already started. Never let that stale teardown overwrite the active
