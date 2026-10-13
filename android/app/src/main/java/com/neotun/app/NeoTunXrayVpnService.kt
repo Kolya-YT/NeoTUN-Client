@@ -94,7 +94,19 @@ class NeoTunXrayVpnService : VpnService() {
 
         NeoTunDiagnostics.clear(this)
         NeoTunDiagnostics.log(this, "Xray service: onStartCommand")
-        startForegroundNotification()
+        try {
+            startForegroundNotification()
+        } catch (error: Throwable) {
+            // If Android rejects foreground promotion, an uncaught exception here
+            // kills the isolated :xray process before the normal startup diagnostics
+            // and error state are published.
+            NeoTunDiagnostics.error(this, "Xray foreground promotion failed", error)
+            stopWithError(
+                "Не удалось запустить службу Xray: " +
+                    (error.message ?: error.javaClass.simpleName ?: "ошибка foreground-службы")
+            )
+            return START_NOT_STICKY
+        }
 
         val uri = intent?.getStringExtra(EXTRA_URI)
             ?: getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
