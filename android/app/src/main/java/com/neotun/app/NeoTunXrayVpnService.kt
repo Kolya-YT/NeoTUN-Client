@@ -24,6 +24,7 @@ class NeoTunXrayVpnService : VpnService() {
     @Volatile private var destroyed = false
     @Volatile private var startupGeneration = 0
     @Volatile private var teardownInProgress = false
+    @Volatile private var nativeCleanupComplete = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -48,6 +49,7 @@ class NeoTunXrayVpnService : VpnService() {
             Thread({
                 try {
                     stopTunnel()
+                    nativeCleanupComplete = true
                     NeoTunDiagnostics.log(this, "Xray native teardown completed")
                 } catch (error: Throwable) {
                     NeoTunDiagnostics.error(this, "Xray teardown failed", error)
@@ -62,6 +64,7 @@ class NeoTunXrayVpnService : VpnService() {
         }
         if (teardownInProgress || running || starting) return START_NOT_STICKY
         destroyed = false
+        nativeCleanupComplete = false
         val generation = ++startupGeneration
         starting = true
 
@@ -473,7 +476,13 @@ class NeoTunXrayVpnService : VpnService() {
         starting = false
         mainHandler.removeCallbacksAndMessages(null)
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
-        stopTunnel()
+        // Expected disconnect/error paths already completed native cleanup on a
+        // worker. Repeating native reset from onDestroy would run it on the main
+        // thread and can stall the profile switch or trigger an ANR.
+        if (!nativeCleanupComplete) {
+            runCatching { stopTunnel() }
+                .onFailure { NeoTunDiagnostics.error(this, "Xray onDestroy cleanup failed", it) }
+        }
         super.onDestroy()
     }
 
@@ -554,6 +563,7 @@ class NeoTunXrayVpnService : VpnService() {
                 }
                 runCatching { NeoTunXrayBridge.nativeResetDns() }
                 runCatching { NeoTunXrayBridge.nativeInit(null) }
+                nativeCleanupComplete = true
             } catch (error: Throwable) {
                 NeoTunDiagnostics.error(this, "Xray error cleanup failed", error)
             } finally {
