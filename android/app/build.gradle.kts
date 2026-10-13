@@ -30,8 +30,8 @@ android {
         applicationId = "com.neotun.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 103
-        versionName = "0.8.43"
+        versionCode = 104
+        versionName = "0.8.44"
     }
 
     signingConfigs {
