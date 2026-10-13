@@ -1,6 +1,7 @@
 package com.neotun.app
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Dialog
 import android.app.AlertDialog
 import android.content.Intent
@@ -1208,8 +1209,9 @@ class MainActivity : Activity() {
 
     private fun connect(profile: NeoTunProfile, skipGeoWarning: Boolean = false) {
         if (isRunning()) {
-            disconnect()
-            handler.postDelayed({ connect(profile, skipGeoWarning) }, 500)
+            // Use the same teardown-confirmed path as server selection. A fixed
+            // delay can start a new TUN while the previous engine still owns it.
+            switchServer(profile)
             return
         }
         // Engine choice is derived from the URI by the native core. Older app
@@ -1591,14 +1593,48 @@ class MainActivity : Activity() {
 
         disconnect()
 
-        // Wait for the active engine to release its TUN before starting the next
-        // profile. Ignore stale queued switches if the user taps another server.
-        handler.postDelayed({
-            if (isFinishing || isDestroyed || generation != switchGeneration) return@postDelayed
-            NeoTunDiagnostics.log(this, "Starting selected profile after tunnel teardown; generation=" + generation)
+        // Do not guess that teardown is complete after a fixed sleep. Poll the
+        // app's own service list and start the selected profile only after both
+        // engine services have actually left the running set.
+        waitForVpnServicesStopped(profile, generation)
+    }
+
+    private fun waitForVpnServicesStopped(profile: NeoTunProfile, generation: Int, attempt: Int = 0) {
+        if (isFinishing || isDestroyed || generation != switchGeneration) return
+        val serviceNames = setOf(
+            NeoTunVpnService::class.java.name,
+            NeoTunXrayVpnService::class.java.name,
+        )
+        val stillRunning = runCatching {
+            (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
+                .getRunningServices(Int.MAX_VALUE)
+                .any { it.service.className in serviceNames }
+        }.getOrElse {
+            NeoTunDiagnostics.error(this, "Unable to verify VPN service shutdown", it)
+            true
+        }
+
+        if (!stillRunning) {
+            NeoTunDiagnostics.log(this, "Both VPN services stopped; starting selected profile; generation=" + generation)
             isSwitching = false
             connect(profile)
-        }, 2_500L)
+            return
+        }
+
+        if (attempt >= 60) {
+            isSwitching = false
+            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).edit()
+                .putBoolean(NeoTunVpnService.KEY_RUNNING, false)
+                .putString(NeoTunVpnService.KEY_ERROR,
+                    "Не удалось подтвердить остановку предыдущего соединения. Повторите переключение.")
+                .apply()
+            NeoTunDiagnostics.error(this, "Server switch aborted: VPN services did not stop within 6 seconds")
+            if (screen == Screen.HOME) renderHome() else renderProfiles()
+            NeoTunHomeWidget.refreshAll(this)
+            return
+        }
+
+        handler.postDelayed({ waitForVpnServicesStopped(profile, generation, attempt + 1) }, 100L)
     }
 
     private fun disconnect() {
