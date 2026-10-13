@@ -128,6 +128,11 @@ public partial class MainWindow : Window
 
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
+        await ConnectSelectedProfileAsync();
+    }
+
+    private async Task ConnectSelectedProfileAsync()
+    {
         if (_vm.IsConnecting) return;
 
         if (_vm.IsConnected)
@@ -280,15 +285,36 @@ public partial class MainWindow : Window
 
     #region Servers & Subscriptions Management
 
-    private void SelectProfile_Click(object sender, RoutedEventArgs e)
+    private async void SelectProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: ServerProfile profile })
+        if (sender is not Button { Tag: ServerProfile profile }) return;
+        if (_vm.SelectedProfile?.Id == profile.Id) return;
+
+        // Do not overlap a second start with an in-flight startup. The user can
+        // retry the selection once the current attempt has reached a stable state.
+        if (_vm.IsConnecting)
         {
-            _vm.SelectedProfile = profile;
-            _settings.SelectedProfileUri = profile.Uri;
-            SaveAppSettings();
-            _vm.Notice = $"Выбран сервер: {profile.Name}";
+            _vm.Notice = "Дождитесь завершения подключения перед переключением сервера.";
+            return;
         }
+
+        var reconnect = _vm.IsConnected;
+        if (reconnect)
+        {
+            _vm.Notice = $"Переключение на {profile.Name}: останавливаем текущее соединение…";
+            await DisconnectAsync();
+            if (_vm.IsConnecting || _vm.IsConnected) return;
+        }
+
+        _vm.SelectedProfile = profile;
+        _settings.SelectedProfileUri = profile.Uri;
+        SaveAppSettings();
+        _vm.Notice = reconnect
+            ? $"Переподключаемся к {profile.Name}…"
+            : $"Выбран сервер: {profile.Name}";
+
+        if (reconnect)
+            await ConnectSelectedProfileAsync();
     }
 
     private async void PingProfile_Click(object sender, RoutedEventArgs e)
