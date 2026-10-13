@@ -197,8 +197,7 @@ internal sealed class EngineRuntime : IDisposable
         }
     }
 
-    public async Task StopAsync()    {        Interlocked.Exchange(ref _stopRequested, 1);
-        if (_trafficMonitor is not null)
+    public async Task StopAsync()    {        Interlocked.Exchange(ref _stopRequested, 1);        if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
             _trafficMonitor = null;
@@ -367,15 +366,11 @@ internal sealed class EngineRuntime : IDisposable
                 return $"https://cdn.jsdelivr.net/gh/hydraponique/{repository}/release/sing-box/{label}.srs";
             }
 
-            JsonObject? MakeRule(string field, string[] values, string outbound, string[]? geoTokens = null)
+            JsonObject? MakeRule(string field, string[] values, string outbound)
             {
-                if (values.Length == 0 && (geoTokens is null || geoTokens.Length == 0)) return null;
+                if (values.Length == 0) return null;
                 var rule = new JsonObject { ["outbound"] = outbound };
-                if (values.Length > 0)
-                    rule[field] = new JsonArray(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
-                if (geoTokens is { Length: > 0 })
-                    rule["rule_set"] = new JsonArray(geoTokens.Select(RuleSetTag).Distinct()
-                        .Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
+                rule[field] = new JsonArray(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
                 return rule;
             }
 
@@ -397,8 +392,7 @@ internal sealed class EngineRuntime : IDisposable
             var blockSiteGeo = ReadGeoTokens("BlockSites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
             var proxySiteGeo = ReadGeoTokens("ProxySites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
             var directSiteGeo = ReadGeoTokens("DirectSites").Where(v => v.StartsWith("geosite:", StringComparison.Ordinal)).ToArray();
-            var blockIpGeo = ReadGeoTokens("BlockIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
-            var proxyIpGeo = ReadGeoTokens("ProxyIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
+            var blockIpGeo = ReadGeoTokens("BlockIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();            var proxyIpGeo = ReadGeoTokens("ProxyIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
             var directIpGeo = ReadGeoTokens("DirectIp").Where(v => v.StartsWith("geoip:", StringComparison.Ordinal)).ToArray();
             var blockGeo = blockSiteGeo.Concat(blockIpGeo).Distinct().ToArray();
             var proxyGeo = proxySiteGeo.Concat(proxyIpGeo).Distinct().ToArray();
@@ -451,10 +445,14 @@ internal sealed class EngineRuntime : IDisposable
             foreach (var tag in order)
             {
                 var group = groups[tag];
-                var domains = MakeRule("domain_suffix", group.Domains, tag, group.SiteGeo);
-                var ips = MakeRule("ip_cidr", group.Ips, tag, group.IpGeo);
+                var domains = MakeRule("domain_suffix", group.Domains, tag);
+                var ips = MakeRule("ip_cidr", group.Ips, tag);
+                var geoSites = MakeRule("rule_set", group.SiteGeo.Select(RuleSetTag).Distinct().ToArray(), tag);
+                var geoIps = MakeRule("rule_set", group.IpGeo.Select(RuleSetTag).Distinct().ToArray(), tag);
                 if (domains is not null) mergedRules.Add(domains);
                 if (ips is not null) mergedRules.Add(ips);
+                if (geoSites is not null) mergedRules.Add(geoSites);
+                if (geoIps is not null) mergedRules.Add(geoIps);
             }
             foreach (var rule in remainingRules) mergedRules.Add(rule);
             route["rules"] = mergedRules;
@@ -598,7 +596,6 @@ internal sealed class EngineRuntime : IDisposable
 
         throw new InvalidDataException("DNS должен быть IP-адресом или HTTPS URL: " + endpoint);
     }
-
     private async Task WaitForClashApiAsync(
         int port,
         string secret,        TimeSpan timeout,
@@ -798,6 +795,3 @@ internal sealed class EngineRuntime : IDisposable
         WriteLog($"Unexpected {name} exit ({exitCode}); stopping the remaining runtime processes.");
         try
         {
-            if (_trafficMonitor is not null)
-            {
-                await _trafficMonitor.DisposeAsync();
