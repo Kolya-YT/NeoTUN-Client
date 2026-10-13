@@ -178,23 +178,53 @@ public sealed class RoutingProfileStore
     private static JsonObject? DecodeRoutingPayload(string raw)
     {
         var text = raw.Trim();
-        if (text.Contains("://routing/", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("://autorouting/", StringComparison.OrdinalIgnoreCase))
+        var autoIndex = text.IndexOf("://autorouting/", StringComparison.OrdinalIgnoreCase);
+        var routingIndex = text.IndexOf("://routing/", StringComparison.OrdinalIgnoreCase);
+        var linkIndex = autoIndex >= 0 ? autoIndex : routingIndex;
+
+        if (linkIndex >= 0)
         {
-            var query = text.Split('?');
-            if (query.Length > 1)
+            // Some Happ/INCY links carry data in the query; others put JSON/Base64
+            // directly in the path. Support both forms like the Android importer.
+            var queryIndex = text.IndexOf('?', linkIndex);
+            if (queryIndex >= 0)
             {
-                foreach (var param in query[1].Split('&'))
+                var queryEnd = text.IndexOf('#', queryIndex);
+                var query = text.Substring(queryIndex + 1,
+                    (queryEnd >= 0 ? queryEnd : text.Length) - queryIndex - 1);
+                foreach (var param in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
                 {
                     var kv = param.Split('=', 2);
-                    if (kv.Length == 2 && (kv[0] == "data" || kv[0] == "c"))
+                    if (kv.Length == 2 &&
+                        (kv[0].Equals("data", StringComparison.OrdinalIgnoreCase) ||
+                         kv[0].Equals("c", StringComparison.OrdinalIgnoreCase)))
                     {
                         var data = Uri.UnescapeDataString(kv[1]);
                         return TryParseJsonOrBase64(data);
                     }
                 }
             }
+
+            var markerLength = autoIndex >= 0 ? "://autorouting/".Length : "://routing/".Length;
+            var payloadStart = linkIndex + markerLength;
+            var payloadEnd = text.IndexOfAny(['?', '#'], payloadStart);
+            var payload = (payloadEnd >= 0 ? text[payloadStart..payloadEnd] : text[payloadStart..]).Trim();
+
+            if (payload.Equals("off", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            if (payload.StartsWith("onadd/", StringComparison.OrdinalIgnoreCase) ||
+                payload.StartsWith("add/", StringComparison.OrdinalIgnoreCase))
+                payload = payload[(payload.IndexOf('/') + 1)..];
+
+            if (payload.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                payload.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return null; // Remote routing feeds require the asynchronous importer.
+
+            if (!string.IsNullOrWhiteSpace(payload))
+                return TryParseJsonOrBase64(Uri.UnescapeDataString(payload));
         }
+
         return TryParseJsonOrBase64(text);
     }
 
