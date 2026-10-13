@@ -808,3 +808,5 @@ internal sealed class EngineRuntime : IDisposable
             WriteLog($"Runtime cleanup after unexpected {name} exit failed: {ex}");
             StateChanged?.Invoke(false, $"Ошибка очистки после завершения {name}: {ex.Message}");
         }
+    }
+}
