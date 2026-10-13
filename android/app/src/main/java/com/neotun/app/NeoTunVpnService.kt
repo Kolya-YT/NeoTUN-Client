@@ -70,6 +70,9 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             return START_NOT_STICKY
         }
         Thread({
+            // Keep this startup's server local so a stale startup can clean up
+            // its own native resources without touching a newer connection.
+            var startupServer: CommandServer? = null
             try {
                 if (generation != startupGeneration) return@Thread
                 NeoTunDiagnostics.log(this, "sing-box: initializing native libbox")
@@ -79,6 +82,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 platform = newPlatform
                 NeoTunDiagnostics.log(this, "sing-box: constructing libbox CommandServer")
                 val newServer = CommandServer(this, newPlatform)
+                startupServer = newServer
                 commandServer = newServer
                 NeoTunDiagnostics.log(this, "sing-box: starting libbox CommandServer")
                 newServer.start()
@@ -124,7 +128,14 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                         stopWithError(error.message ?: error.javaClass.simpleName ?: "Не удалось запустить sing-box")
                     }
                 } else {
-                    NeoTunDiagnostics.log(this, "sing-box: startup cancelled")
+                    // Disconnect/restart invalidated this generation while native
+                    // initialization was in flight. Close only this thread's server;
+                    // the shared commandServer field may already point to a new run.
+                    startupServer?.let { staleServer ->
+                        runCatching { staleServer.closeService() }
+                        runCatching { staleServer.close() }
+                    }
+                    NeoTunDiagnostics.log(this, "sing-box: startup cancelled; stale native resources cleaned up")
                 }
             }
         }, "NeoTUN-singbox-startup").start()
