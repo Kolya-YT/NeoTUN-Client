@@ -45,7 +45,7 @@ public sealed class RoutingProfile : INotifyPropertyChanged
     public int RouteOrder
     {
         get => _routeOrder;
-        set { if (_routeOrder != value) { _routeOrder = value; OnPropertyChanged(); OnPropertyChanged(nameof(RouteOrderLabel)); } }
+        set { if (_routeOrder != value) { _routeOrder = value; RouteOrderRaw = null; OnPropertyChanged(); OnPropertyChanged(nameof(RouteOrderLabel)); } }
     }
 
     public string RouteOrderLabel => RouteOrder switch
