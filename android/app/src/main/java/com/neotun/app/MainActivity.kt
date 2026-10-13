@@ -252,7 +252,7 @@ class MainActivity : Activity() {
         ), margins(top = 4, bottom = 12))
 
         val connectButton = button(if (running) "Отключиться" else "Подключиться") {
-            if (isRunning()) disconnect()
+            if (isVpnServiceActiveOrStarting()) disconnect()
             else {
                 val current = selectedProfile(store.all())
                 if (current == null) showImportMenu() else connect(current)
@@ -662,7 +662,7 @@ class MainActivity : Activity() {
                         owned.forEachIndexed { ownedIndex, profile ->
                             val server = serverRow(profile, profile.id == selected, compact = true)
                             server.setOnClickListener {
-                                if (profile.id != selectedProfileId() && isRunning()) {
+                                if (profile.id != selectedProfileId() && isVpnServiceActiveOrStarting()) {
                                     switchServer(profile)
                                 } else {
                                     setSelectedProfile(profile.id)
@@ -708,7 +708,7 @@ class MainActivity : Activity() {
             groupProfiles.forEachIndexed { index, profile ->
                 val row = serverRow(profile, profile.id == selected, compact = false)
                 row.setOnClickListener {
-                    if (profile.id != selectedProfileId() && isRunning()) {
+                    if (profile.id != selectedProfileId() && isVpnServiceActiveOrStarting()) {
                         switchServer(profile)
                     } else {
                         setSelectedProfile(profile.id)
@@ -1208,7 +1208,7 @@ class MainActivity : Activity() {
     }
 
     private fun connect(profile: NeoTunProfile, skipGeoWarning: Boolean = false) {
-        if (isRunning()) {
+        if (isVpnServiceActiveOrStarting()) {
             // Use the same teardown-confirmed path as server selection. A fixed
             // delay can start a new TUN while the previous engine still owns it.
             switchServer(profile)
@@ -1597,6 +1597,19 @@ class MainActivity : Activity() {
         // app's own service list and start the selected profile only after both
         // engine services have actually left the running set.
         waitForVpnServicesStopped(profile, generation)
+    }
+
+    private fun isVpnServiceActiveOrStarting(): Boolean {
+        if (isRunning()) return true
+        val serviceNames = setOf(
+            NeoTunVpnService::class.java.name,
+            NeoTunXrayVpnService::class.java.name,
+        )
+        return runCatching {
+            (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
+                .getRunningServices(Int.MAX_VALUE)
+                .any { it.service.className in serviceNames }
+        }.getOrDefault(true)
     }
 
     private fun waitForVpnServicesStopped(profile: NeoTunProfile, generation: Int, attempt: Int = 0) {
