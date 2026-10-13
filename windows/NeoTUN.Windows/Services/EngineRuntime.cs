@@ -21,6 +21,7 @@ internal sealed class EngineRuntime : IDisposable
     private Process? _singBox;
     private Process? _xray;
     private TrafficMonitor? _trafficMonitor;
+    private CancellationTokenSource? _startupCancellation;
     private long _totalUpload;
     private long _totalDownload;
     private int _stopRequested;
@@ -125,13 +126,17 @@ internal sealed class EngineRuntime : IDisposable
             }),
             new UTF8Encoding(false), cancellationToken);
 
+        var startupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var startupToken = startupCancellation.Token;
+        lock (_sync) _startupCancellation = startupCancellation;
+
         try
         {
             // Keep the startup marker scoped to the try/finally below. Preflight
             // failures (missing runtime files or invalid generated config) must not
             // leave the runtime permanently marked as starting.
             Interlocked.Exchange(ref _isStarting, 1);
-            EnsureStartupActive(cancellationToken);
+            EnsureStartupActive(startupToken);
 
             if (runtime.Engine == "xray")
             {
@@ -139,31 +144,31 @@ internal sealed class EngineRuntime : IDisposable
                 WriteLog("Selected proxy engine: Xray (VLESS outbound). sing-box is used only as the Windows TUN/routing bridge; it is not the VLESS protocol engine. Validating Xray before starting TUN.");
                 if (!File.Exists(xrayPath)) throw new FileNotFoundException("Не найден xray.exe в папке runtime.", xrayPath);
                 var xrayConfigPath = Path.Combine(_dataDirectory, "xray-runtime.json");
-                await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), cancellationToken);
+                await File.WriteAllTextAsync(xrayConfigPath, runtime.XrayJson, new UTF8Encoding(false), startupToken);
                 WriteLog($"Validating Xray config at {xrayConfigPath}...");
                 try {
-                    await ValidateAsync(xrayPath, cancellationToken, "run", "-test", "-config", xrayConfigPath);
+                    await ValidateAsync(xrayPath, startupToken, "run", "-test", "-config", xrayConfigPath);
                 } catch (Exception ex) {
                     WriteLog($"Xray config validation failed: {ex.Message}");
                     throw;
                 }
-                EnsureStartupActive(cancellationToken);
+                EnsureStartupActive(startupToken);
                 _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
                 xrayStarted = true;
-                await WaitForSocks5Async(IPAddress.Loopback, 10808, TimeSpan.FromSeconds(8), cancellationToken);
-                EnsureStartupActive(cancellationToken);
+                await WaitForSocks5Async(IPAddress.Loopback, 10808, TimeSpan.FromSeconds(8), startupToken);
+                EnsureStartupActive(startupToken);
                 WriteLog("Xray SOCKS5 listener is accepting no-auth handshakes on 127.0.0.1:10808.");
             }
 
-            await ValidateAsync(singBoxPath, cancellationToken, "check", "-c", singBoxConfigPath);
-            EnsureStartupActive(cancellationToken);
+            await ValidateAsync(singBoxPath, startupToken, "check", "-c", singBoxConfigPath);
+            EnsureStartupActive(startupToken);
             var singBoxProcess = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
             lock (_sync) _singBox = singBoxProcess;
             singBoxStarted = true;
 
             // Wait up to 900ms or wake immediately if sing-box exits early
-            var exitTask = singBoxProcess.WaitForExitAsync(cancellationToken);
-            var completed = await Task.WhenAny(Task.Delay(900, cancellationToken), exitTask);
+            var exitTask = singBoxProcess.WaitForExitAsync(startupToken);
+            var completed = await Task.WhenAny(Task.Delay(900, startupToken), exitTask);
 
             // Keep a local process reference: a concurrent disconnect or early crash may clear _singBox,
             // but SafeHasExited must not turn a process exit into NullReferenceException or InvalidOperationException.
@@ -179,8 +184,8 @@ internal sealed class EngineRuntime : IDisposable
 
             _totalUpload = 0;
             _totalDownload = 0;
-            await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), cancellationToken);
-            EnsureStartupActive(cancellationToken);
+            await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), startupToken);
+            EnsureStartupActive(startupToken);
             WriteLog("sing-box control API is responsive; TUN process startup confirmed (internet reachability is not yet proven).");
             _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
             _trafficMonitor.LogLine += WriteLog;
@@ -221,6 +226,12 @@ internal sealed class EngineRuntime : IDisposable
         finally
         {
             Interlocked.Exchange(ref _isStarting, 0);
+            lock (_sync)
+            {
+                if (ReferenceEquals(_startupCancellation, startupCancellation))
+                    _startupCancellation = null;
+            }
+            startupCancellation.Dispose();
         }
     }
 
@@ -234,6 +245,11 @@ internal sealed class EngineRuntime : IDisposable
     public async Task StopAsync()
     {
         Interlocked.Exchange(ref _stopRequested, 1);
+        CancellationTokenSource? startupCancellation;
+        lock (_sync) startupCancellation = _startupCancellation;
+        try { startupCancellation?.Cancel(); }
+        catch (ObjectDisposedException) { }
+
         if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
