@@ -589,10 +589,23 @@ class NeoTunXrayVpnService : VpnService() {
                 runCatching { NeoTunXrayBridge.nativeResetDns() }
                 runCatching { NeoTunXrayBridge.nativeInit(null) }
                 nativeCleanupComplete = true
-                isEngineBusy = false
             } catch (error: Throwable) {
                 NeoTunDiagnostics.error(this, "Xray error cleanup failed", error)
             } finally {
+                // A profile switch may request disconnect while startup-error cleanup
+                // is already running. Drain queued cross-process acknowledgements here
+                // too, otherwise MainActivity waits until timeout although cleanup ended.
+                isEngineBusy = false
+                pendingSwitchStopTokens.toList().forEach { token ->
+                    sendBroadcast(
+                        Intent(NeoTunVpnService.ACTION_ENGINE_STOPPED)
+                            .setPackage(packageName)
+                            .putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, token)
+                            .putExtra(NeoTunVpnService.EXTRA_ENGINE_NAME, "xray")
+                            .putExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, nativeCleanupComplete),
+                    )
+                    pendingSwitchStopTokens.remove(token)
+                }
                 mainHandler.post {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         stopForeground(STOP_FOREGROUND_REMOVE)
