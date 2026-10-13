@@ -1070,6 +1070,14 @@ mod tests {
     #[test]
     fn alternating_profiles_select_their_own_engine_without_stale_runtime_config() {
         let profiles = [
+            // Match the real-world Android switching sequence: Hysteria2/sing-box,
+            // VLESS REALITY/Xray, then back to Hysteria2/sing-box. Every profile
+            // must rebuild runtime configuration from its URI, not reuse the
+            // previous engine's outbound or bridge settings.
+            (
+                "hysteria2://password@example.com:443?sni=example.com",
+                "sing-box",
+            ),
             (
                 "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&fp=chrome&pbk=public-key&sid=abcd&sni=www.example.org",
                 "xray",
