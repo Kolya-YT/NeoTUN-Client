@@ -35,6 +35,7 @@ class ProfileStore(context: Context) {
                             uri = uri,
                             engine = item.optString("engine", NeoTunVpnService.ENGINE_SING_BOX),
                             sourceSubscriptionId = item.optString("sourceSubscriptionId").takeIf { it.isNotBlank() },
+                            dpiBypassEnabled = item.optBoolean("dpiBypassEnabled", false),
                         ),
                     )
                 }
