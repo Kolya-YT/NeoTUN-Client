@@ -62,7 +62,7 @@
 - [x] Recovered the truncated tail of `EngineRuntime.cs` against the last intact version of the same file, preserving the newer GeoSite/GeoIP code. Restored runtime stop helpers, log/error utilities, safe process state helpers and `Dispose()` (commit `32dd76c`). Windows run `38421790242` completed successfully: Rust tests, Windows core build, WPF compile, self-contained publish, engine staging, app startup smoke-test, installer EXE verification, and release-asset publishing all passed.
 - [x] Enabled persistent sing-box remote rule-set cache at `%LOCALAPPDATA%/NeoTUN/sing-box-cache.db` while preserving existing experimental options (commit `9d9078a`).
 - [x] Migrated remote rule-set downloads from deprecated `download_detour` to sing-box 1.14+ `http_client` with `detour: direct` (commit `ad2b42c`). Windows CI for the cache and HTTP-client changes is pending/in progress.
-- [ ] Confirm latest Windows CI for GeoSite/GeoIP support succeeds.
-- [ ] Verify remote `.srs` endpoints and sing-box config validation with the pinned sing-box version.
+- [x] Confirm Windows CI succeeds for persistent remote-rule-set cache and the sing-box 1.14+ `http_client` migration (runs `38422376686` and `38422657682`).
+- [ ] Verify remote `.srs` endpoints and sing-box config validation with the pinned sing-box version. Added a CI step to fetch every supported GeoSite/GeoIP `.srs` endpoint and run `sing-box check` against a representative config containing the complete supported set; run `38423832056` is queued/in progress.
 - [ ] Validate on Windows with a real profile: DIRECT for selected domestic rules, PROXY for selected proxy rules, BLOCK for selected block rules; include cold start with empty geodata cache.
 - [ ] Continue the audit: Xray `.dat` lifecycle, subscription edge cases, Android/Windows profile management parity, protocol engine coverage, real TCP/UDP and cleanup.
