@@ -479,8 +479,8 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
                 != NeoTunVpnService.ENGINE_XRAY ||
-            prefs.getBoolean(NeoTunVpnService.KEY_RUNNING, false) ||
-            !prefs.getString(NeoTunVpnService.KEY_ERROR, null).isNullOrBlank()) return
+            prefs.getBoolean(NeoTunVpnService.KEY_RUNNING, false)) return
+        val expectedUri = prefs.getString(NeoTunVpnService.KEY_URI, null) ?: return
 
         xrayStateCheckInProgress = true
         Thread({
@@ -505,10 +505,13 @@ class MainActivity : Activity() {
                 // disconnect/error was recorded while the native query ran.
                 if (latest.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
                         == NeoTunVpnService.ENGINE_XRAY &&
-                    !latest.getBoolean(NeoTunVpnService.KEY_RUNNING, false) &&
-                    latest.getString(NeoTunVpnService.KEY_ERROR, null).isNullOrBlank()) {
+                    latest.getString(NeoTunVpnService.KEY_URI, null) == expectedUri &&
+                    !latest.getBoolean(NeoTunVpnService.KEY_RUNNING, false)) {
+                    // Native Xray state is authoritative when the persisted UI
+                    // flag is stale. A previous startup error must not mask a
+                    // successfully running native core.
                     NeoTunDiagnostics.log(this, "UI state reconciled from native Xray state: running=true")
-                    latest.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).apply()
+                    latest.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).remove(NeoTunVpnService.KEY_ERROR).apply()
                     updateHomeLiveData()
                     NeoTunHomeWidget.refreshAll(this)
                 }
