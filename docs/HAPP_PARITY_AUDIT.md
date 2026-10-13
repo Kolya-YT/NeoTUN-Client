@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Changed Android disconnect/switch requests to call `stopService()` directly for both sing-box and Xray instead of relying only on starting each service with an `ACTION_DISCONNECT` command and `stopSelf(startId)`. Each stop request logs whether Android accepted it. This is a targeted lifecycle fix for the observed switch timeout; native cleanup remains in each service's `onDestroy`, and the generation guards must prevent a stale startup from reviving it. Device verification and CI are still pending (commit `2a23052`).
+
 - [x] Android switch-timeout diagnostics now list the exact still-reported VPN service names when `ActivityManager` prevents a server switch. This follows the user's device log: sing-box/Hysteria2 had active DNS and outbound flows, Xray emitted `onDestroy`, but the switch still timed out after six seconds. The next device run must identify which service remains before changing teardown semantics (commit `148784d`).
 
 - [x] Removed the unused experimental DPI packet-shaping module (`app/applet/core/src/dpi/{mod,controller,shaper}.rs`). It was a standalone packet-splitting prototype, not a verified working traffic path. The architecture note now explicitly marks DPI shaping as removed and prohibits restoring a UI toggle or packet shaper during routine stabilization. No DPI control was found in the current Android `MainActivity.kt`; the removed Rust module was under the applet core tree. Changes: `20db876`, `ecfe66e`, `76c2786`, `11a1284`.
