@@ -506,6 +506,15 @@ impl Profile {
             stream["realitySettings"] = reality;
         }
 
+        // Xray's freedom fragment outbound performs actual TLS ClientHello
+        // TCP segmentation. Chain only the proxy-server dial through it; ordinary
+        // tunneled traffic and REALITY profiles remain untouched.
+        let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
+        let use_tls_hello_fragment = dpi_enabled && security == "tls";
+        if use_tls_hello_fragment {
+            stream["sockopt"] = serde_json::json!({ "dialerProxy": "dpi-fragment" });
+        }
+
         let path = self.params.get("path").cloned().unwrap_or_else(|| "/".into());
         let host = self.params.get("host").filter(|v| !v.trim().is_empty()).cloned();
         match network.as_str() {
@@ -554,10 +563,21 @@ impl Profile {
             }
             other => return Err(format!("Неподдерживаемый транспорт VLESS для Xray: {other}")),
         }
+        let mut outbounds = vec![
+            serde_json::json!({ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": self.address, "port": self.port, "users": [{ "id": uuid, "encryption": "none", "flow": self.params.get("flow").cloned().unwrap_or_default() }] }] }, "streamSettings": stream }),
+        ];
+        if use_tls_hello_fragment {
+            outbounds.push(serde_json::json!({
+                "tag": "dpi-fragment",
+                "protocol": "freedom",
+                "settings": { "fragment": { "packets": "tlshello", "length": "100-200", "interval": "10-20" } }
+            }));
+        }
+        outbounds.push(serde_json::json!({ "tag": "direct", "protocol": "freedom" }));
         Ok(serde_json::json!({
             "log": { "loglevel": "warning" },
             "inbounds": [{ "tag": "socks-in", "listen": "127.0.0.1", "port": 10808, "protocol": "socks", "settings": { "auth": "noauth", "udp": true } }],
-            "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": self.address, "port": self.port, "users": [{ "id": uuid, "encryption": "none", "flow": self.params.get("flow").cloned().unwrap_or_default() }] }] }, "streamSettings": stream }, { "tag": "direct", "protocol": "freedom" }]
+            "outbounds": outbounds
         }).to_string())
     }
 
