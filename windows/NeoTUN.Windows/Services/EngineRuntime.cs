@@ -61,6 +61,11 @@ internal sealed class EngineRuntime : IDisposable
         if (!IsAdministrator())
             throw new InvalidOperationException("Для создания системного TUN нужны права администратора. Запусти NeoTUN от имени администратора.");
         if (IsRunning) return;
+        if (_singBox is not null || _xray is not null) await StopAsync();
+
+        // Reset the stop flag only after cleaning up a previous session: StopAsync
+        // sets it intentionally, and resetting it before that cleanup would either
+        // hide a concurrent disconnect or make the new startup cancel itself.
         Interlocked.Exchange(ref _stopRequested, 0);
         Interlocked.Exchange(ref _isStarting, 1);
         lock (_errorSync)
@@ -68,7 +73,6 @@ internal sealed class EngineRuntime : IDisposable
             _singBoxErrors.Clear();
             _xrayErrors.Clear();
         }
-        if (_singBox is not null || _xray is not null) await StopAsync();
 
         var singBoxPath = Path.Combine(_runtimeDirectory, "sing-box.exe");
         var xrayPath = Path.Combine(_runtimeDirectory, "xray.exe");
