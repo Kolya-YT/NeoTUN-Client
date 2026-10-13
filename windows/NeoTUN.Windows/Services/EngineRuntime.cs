@@ -329,6 +329,10 @@ internal sealed class EngineRuntime : IDisposable
                 singBoxRoot["route"] = route;
             }
             route["final"] = ReadBool("GlobalProxy", true) ? "proxy" : "direct";
+            // sing-box 1.12+ requires an explicit default resolver for outbound
+            // domain lookups; without it startup only emits a deprecation warning
+            // and DNS behavior can differ between engine versions.
+            route["default_domain_resolver"] = "system";
 
             var previousRules = route["rules"] as JsonArray ?? new JsonArray();
             var endpointRules = new List<JsonNode>();
@@ -436,8 +440,8 @@ internal sealed class EngineRuntime : IDisposable
                     ["tag"] = RuleSetTag(token),
                     ["format"] = "binary",
                     ["url"] = RuleSetUrl(token),
-                    // sing-box 1.14+ HTTP client configuration; download_detour is deprecated.
-                    ["http_client"] = new JsonObject { ["detour"] = "direct" },
+                    // Do not set http_client.detour to "direct": sing-box 1.14
+                    // rejects routing rule-set downloads through an empty direct outbound.
                     ["update_interval"] = "24h"
                 });
             }
@@ -601,8 +605,8 @@ internal sealed class EngineRuntime : IDisposable
                 ["server_port"] = uri.IsDefaultPort ? 443 : uri.Port,
                 ["path"] = string.IsNullOrWhiteSpace(uri.AbsolutePath) ? "/dns-query" : uri.AbsolutePath
             };
-            if (!IPAddress.TryParse(uri.Host, out _))
-                server["domain_resolver"] = "system";
+            // Resolver selection is configured centrally via route.default_domain_resolver
+            // for sing-box 1.14+, rather than the deprecated per-server field.
             servers.Add(server);
             return tag;
         }
