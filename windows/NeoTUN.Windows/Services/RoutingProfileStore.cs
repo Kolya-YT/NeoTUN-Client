@@ -13,6 +13,7 @@ public sealed class RoutingProfileStore
     private readonly string _profilesFilePath;
     private readonly string _activeFilePath;
     private readonly string _runtimeSettingsFilePath;
+    private readonly string _enabledFilePath;
 
     public RoutingProfileStore()
     {
@@ -22,6 +23,7 @@ public sealed class RoutingProfileStore
         _profilesFilePath = Path.Combine(_dataDirectory, "routing-profiles.json");
         _activeFilePath = Path.Combine(_dataDirectory, "active-routing.json");
         _runtimeSettingsFilePath = Path.Combine(_dataDirectory, "routing-settings.json");
+        _enabledFilePath = Path.Combine(_dataDirectory, "routing-enabled.txt");
 
         EnsureDefaultProfile();
     }
@@ -104,12 +106,36 @@ public sealed class RoutingProfileStore
         }
     }
 
+    public bool IsEnabled()
+    {
+        try
+        {
+            return !File.Exists(_enabledFilePath) ||
+                !bool.TryParse(File.ReadAllText(_enabledFilePath).Trim(), out var enabled) || enabled;
+        }
+        catch { return true; }
+    }
+
+    public void SetEnabled(bool enabled)
+    {
+        try
+        {
+            var temp = _enabledFilePath + ".tmp";
+            File.WriteAllText(temp, enabled ? "true" : "false");
+            File.Move(temp, _enabledFilePath, overwrite: true);
+        }
+        catch { return; }
+
+        SyncToRuntimeSettings(Active());
+    }
+
     public void SyncToRuntimeSettings(RoutingProfile profile)
     {
         try
         {
             var payload = new
             {
+                Enabled = IsEnabled(),
                 profile.GlobalProxy,
                 profile.Ipv6Enabled,
                 profile.Mtu,
@@ -167,6 +193,7 @@ public sealed class RoutingProfileStore
 
             Save(profile);
             Select(profile.Id);
+            SetEnabled(true);
             return profile;
         }
         catch
