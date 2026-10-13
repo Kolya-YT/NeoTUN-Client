@@ -320,7 +320,6 @@ class MainActivity : Activity() {
             }
         }
         serverCard.addView(dpiSwitch)
-        content.addView(serverCard, margins(top = 9))
         val flag = FrameLayout(this).apply {
             background = rounded(NeoTunDesign.SURFACE_RAISED, 12)
             addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 20f,
