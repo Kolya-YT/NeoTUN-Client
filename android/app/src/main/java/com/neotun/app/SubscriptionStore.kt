@@ -160,7 +160,9 @@ class SubscriptionStore(context: Context) {
             ?: routingHeader?.takeIf { it.isNotBlank() }
             ?: lines.firstOrNull { it.contains("://routing/", true) }
             ?: return
-        if (candidate.equals("off", true) || candidate.contains("://routing/off", true)) {
+        if (candidate.equals("off", true) ||
+            candidate.contains("://routing/off", true) ||
+            candidate.contains("://autorouting/off", true)) {
             routingProfiles.setEnabled(false)
             return
         }
