@@ -468,7 +468,9 @@ impl Profile {
     pub fn to_xray_json(&self) -> Result<String, String> {
         if self.protocol != "vless" { return Err("Xray adapter currently supports VLESS profiles only".into()); }
         let uuid = self.uuid.as_deref().ok_or("Для VLESS требуется UUID")?;
-        let network = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
+        let requested_network = self.params.get("type").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "tcp".into());
+        // Xray calls the RAW transport "tcp" in JSON; share links may spell it "raw".
+        let network = match requested_network.as_str() { "raw" => "tcp".to_string(), "splithttp" => "xhttp".to_string(), other => other.to_string() };
         let security = self.params.get("security").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "none".into());
         let server_name = self.params.get("sni").or_else(|| self.params.get("host")).cloned().unwrap_or_else(|| self.address.clone());
         if security == "reality" {
@@ -509,6 +511,92 @@ impl Profile {
                 if let Some(host) = host { ws["headers"] = serde_json::json!({ "Host": host }); }
                 stream["network"] = serde_json::json!("ws");
                 stream["wsSettings"] = ws;
+            }
+            "mkcp" => {
+                // Current Xray mKCP supports the transport tuning fields below.
+                // Legacy KCP header/seed options were removed upstream, so do not emit them.
+                stream["network"] = serde_json::json!("mkcp");
+                let mut settings = serde_json::json!({});
+                for (source, target) in [
+                    ("mtu", "mtu"),
+                    ("tti", "tti"),
+                    ("uplinkCapacity", "uplinkCapacity"),
+                    ("downlinkCapacity", "downlinkCapacity"),
+                    ("cwndMultiplier", "cwndMultiplier"),
+                    ("maxSendingWindow", "maxSendingWindow"),
+                ] {
+                    let value = self.params.get(source).or_else(|| match source {
+                        "uplinkCapacity" => self.params.get("upCap"),
+                        "downlinkCapacity" => self.params.get("downCap"),
+                        "cwndMultiplier" => self.params.get("cwnd_multiplier"),
+                        "maxSendingWindow" => self.params.get("max_sending_window"),
+                        _ => None,
+                    });
+                    if let Some(value) = value.and_then(|v| v.parse::<u32>().ok()) {
+                        settings[target] = serde_json::json!(value);
+                    }
+                }
+                stream["kcpSettings"] = settings;
+            }
+            "xdrive" => {
+                // XDrive is an upstream Xray transport, but it needs matching storage
+                // service settings on both ends; never silently downgrade it to TCP.
+                let service = self.params.get("service").cloned().unwrap_or_default();
+                if service.trim().is_empty() {
+                    return Err("VLESS XDRIVE: отсутствует параметр service (local, Google Drive или template) в ссылке.".into());
+                }
+                let mut settings = serde_json::json!({ "service": service });
+                if let Some(folder) = self.params.get("remoteFolder").or_else(|| self.params.get("remote_folder")).filter(|v| !v.trim().is_empty()) {
+                    settings["remoteFolder"] = serde_json::json!(folder);
+                }
+                let secrets = self.params.get("secrets").map(|v| {
+                    v.split(',').map(str::trim).filter(|part| !part.is_empty()).map(str::to_owned).collect::<Vec<_>>()
+                }).filter(|v| !v.is_empty()).or_else(|| {
+                    let values = ["secret1", "secret2", "secret3"].iter()
+                        .filter_map(|key| self.params.get(*key).cloned())
+                        .collect::<Vec<_>>();
+                    if values.is_empty() { None } else { Some(values) }
+                });
+                if let Some(secrets) = secrets { settings["secrets"] = serde_json::json!(secrets); }
+                for (source, target) in [
+                    ("segmentBytes", "segmentBytes"),
+                    ("flushIntervalMs", "flushIntervalMs"),
+                    ("pollIntervalMs", "pollIntervalMs"),
+                    ("maxPollIntervalMs", "maxPollIntervalMs"),
+                    ("sessionTtlSeconds", "sessionTtlSeconds"),
+                    ("concurrency", "concurrency"),
+                    ("eagerWindowMs", "eagerWindowMs"),
+                    ("holeTimeoutMs", "holeTimeoutMs"),
+                ] {
+                    let snake = match source {
+                        "segmentBytes" => "segment_bytes",
+                        "flushIntervalMs" => "flush_interval_ms",
+                        "pollIntervalMs" => "poll_interval_ms",
+                        "maxPollIntervalMs" => "max_poll_interval_ms",
+                        "sessionTtlSeconds" => "session_ttl_seconds",
+                        "eagerWindowMs" => "eager_window_ms",
+                        "holeTimeoutMs" => "hole_timeout_ms",
+                        other => other,
+                    };
+                    if let Some(value) = self.params.get(source).or_else(|| self.params.get(snake)).and_then(|v| v.parse::<u32>().ok()) {
+                        settings[target] = serde_json::json!(value);
+                    }
+                }
+                if let Some(template) = self.params.get("template") {
+                    let parsed = serde_json::from_str::<serde_json::Value>(template)
+                        .map_err(|_| "VLESS XDRIVE: параметр template должен содержать корректный JSON.".to_string())?;
+                    settings["template"] = parsed;
+                }
+                match service.as_str() {
+                    "Google Drive" if settings["secrets"].as_array().is_none_or(|v| v.len() != 3) =>
+                        return Err("VLESS XDRIVE: для Google Drive нужны 3 secrets: ClientID, ClientSecret и RefreshToken.".into()),
+                    "template" if settings.get("template").is_none() =>
+                        return Err("VLESS XDRIVE: для service=template требуется параметр template с JSON.".into()),
+                    "local" | "Google Drive" | "template" => {},
+                    _ => return Err("VLESS XDRIVE: service должен быть local, Google Drive или template.".into()),
+                }
+                stream["network"] = serde_json::json!("xdrive");
+                stream["xdriveSettings"] = settings;
             }
             "grpc" => {
                 stream["grpcSettings"] = serde_json::json!({
