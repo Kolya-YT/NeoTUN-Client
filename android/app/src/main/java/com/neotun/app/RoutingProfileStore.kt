@@ -267,7 +267,8 @@ object NeoTunRoutingAdapter {
                 .put("url", ruleSetUrl(token))
                 // Rule-set downloads must not inherit proxy routing rules; otherwise
                 // startup can recursively depend on the tunnel it is trying to start.
-                .put("http_client", JSONObject().put("detour", "direct"))
+                // sing-box 1.14 rejects routing downloads through an empty direct outbound.
+                // Leave the HTTP client on its default network path, matching Windows.
                 .put("update_interval", "24h"))
         }
         return sets
