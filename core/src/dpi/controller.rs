@@ -1,6 +1,4 @@
-//! State holder for the experimental DPI settings API.
-//! This controller deliberately does not claim to shape traffic until a real
-//! packet-processing implementation is integrated.
+//! Runtime settings for the DPI strategy applied to generated sing-box configs.
 
 use super::shaper::DpiConfig;
 
@@ -27,9 +25,12 @@ impl ConnectionController {
         }
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.config.enabled
+    }
+
     pub fn get_state(&self) -> ConnectionState {
-        // No packet shaper is wired into the data path yet. Returning Idle avoids
-        // falsely reporting DPI bypass or a fallback tunnel as active.
+        // Configuring a strategy is not proof that a live connection has applied it.
         let _ = self.config.out_of_order;
         ConnectionState::Idle
     }
