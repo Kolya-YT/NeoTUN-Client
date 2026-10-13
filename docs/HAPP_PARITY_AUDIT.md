@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Xray explicit disconnect now invalidates queued startup/GeoData callbacks and runs native stop, DNS reset and TUN-fd cleanup on a dedicated worker instead of the Android main thread. The service remains alive until cleanup finishes, preserving the switcher's service-exit gate; duplicate disconnect commands are ignored while teardown is active (commit `7cc804a`). Android CI and device-side Xray↔sing-box rapid-switch checks remain required.
+
 - [x] sing-box disconnect now waits for the in-flight startup worker to exit before closing its shared `CommandServer`. This addresses a concrete teardown race where shutdown could observe no server, finish early, and allow a new profile to start while native startup was still constructing/starting TUN resources. During an explicit disconnect, stale-start cleanup is handed to the stop worker to avoid double-closing the same server (commit `c8b9a00`). Android CI and rapid-switch/device verification remain required.
 
 - [x] Corrected the engine-switch regression test fixture: Hysteria2 legitimately generates a `hysteria2` sing-box outbound, while ordinary VLESS generates `vless` and Xray profiles use the `socks` bridge. Windows CI had caught the test incorrectly asserting `vless` for every sing-box profile (run `38455382834`, failure was in the shared Rust test, not the Windows UI/runtime build). Fix committed as `49ae029`; rerun CI before marking it green.
