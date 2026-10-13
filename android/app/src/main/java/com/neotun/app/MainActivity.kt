@@ -1587,19 +1587,24 @@ class MainActivity : Activity() {
     }
 
     private fun disconnect() {
-        // Stop only the engine currently selected in shared state. Starting both
-        // VPN services just to stop them can race service startup/teardown.
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-        val activeEngine = prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
-        val target = if (activeEngine == NeoTunVpnService.ENGINE_XRAY) {
-            Intent(this, NeoTunXrayVpnService::class.java)
-                .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT)
-        } else {
+
+        // Shared preferences can be stale during engine switches or after a
+        // process restart. Stop BOTH services so a stale engine cannot keep
+        // owning the Android VPN interface after the UI reports disconnected.
+        val stopTargets = listOf(
             Intent(this, NeoTunVpnService::class.java)
-                .setAction(NeoTunVpnService.ACTION_DISCONNECT)
+                .setAction(NeoTunVpnService.ACTION_DISCONNECT),
+            Intent(this, NeoTunXrayVpnService::class.java)
+                .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT),
+        )
+        stopTargets.forEach { target ->
+            runCatching { startService(target) }
+                .onFailure {
+                    NeoTunDiagnostics.error(this, "Failed to stop VPN service: " +
+                        (target.component?.className ?: "unknown"), it)
+                }
         }
-        runCatching { startService(target) }
-            .onFailure { NeoTunDiagnostics.error(this, "Failed to stop active tunnel before switch", it) }
 
         prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         resetTrafficCounters()
