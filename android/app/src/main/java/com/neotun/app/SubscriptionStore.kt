@@ -144,7 +144,23 @@ class SubscriptionStore(context: Context) {
             } else {
                 rawStream
             }
-            val body = stream.bufferedReader(StandardCharsets.UTF_8).use { reader -> reader.readText() }
+            // Cap the decoded stream, not Content-Length: gzip responses can be
+            // much larger after decompression, and Content-Length may be absent.
+            val body = stream.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8 * 1024)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= MAX_RESPONSE_BYTES) {
+                        "Ответ подписки превышает лимит ${MAX_RESPONSE_BYTES / (1024 * 1024)} МБ"
+                    }
+                    output.write(buffer, 0, count)
+                }
+                output.toString(StandardCharsets.UTF_8.name())
+            }
             SubscriptionResponse(body, connection.getHeaderField("routing"), connection.getHeaderField("autorouting"))
         } finally {
             connection.disconnect()
@@ -309,5 +325,6 @@ class SubscriptionStore(context: Context) {
     companion object {
         private const val PREFS = "neotun_subscriptions"
         private const val KEY_SUBSCRIPTIONS = "subscriptions"
+        private const val MAX_RESPONSE_BYTES = 5 * 1024 * 1024
     }
 }
