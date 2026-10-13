@@ -264,7 +264,10 @@ public sealed class SubscriptionStore
     {
         try
         {
+            // Some providers Base64-encode only the routing directive line.
+            // Decode supported directive forms before selecting by precedence.
             var lines = combinedBody.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(DecodeRoutingDirective)
                 .Where(l => l.Contains("://autorouting/", StringComparison.OrdinalIgnoreCase) ||
                             l.Contains("://routing/", StringComparison.OrdinalIgnoreCase))
                 .ToList();
