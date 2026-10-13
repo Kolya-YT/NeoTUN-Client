@@ -23,9 +23,11 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     @Volatile private var starting = false
     @Volatile private var startupGeneration = 0
     @Volatile private var nativeCloseStarted = false
+    @Volatile private var disconnectRequested = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
+            disconnectRequested = true
             startupGeneration++
             starting = false
             running = false
@@ -50,6 +52,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         }
         if (running || starting) return START_NOT_STICKY
 
+        disconnectRequested = false
+        nativeCloseStarted = false
         val generation = ++startupGeneration
         starting = true
         NeoTunDiagnostics.clear(this)
@@ -208,6 +212,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     override fun serviceStop() {
+        // closeService() can invoke this callback during an intentional disconnect.
+        // In that case, let the disconnect worker own final cleanup and stopSelf();
+        // publishing an engine failure here can race the selected profile's startup.
+        if (disconnectRequested) {
+            NeoTunDiagnostics.log(this, "sing-box: ignoring native serviceStop callback during requested disconnect")
+            return
+        }
         // libbox can request a stop from inside startOrReloadService while the
         // startup thread is still unwinding. Invalidate its generation first so
         // it cannot later overwrite this failure with KEY_RUNNING=true.
