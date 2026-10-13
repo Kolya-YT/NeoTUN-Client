@@ -64,7 +64,10 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 isEngineBusy = false
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
-                stopSelf(startId)
+                // Use stopSelf(), not stopSelf(startId): duplicate start commands
+                // can advance startId while this single teardown worker is running.
+                // stopSelf(startId) would then leave the service alive indefinitely.
+                stopSelf()
             }, "NeoTUN-singbox-stop").start()
             return START_NOT_STICKY
         }
