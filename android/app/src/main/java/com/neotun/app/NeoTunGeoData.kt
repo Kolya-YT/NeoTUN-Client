@@ -80,12 +80,20 @@ object NeoTunGeoData {
 
     private fun hasGeoToken(profile: JSONObject?, keys: List<String>, prefix: String): Boolean {
         if (profile == null) return false
-        return keys.any { key ->
-            val values = profile.optJSONArray(key) ?: return@any false
+        // Happ/INCY routing JSON has appeared with different key casing across
+        // exports (for example DirectIp, DirectIP and directip). JSONObject
+        // lookups are case-sensitive, so resolve aliases case-insensitively.
+        val arrays = keys.mapNotNull { wanted ->
+            val actual = profile.keys().asSequence()
+                .firstOrNull { it.equals(wanted, ignoreCase = true) }
+                ?: return@mapNotNull null
+            profile.optJSONArray(actual)
+        }
+        return arrays.any { values ->
             (0 until values.length()).any { index ->
                 val token = values.optString(index).trim()
-                // Only complete geodata tokens should trigger downloads. A
-                // literal domain containing "geoip:" is not a valid Xray rule.
+                // Xray geo tokens are category references, not substring
+                // matches: only request a database for a complete token.
                 val label = token.takeIf { it.startsWith(prefix, ignoreCase = true) }
                     ?.substringAfter(':')
                     ?: return@any false
@@ -122,7 +130,10 @@ object NeoTunGeoData {
     private fun profileUrl(profile: JSONObject?, keys: List<String>): String? {
         if (profile == null) return null
         for (key in keys) {
-            val value = profile.optString(key).trim()
+            val actual = profile.keys().asSequence()
+                .firstOrNull { it.equals(key, ignoreCase = true) }
+                ?: continue
+            val value = profile.optString(actual).trim()
             if (value.startsWith("https://", true)) return value
         }
         return null
