@@ -463,6 +463,19 @@ impl Profile {
             },
             _ => return Err("Протокол не поддерживается".into())
         };
+        // Use sing-box's built-in TLS record fragmentation on supported stream
+        // TLS proxy handshakes. It is a real transport-layer strategy, not a
+        // universal DPI bypass. QUIC and REALITY are intentionally excluded.
+        let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
+        let supports_tls_record_fragmentation =
+            self.protocol == "trojan"
+            || (matches!(self.protocol.as_str(), "vless" | "vmess")
+                && self.params.get("security").is_some_and(|value| value.eq_ignore_ascii_case("tls")));
+        if dpi_enabled && supports_tls_record_fragmentation
+            && outbound.get("tls").and_then(|tls| tls.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false) {
+            outbound["tls"]["record_fragment"] = serde_json::Value::Bool(true);
+        }
+
         let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"rules":[{"protocol":"dns","action":"hijack-dns"}],"auto_detect_interface":true,"final":"proxy"}});
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
     }
@@ -707,20 +720,6 @@ impl Profile {
                 });
             }
             _ => {}
-        }
-
-        // Apply sing-box's real TLS record-fragmentation strategy only to
-        // stream-based TLS transports. It changes the TLS handshake emitted by
-        // the proxy outbound; it is not a universal DPI bypass and is deliberately
-        // not enabled for QUIC, plaintext, or REALITY profiles.
-        let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
-        let supports_tls_record_fragmentation =
-            self.protocol == "trojan"
-            || (matches!(self.protocol.as_str(), "vless" | "vmess")
-                && self.params.get("security").is_some_and(|value| value.eq_ignore_ascii_case("tls")));
-        if dpi_enabled && supports_tls_record_fragmentation
-            && outbound.get("tls").and_then(|tls| tls.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false) {
-            outbound["tls"]["record_fragment"] = serde_json::Value::Bool(true);
         }
 
         let config = serde_json::json!({
