@@ -524,20 +524,23 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun scheduleXrayTrafficDiagnostics() {
-        // Give Android and the selected app a moment to send packets, then sample
-        // Xray's counters off the main thread. This is diagnostic only: no traffic
-        // is generated and an idle tunnel is not incorrectly marked as failed.
+        // Android blocks cleartext HTTP by default. Read the local Xray metrics
+        // endpoint with a raw loopback socket so this diagnostic doesn't depend
+        // on app-wide cleartext network-security settings.
         mainHandler.postDelayed({
             if (destroyed || !running || tunFd < 0) return@postDelayed
             Thread({
-                var connection: HttpURLConnection? = null
                 try {
-                    connection = (URL("http://127.0.0.1:49227/debug/vars").openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 1500
-                        readTimeout = 1500
-                        requestMethod = "GET"
-                    }
-                    val body = connection.inputStream.bufferedReader().use { it.readText() }
+                    val socket = java.net.Socket()
+                    socket.connect(java.net.InetSocketAddress("127.0.0.1", 49227), 1500)
+                    socket.soTimeout = 1500
+                    socket.getOutputStream().write(
+                        "GET /debug/vars HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n"
+                            .toByteArray(Charsets.US_ASCII),
+                    )
+                    val response = socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    socket.close()
+                    val body = response.substringAfter("\\r\\n\\r\\n", response.substringAfter("\\n\\n", ""))
                     val counters = body.lineSequence()
                         .filter { it.contains("inbound>>>tun>>>traffic") || it.contains("outbound>>>proxy>>>traffic") }
                         .take(12)
@@ -545,15 +548,14 @@ class NeoTunXrayVpnService : VpnService() {
                     NeoTunDiagnostics.log(
                         this,
                         if (counters.isBlank()) {
-                            "Xray traffic metrics: endpoint answered, but no TUN/proxy counters were exposed."
+                            "Xray traffic metrics: endpoint answered, but no TUN/proxy counters were exposed. Response: " +
+                                response.take(180).replace("\\n", " ")
                         } else {
                             "Xray traffic metrics: $counters"
                         },
                     )
                 } catch (error: Throwable) {
                     NeoTunDiagnostics.error(this, "Xray traffic metrics unavailable", error)
-                } finally {
-                    connection?.disconnect()
                 }
             }, "NeoTUN-Xray-Traffic-Metrics").start()
         }, 8000L)
