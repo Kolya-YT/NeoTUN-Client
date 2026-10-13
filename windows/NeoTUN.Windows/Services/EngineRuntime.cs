@@ -279,12 +279,20 @@ internal sealed class EngineRuntime : IDisposable
             string ReadString(string name, string fallback) =>
                 settings.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
                     ? value.GetString() ?? fallback : fallback;
-            string[] ReadLines(string name) => ReadString(name, "")
-                .Replace("\r", "")
-                .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Where(line => !line.StartsWith("#", StringComparison.Ordinal))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            var routingEnabled = ReadBool("Enabled", true);
+            string[] ReadLines(string name)
+            {
+                if (!routingEnabled && name is "BlockSites" or "BlockIp" or "ProxySites" or "ProxyIp" or
+                    "DirectSites" or "DirectIp" or "DomesticDnsDomains" or "ProcessExclusions")
+                    return Array.Empty<string>();
+
+                return ReadString(name, "")
+                    .Replace("\r", "")
+                    .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Where(line => !line.StartsWith("#", StringComparison.Ordinal))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
 
             var ipv6Enabled = ReadBool("Ipv6Enabled", false);
             var mtu = Math.Clamp(ReadInt("Mtu", 1400), 1280, 1500);
@@ -480,7 +488,7 @@ internal sealed class EngineRuntime : IDisposable
                 .SelectMany(ReadLines)
                 .Count(v => (v.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase) ||
                     v.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase)) && NormalizeGeoToken(v) is null);
-            WriteLog($"Applied saved Windows routing preferences: globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, geoRuleSets={allGeoTokens.Length}, unsupportedGeoRules={unsupportedGeoCount}, processExclusions={processExclusions.Length}.");
+            WriteLog($"Applied saved Windows routing preferences: enabled={routingEnabled}, globalProxy={ReadBool("GlobalProxy", true)}, ipv6={ipv6Enabled}, mtu={mtu}, order={ReadInt("RouteOrder", 0)}, domainRules={blockDomains.Length + proxyDomains.Length + directDomains.Length}, ipRules={blockIps.Length + proxyIps.Length + directIps.Length}, geoRuleSets={allGeoTokens.Length}, unsupportedGeoRules={unsupportedGeoCount}, processExclusions={processExclusions.Length}.");
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or FormatException)
         {
