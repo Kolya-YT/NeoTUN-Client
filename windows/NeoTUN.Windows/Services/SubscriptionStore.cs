@@ -119,19 +119,49 @@ public sealed class SubscriptionStore
             throw new InvalidDataException("Подписка не содержит поддерживаемых ссылок.");
 
         var parsedProfiles = new List<ServerProfile>();
+        var unsupportedProfiles = new List<string>();
         foreach (var link in links)
         {
-            var engine = NativeCore.DetectEngine(link);
-            var name = ProfileStore.DisplayNameFromUri(link);
+            string engine;
+            try
+            {
+                var runtime = NativeCore.BuildRuntimeConfig(link);
+                engine = runtime.Engine;
+                if (engine is not ("sing-box" or "xray"))
+                {
+                    unsupportedProfiles.Add(ProfileStore.DisplayNameFromUri(link));
+                    continue;
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException or
+                                       ArgumentException or FormatException)
+            {
+                // Do not silently turn a malformed or unsupported share link into
+                // a sing-box profile. Keep the subscription's existing profiles
+                // intact if none of the new links can actually be parsed.
+                unsupportedProfiles.Add(ProfileStore.DisplayNameFromUri(link));
+                continue;
+            }
+
             parsedProfiles.Add(new ServerProfile
             {
-                Name = name,
+                Name = ProfileStore.DisplayNameFromUri(link),
                 Uri = link,
                 Engine = engine,
                 Source = subscription.Name,
                 SourceSubscriptionId = subscription.Id,
                 UpdatedAt = DateTimeOffset.UtcNow
             });
+        }
+
+        if (parsedProfiles.Count == 0)
+        {
+            var details = unsupportedProfiles.Count == 0
+                ? ""
+                : $" (не удалось разобрать: {string.Join(", ", unsupportedProfiles.Take(5))})";
+            throw new InvalidDataException(
+                "В подписке нет профилей, которые удалось разобрать текущим ядром NeoTUN" + details +
+                ". Сохранённые профили не изменены.");
         }
 
         var importedCount = profileStore.ReplaceFromSubscription(subscription.Id, parsedProfiles);
