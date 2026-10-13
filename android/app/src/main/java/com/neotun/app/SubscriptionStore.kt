@@ -153,7 +153,9 @@ class SubscriptionStore(context: Context) {
 
     private fun importRoutingFromSubscription(body: String, routingHeader: String?, autoRoutingHeader: String?) {
         // INCY source priority: autorouting header > autorouting body > routing header > routing body.
-        val lines = body.lineSequence().map { it.trim() }.filter {
+        // A few providers encode routing directives line-by-line instead of
+        // Base64-encoding the entire feed. Decode each candidate before matching.
+        val lines = body.lineSequence().map { decodeRoutingDirective(it.trim()) }.filter {
             it.contains("://autorouting/", true) || it.contains("://routing/", true)
         }.toList()
         val candidate = autoRoutingHeader?.takeIf { it.isNotBlank() }
