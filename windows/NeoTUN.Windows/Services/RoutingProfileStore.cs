@@ -146,18 +146,21 @@ public sealed class RoutingProfileStore
 
             var profile = new RoutingProfile
             {
-                Name = decoded["Name"]?.GetValue<string>() ?? "Импортированный профиль",
-                GlobalProxy = decoded["GlobalProxy"]?.GetValue<string>()?.Equals("false", StringComparison.OrdinalIgnoreCase) != true,
-                RouteOrder = ParseOrder(decoded["RouteOrder"]?.GetValue<string>()),
-                RemoteDns = decoded["RemoteDNS"]?.GetValue<string>() ?? "https://8.8.8.8/dns-query",
-                DomesticDns = decoded["DomesticDNS"]?.GetValue<string>() ?? "https://77.88.8.8/dns-query",
-                DomesticDnsDomains = ExtractList(decoded["DomesticDNSDomains"]),
+                Name = ReadString(decoded["Name"]) ?? "Импортированный профиль",
+                GlobalProxy = ReadBoolean(decoded["GlobalProxy"], fallback: true),
+                RouteOrder = ParseOrder(decoded["RouteOrder"]),
+                RemoteDns = ReadString(decoded["RemoteDNS"]) ?? ReadString(decoded["RemoteDns"]) ?? "https://8.8.8.8/dns-query",
+                DomesticDns = ReadString(decoded["DomesticDNS"]) ?? ReadString(decoded["DomesticDns"]) ?? "https://77.88.8.8/dns-query",
+                DomesticDnsDomains = ExtractList(decoded["DomesticDNSDomains"] ?? decoded["DomesticDnsDomains"]),
                 BlockSites = ExtractList(decoded["BlockSites"]),
                 BlockIp = ExtractList(decoded["BlockIp"]),
                 ProxySites = ExtractList(decoded["ProxySites"]),
                 ProxyIp = ExtractList(decoded["ProxyIp"]),
                 DirectSites = ExtractList(decoded["DirectSites"]),
                 DirectIp = ExtractList(decoded["DirectIp"]),
+                ProcessExclusions = ExtractList(decoded["ProcessExclusions"]),
+                Ipv6Enabled = ReadBoolean(decoded["Ipv6Enabled"] ?? decoded["IPv6Enabled"], fallback: false),
+                Mtu = ReadInt32(decoded["Mtu"], fallback: 1500),
                 SourceUrl = raw.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? raw : null,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -214,12 +217,50 @@ public sealed class RoutingProfileStore
         return null;
     }
 
-    private static int ParseOrder(string? order) => order?.ToLowerInvariant() switch
+    private static string? ReadString(JsonNode? node)
     {
-        "block-direct-proxy" => 1,
-        "proxy-block-direct" => 2,
-        _ => 0
-    };
+        if (node is JsonValue value && value.TryGetValue<string>(out var text))
+            return text;
+        return null;
+    }
+
+    private static bool ReadBoolean(JsonNode? node, bool fallback)
+    {
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<bool>(out var boolean)) return boolean;
+            if (value.TryGetValue<string>(out var text) && bool.TryParse(text, out boolean))
+                return boolean;
+        }
+        return fallback;
+    }
+
+    private static int ReadInt32(JsonNode? node, int fallback)
+    {
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<int>(out var number)) return number;
+            if (value.TryGetValue<string>(out var text) && int.TryParse(text, out number))
+                return number;
+        }
+        return fallback;
+    }
+
+    private static int ParseOrder(JsonNode? node)
+    {
+        string? order = null;
+        if (node is JsonArray array)
+            order = string.Join("-", array.Select(item => ReadString(item)).Where(item => !string.IsNullOrWhiteSpace(item)));
+        else
+            order = ReadString(node);
+
+        return order?.ToLowerInvariant().Replace("_", "-") switch
+        {
+            "block-direct-proxy" => 1,
+            "proxy-block-direct" => 2,
+            _ => 0
+        };
+    }
 
     private static string ExtractList(JsonNode? node)
     {
