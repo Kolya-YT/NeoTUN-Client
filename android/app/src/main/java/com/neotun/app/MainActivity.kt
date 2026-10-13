@@ -1662,17 +1662,22 @@ class MainActivity : Activity() {
         // process restart. Stop BOTH services so a stale engine cannot keep
         // owning the Android VPN interface after the UI reports disconnected.
         val stopTargets = listOf(
-            Intent(this, NeoTunVpnService::class.java)
-                .setAction(NeoTunVpnService.ACTION_DISCONNECT),
-            Intent(this, NeoTunXrayVpnService::class.java)
-                .setAction(NeoTunXrayVpnService.ACTION_DISCONNECT),
+            Intent(this, NeoTunVpnService::class.java),
+            Intent(this, NeoTunXrayVpnService::class.java),
         )
         stopTargets.forEach { target ->
-            runCatching { startService(target) }
-                .onFailure {
-                    NeoTunDiagnostics.error(this, "Failed to stop VPN service: " +
-                        (target.component?.className ?: "unknown"), it)
-                }
+            runCatching {
+                val requested = stopService(target)
+                NeoTunDiagnostics.log(
+                    this,
+                    "Requested explicit VPN service stop: " +
+                        (target.component?.className ?: "unknown") +
+                        "; stopRequested=" + requested,
+                )
+            }.onFailure {
+                NeoTunDiagnostics.error(this, "Failed to stop VPN service: " +
+                    (target.component?.className ?: "unknown"), it)
+            }
         }
 
         prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
