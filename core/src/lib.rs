@@ -1077,26 +1077,31 @@ mod tests {
             (
                 "hysteria2://password@example.com:443?sni=example.com",
                 "sing-box",
+                "hysteria2",
             ),
             (
                 "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&fp=chrome&pbk=public-key&sid=abcd&sni=www.example.org",
                 "xray",
+                "socks",
             ),
             (
                 "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=ws&path=%2Fneo",
                 "sing-box",
+                "vless",
             ),
             (
                 "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xhttp&path=%2Fneo",
                 "xray",
+                "socks",
             ),
             (
                 "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=none&type=tcp",
                 "sing-box",
+                "vless",
             ),
         ];
 
-        for (uri, expected_engine) in profiles {
+        for (uri, expected_engine, expected_sing_box_outbound) in profiles {
             let profile = Profile::from_share_uri(uri).unwrap();
             assert_eq!(profile.engine(), expected_engine, "profile={}", profile.address);
 
@@ -1108,10 +1113,10 @@ mod tests {
                 assert!(runtime.get("xray_config").is_some(), "Xray config missing for {}", profile.address);
                 // Windows still uses sing-box as the TUN/routing bridge, while Xray
                 // owns the selected profile's VLESS protocol connection.
-                assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "socks");
+                assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], expected_sing_box_outbound);
             } else {
                 assert!(runtime.get("xray_config").is_none(), "stale Xray config for {}", profile.address);
-                assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], "vless");
+                assert_eq!(runtime["sing_box_config"]["outbounds"][0]["type"], expected_sing_box_outbound);
             }
         }
     }
