@@ -958,7 +958,7 @@ impl Profile {
         // producing "reality verification failed" even with correct URI keys.
         // Route VLESS REALITY through Xray, which supports this handshake.
         if self.protocol == "vless" &&
-            (matches!(transport.as_str(), "xhttp" | "splithttp") || security == "reality") {
+            (matches!(transport.as_str(), "xhttp" | "splithttp" | "mkcp" | "xdrive") || security == "reality") {
             "xray"
         } else {
             "sing-box"
@@ -1103,6 +1103,56 @@ mod tests {
         assert_eq!(stream["xhttpSettings"]["path"], "/");
         assert_eq!(stream["xhttpSettings"]["mode"], "auto");
         assert_eq!(stream["xhttpSettings"]["xPaddingBytes"], "100-1000");
+    }
+
+    #[test]
+    fn vless_mkcp_uses_xray_and_preserves_supported_transport_settings() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=none&type=mkcp&mtu=1200&tti=40&uplinkCapacity=10&downlinkCapacity=30&cwndMultiplier=2&maxSendingWindow=256"
+        ).unwrap();
+        assert_eq!(profile.engine(), "xray");
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        let stream = &runtime["xray_config"]["outbounds"][0]["streamSettings"];
+        assert_eq!(stream["network"], "mkcp");
+        assert_eq!(stream["kcpSettings"]["mtu"], 1200);
+        assert_eq!(stream["kcpSettings"]["tti"], 40);
+        assert_eq!(stream["kcpSettings"]["uplinkCapacity"], 10);
+        assert_eq!(stream["kcpSettings"]["downlinkCapacity"], 30);
+        assert_eq!(stream["kcpSettings"]["cwndMultiplier"], 2);
+        assert_eq!(stream["kcpSettings"]["maxSendingWindow"], 256);
+    }
+
+    #[test]
+    fn vless_xdrive_uses_xray_and_requires_backend_configuration() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xdrive&service=local&remoteFolder=%2Fneotun&segmentBytes=65536&concurrency=4"
+        ).unwrap();
+        assert_eq!(profile.engine(), "xray");
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        let stream = &runtime["xray_config"]["outbounds"][0]["streamSettings"];
+        assert_eq!(stream["network"], "xdrive");
+        assert_eq!(stream["xdriveSettings"]["service"], "local");
+        assert_eq!(stream["xdriveSettings"]["remoteFolder"], "/neotun");
+        assert_eq!(stream["xdriveSettings"]["segmentBytes"], 65536);
+        assert_eq!(stream["xdriveSettings"]["concurrency"], 4);
+
+        let missing = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xdrive"
+        ).unwrap();
+        assert!(missing.to_xray_json().unwrap_err().contains("отсутствует параметр service"));
+    }
+
+    #[test]
+    fn raw_transport_is_normalized_to_xray_tcp_network() {
+        let profile = Profile::from_share_uri(
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=raw"
+        ).unwrap();
+        assert_eq!(profile.engine(), "sing-box");
+        let runtime: serde_json::Value =
+            serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
+        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["transport"]["type"], "tcp");
     }
 
     #[test]
