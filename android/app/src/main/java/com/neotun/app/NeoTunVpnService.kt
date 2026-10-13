@@ -37,6 +37,11 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 return START_NOT_STICKY
             }
             disconnectRequested = true
+            // A disconnect command can start this service even when it was not
+            // previously active. Mark teardown busy before launching the worker,
+            // otherwise MainActivity may observe false and start Xray while this
+            // service is still releasing its TUN.
+            isEngineBusy = true
             startupGeneration++
             starting = false
             running = false
