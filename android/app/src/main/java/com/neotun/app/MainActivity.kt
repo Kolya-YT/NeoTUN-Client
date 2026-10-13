@@ -295,19 +295,19 @@ class MainActivity : Activity() {
         val serverCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(9), dp(10), dp(9))
-            background = rounded(NeoTunDesign.SURFACE, 17, NeoTunDesign.BORDER, 1)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = rounded(NeoTunDesign.SURFACE, 16, NeoTunDesign.BORDER, 1)
             isClickable = true
             isFocusable = true
             setOnClickListener { showScreen(Screen.PROFILES) }
         }
         val flag = FrameLayout(this).apply {
-            background = rounded(NeoTunDesign.SURFACE_RAISED, 13)
-            addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 22f,
+            background = rounded(NeoTunDesign.SURFACE_RAISED, 12)
+            addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 20f,
                 NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
         }
-        serverCard.addView(flag, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
-            setMargins(0, 0, dp(11), 0)
+        serverCard.addView(flag, LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+            setMargins(0, 0, dp(12), 0)
         })
         val serverInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
         serverInfo.addView(txt(selected?.name ?: "Сервер не выбран", 14f,
@@ -316,13 +316,13 @@ class MainActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
         serverInfo.addView(txt(selected?.let { protocolLabel(it) + " · " + maskUri(it.uri) }
-            ?: "Импортируйте профиль или подписку", 10.5f, NeoTunDesign.TEXT_MUTED).apply {
+            ?: "Нажмите для выбора сервера", 10f, NeoTunDesign.TEXT_MUTED).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 4))
+        }, margins(top = 2))
         serverCard.addView(serverInfo, LinearLayout.LayoutParams(0, -2, 1f))
-        serverCard.addView(txt("›", 24f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER),
-            LinearLayout.LayoutParams(dp(24), dp(42)))
+        serverCard.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER),
+            LinearLayout.LayoutParams(dp(24), dp(44)))
         content.addView(serverCard, margins(bottom = 8))
 
         if (profiles.size > 1) {
@@ -1565,6 +1565,7 @@ class MainActivity : Activity() {
 
     private fun switchServer(profile: NeoTunProfile) {
         if (isFinishing || isDestroyed) return
+        isSwitching = true
         val generation = ++switchGeneration
         setSelectedProfile(profile.id)
         NeoTunDiagnostics.log(this, "Switching server to " +
@@ -1586,6 +1587,7 @@ class MainActivity : Activity() {
         handler.postDelayed({
             if (isFinishing || isDestroyed || generation != switchGeneration) return@postDelayed
             NeoTunDiagnostics.log(this, "Starting selected profile after tunnel teardown; generation=" + generation)
+            isSwitching = false
             connect(profile)
         }, 2_500L)
     }
@@ -3057,33 +3059,30 @@ class MainActivity : Activity() {
 
     private fun renderNavigation() {
         nav.removeAllViews()
-        // Compact flat switcher. The page already has its own title, so avoid
-        // duplicating a tall, card-shaped navigation area above the content.
-        nav.setPadding(dp(10), dp(1), dp(10), dp(1))
-        nav.background = ColorDrawable(Color.TRANSPARENT)
-        val items = listOf("⌂" to "Главная", "◉" to "Серверы", "⚙" to "Настройки")
+        nav.setPadding(dp(12), dp(8), dp(12), dp(8))
+        nav.background = rounded(NeoTunDesign.SURFACE, 16, NeoTunDesign.BORDER, 1)
+
+        val items = listOf("🏠" to "Главная", "🌐" to "Серверы", "⚙️" to "Настройки")
         items.forEachIndexed { index, pair ->
             val target = when (index) { 0 -> Screen.HOME; 1 -> Screen.PROFILES; else -> Screen.SETTINGS }
             val selected = screen == target
             val item = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(6), 0, dp(6), 0)
-                background = if (selected) rounded(NeoTunDesign.BRAND_SOFT, 9) else ColorDrawable(Color.TRANSPARENT)
+                setPadding(dp(8), dp(6), dp(8), dp(6))
+                background = if (selected) rounded(NeoTunDesign.BRAND_SOFT, 12) else ColorDrawable(Color.TRANSPARENT)
                 isClickable = true
                 isFocusable = true
                 contentDescription = pair.second
                 setOnClickListener { showScreen(target) }
             }
-            item.addView(txt(pair.first, 16f,
+            item.addView(txt(pair.first, 18f,
                 if (selected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_MUTED,
-                Typeface.BOLD, Gravity.CENTER))
-            item.addView(txt(pair.second, 10.5f,
+                Typeface.NORMAL, Gravity.CENTER))
+            item.addView(txt(pair.second, 9f,
                 if (selected) NeoTunDesign.TEXT_PRIMARY else NeoTunDesign.TEXT_MUTED,
-                if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(start = 4))
-            nav.addView(item, LinearLayout.LayoutParams(0, dp(36), 1f).apply {
-                setMargins(dp(2), 0, dp(2), 0)
-            })
+                if (selected) Typeface.BOLD else Typeface.NORMAL, Gravity.CENTER), margins(top = 2))
+            nav.addView(item, LinearLayout.LayoutParams(0, -2, 1f))
         }
     }
 
