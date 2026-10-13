@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Android Xray startup/retry now checks the captured lifecycle generation inside native-start exception handlers. If a synchronous Xray start fails after disconnect or engine switching has invalidated that attempt, the stale exception is logged and ignored instead of invoking `stopWithError()` against the newly selected engine (commit `ca24903`). Android CI and device-side rapid switching still need confirmation.
+
 - [x] Added a core regression test that alternates REALITY → ordinary VLESS TLS/WebSocket → VLESS XHTTP → plain TCP and checks that each selected URI produces its own engine/config (Xray profiles carry `xray_config` plus the Windows sing-box TUN bridge; sing-box profiles carry a native VLESS outbound and no stale Xray config). This guards per-profile engine selection, but it does not replace UI-level rapid-switch or real-traffic testing (commit `5ff874e`).
 
 - [x] Windows runtime now uses a lifecycle generation to preserve a concurrent disconnect across stale-process cleanup: `StartAsync` cleans old processes without invoking the public disconnect path, checks the captured generation before resetting the stop flag, and `StopAsync` increments the generation before cancelling startup. Windows CI and rapid connect/disconnect/reconnect testing are still required (commit `4978f38`).
