@@ -428,7 +428,8 @@ internal sealed class EngineRuntime : IDisposable
                     ["tag"] = RuleSetTag(token),
                     ["format"] = "binary",
                     ["url"] = RuleSetUrl(token),
-                    ["download_detour"] = "direct",
+                    // sing-box 1.14+ HTTP client configuration; download_detour is deprecated.
+                    ["http_client"] = new JsonObject { ["detour"] = "direct" },
                     ["update_interval"] = "24h"
                 });
             }
