@@ -22,16 +22,20 @@ class NeoTunXrayVpnService : VpnService() {
     private var running = false
     @Volatile private var starting = false
     @Volatile private var destroyed = false
+    @Volatile private var startupGeneration = 0
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
+            startupGeneration++
+            starting = false
             stopTunnel()
             stopSelf(startId)
             return START_NOT_STICKY
         }
         if (running || starting) return START_NOT_STICKY
         destroyed = false
+        val generation = ++startupGeneration
         starting = true
 
         NeoTunDiagnostics.clear(this)
@@ -58,8 +62,12 @@ class NeoTunXrayVpnService : VpnService() {
                 val geo = NeoTunGeoData.ensure(this, geoDir, routing?.json)
                 NeoTunDiagnostics.log(this, "GeoData: geoip=" + geo.geoIpBytes +
                     " bytes, geosite=" + geo.geoSiteBytes + " bytes, updated=" + geo.updated)
+                if (generation != startupGeneration) {
+                    NeoTunDiagnostics.log(this, "Xray startup cancelled after GeoData preparation")
+                    return@Thread
+                }
                 mainHandler.post {
-                    if (destroyed || !starting) return@post
+                    if (destroyed || !starting || generation != startupGeneration) return@post
                     try {
                         startXray(uri, geoDir.absolutePath)
                         getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
@@ -85,7 +93,7 @@ class NeoTunXrayVpnService : VpnService() {
                                     NeoTunDiagnostics.log(this, "GeoData после обновления: geoip=" +
                                         refreshed.geoIpBytes + " bytes, geosite=" + refreshed.geoSiteBytes)
                                     mainHandler.post {
-                                        if (destroyed || !starting) return@post
+                                        if (destroyed || !starting || generation != startupGeneration) return@post
                                         try {
                                             startXray(uri, geoDir.absolutePath)
                                             getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
@@ -104,7 +112,7 @@ class NeoTunXrayVpnService : VpnService() {
                                 } catch (refreshError: Throwable) {
                                     NeoTunDiagnostics.error(this, "Не удалось обновить повреждённые геобазы", refreshError)
                                     mainHandler.post {
-                                        if (!destroyed) stopWithError(
+                                        if (!destroyed && generation == startupGeneration) stopWithError(
                                             "Ошибка GeoIP/GeoSite. Обновление не удалось: " +
                                                 (refreshError.message ?: "проверьте URL геобаз и интернет")
                                         )
@@ -118,7 +126,11 @@ class NeoTunXrayVpnService : VpnService() {
                 }
             } catch (t: Throwable) {
                 NeoTunDiagnostics.error(this, "Критическая ошибка подготовки GeoData", t)
-                mainHandler.post { if (!destroyed) stopWithError(t.message ?: "Не удалось подготовить геобазы") }
+                mainHandler.post {
+                    if (!destroyed && generation == startupGeneration) {
+                        stopWithError(t.message ?: "Не удалось подготовить геобазы")
+                    }
+                }
             }
         }, "NeoTUN-GeoData").start()
 
