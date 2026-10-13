@@ -57,6 +57,9 @@ public partial class MainWindow : Window
             // The click handler owns connect/disconnect transitions. This callback
             // handles asynchronous engine exits without racing an active operation.
             if (connected || _vm.IsConnecting) return;
+            // StopAsync emits a generic final state after an unexpected-exit event;
+            // don't let that follow-up overwrite the more useful crash reason.
+            if (message == "Отключено" && !_vm.IsConnected) return;
             _vm.IsConnected = false;
             _vm.Status = message;
             _vm.Notice = message;
