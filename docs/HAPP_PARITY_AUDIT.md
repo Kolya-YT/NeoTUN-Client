@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Android home status reconciliation no longer refuses to trust a running native Xray core solely because a stale persisted error remains. It confirms the selected engine and unchanged profile URI, then repairs the running flag and clears the stale error; this targets the reported mismatch where diagnostics show `getXrayState: running=true` while the dashboard says ready to connect (commit `48e60b5`). CI and device-side confirmation remain pending.
+
 - [x] Xray `onDestroy()` and `stopWithError()` now increment the startup generation, invalidating outstanding GeoData preparation/retry callbacks on teardown and failure so delayed work cannot resurrect a stopped run (commit `e15967e`). CI and Android device validation remain pending.
 
 - [x] Android Xray startup/retry now checks the captured lifecycle generation inside native-start exception handlers. If a synchronous Xray start fails after disconnect or engine switching has invalidated that attempt, the stale exception is logged and ignored instead of invoking `stopWithError()` against the newly selected engine (commit `ca24903`). Android CI and device-side rapid switching still need confirmation.
