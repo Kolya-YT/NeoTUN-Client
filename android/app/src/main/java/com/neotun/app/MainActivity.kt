@@ -1600,7 +1600,7 @@ class MainActivity : Activity() {
     private var switchStopToken: String? = null
 
     private fun switchServer(profile: NeoTunProfile) {
-        if (isFinishing || isDestroyed) return
+        if (isFinishing || isDestroyed || isSwitching) return
         isSwitching = true
         val generation = ++switchGeneration
         val token = generation.toString() + "-" + UUID.randomUUID().toString()
@@ -3007,6 +3007,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(poll)
+        switchStopReceiver?.let { runCatching { unregisterReceiver(it) } }
+        switchStopReceiver = null
         super.onDestroy()
     }
 
