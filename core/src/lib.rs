@@ -1071,19 +1071,19 @@ mod tests {
     fn alternating_profiles_select_their_own_engine_without_stale_runtime_config() {
         let profiles = [
             (
-                "vless://123e4567-e89b-12d3-a456-426614174000@reality.example:443?security=reality&type=tcp&fp=chrome&pbk=public-key&sid=abcd&sni=www.example.org",
+                "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=reality&type=tcp&fp=chrome&pbk=public-key&sid=abcd&sni=www.example.org",
                 "xray",
             ),
             (
-                "vless://123e4567-e89b-12d3-a456-426614174000@tls.example:443?security=tls&type=ws&path=%2Fneo",
+                "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=ws&path=%2Fneo",
                 "sing-box",
             ),
             (
-                "vless://123e4567-e89b-12d3-a456-426614174000@xhttp.example:443?security=tls&type=xhttp&path=%2Fneo",
+                "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=tls&type=xhttp&path=%2Fneo",
                 "xray",
             ),
             (
-                "vless://123e4567-e89b-12d3-a456-426614174000@tcp.example:443?security=none&type=tcp",
+                "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443?security=none&type=tcp",
                 "sing-box",
             ),
         ];
