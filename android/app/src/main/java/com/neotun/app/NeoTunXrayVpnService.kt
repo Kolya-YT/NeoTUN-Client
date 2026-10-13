@@ -518,25 +518,17 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun stopWithError(message: String) {
-        // Invalidate every outstanding GeoData/start/retry callback before
-        // publishing the failure so delayed work cannot resurrect this run.
+        // Invalidate every outstanding GeoData/start/retry callback before publishing
+        // the failure. Native shutdown is kept off the main thread just like disconnect.
         startupGeneration++
         NeoTunDiagnostics.error(this, "Остановка с ошибкой: $message")
         running = false
         starting = false
-
-        // Always stop Xray before releasing the Android TUN fd. Xray owns the
-        // fd while the core is running; closing it first can leave a stale
-        // core instance and break the next connection attempt.
-        runCatching {
-            NeoTunXrayBridge.nativeInvoke(
-                JSONObject()
-                    .put("apiVersion", 3)
-                    .put("method", "stopXray")
-                    .put("payload", JSONObject())
-                    .toString(),
-            )
+        if (teardownInProgress) {
+            NeoTunDiagnostics.log(this, "Xray error cleanup skipped because teardown is already in progress")
+            return
         }
+        teardownInProgress = true
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
         if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
                 == NeoTunVpnService.ENGINE_XRAY) {
@@ -544,20 +536,39 @@ class NeoTunXrayVpnService : VpnService() {
                 .putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         }
 
-        if (tunFd >= 0) {
-            runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
-            tunFd = -1
-        }
-        NeoTunXrayBridge.nativeResetDns()
-        runCatching { NeoTunXrayBridge.nativeInit(null) }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
-        stopSelf()
+        Thread({
+            try {
+                // Stop Xray before releasing its TUN fd.
+                runCatching {
+                    NeoTunXrayBridge.nativeInvoke(
+                        JSONObject()
+                            .put("apiVersion", 3)
+                            .put("method", "stopXray")
+                            .put("payload", JSONObject())
+                            .toString(),
+                    )
+                }
+                if (tunFd >= 0) {
+                    runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
+                    tunFd = -1
+                }
+                runCatching { NeoTunXrayBridge.nativeResetDns() }
+                runCatching { NeoTunXrayBridge.nativeInit(null) }
+            } catch (error: Throwable) {
+                NeoTunDiagnostics.error(this, "Xray error cleanup failed", error)
+            } finally {
+                mainHandler.post {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        stopForeground(true)
+                    }
+                    teardownInProgress = false
+                    stopSelf()
+                }
+            }
+        }, "NeoTUN-xray-error-stop").start()
     }
 
     private fun startForegroundNotification() {
