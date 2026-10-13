@@ -473,6 +473,9 @@ impl Profile {
         let network = match requested_network.as_str() { "raw" => "tcp".to_string(), "splithttp" => "xhttp".to_string(), other => other.to_string() };
         let security = self.params.get("security").map(|v| v.to_ascii_lowercase()).unwrap_or_else(|| "none".into());
         let server_name = self.params.get("sni").or_else(|| self.params.get("host")).cloned().unwrap_or_else(|| self.address.clone());
+        if security == "reality" && matches!(network.as_str(), "mkcp" | "ws" | "websocket" | "httpupgrade") {
+            return Err(format!("VLESS REALITY несовместим с транспортом {network}; выберите RAW/TCP, gRPC или XHTTP."));
+        }
         if security == "reality" {
             if self.params.get("sni").or_else(|| self.params.get("host"))
                 .is_none_or(|value| value.trim().is_empty()) {
@@ -515,7 +518,7 @@ impl Profile {
             "mkcp" => {
                 // Current Xray mKCP supports the transport tuning fields below.
                 // Legacy KCP header/seed options were removed upstream, so do not emit them.
-                stream["network"] = serde_json::json!("mkcp");
+                stream["network"] = serde_json::json!("kcp");
                 let mut settings = serde_json::json!({});
                 for (source, target) in [
                     ("mtu", "mtu"),
@@ -582,18 +585,23 @@ impl Profile {
                         settings[target] = serde_json::json!(value);
                     }
                 }
-                if let Some(template) = self.params.get("template") {
+                if let Some(template) = self.params.get("template").filter(|v| !v.trim().is_empty()) {
+                    // Xray's XDrive Config declares template as a JSON string, not an object.
                     let parsed = serde_json::from_str::<serde_json::Value>(template)
                         .map_err(|_| "VLESS XDRIVE: параметр template должен содержать корректный JSON.".to_string())?;
-                    settings["template"] = parsed;
+                    settings["template"] = serde_json::json!(parsed.to_string());
                 }
                 match service.as_str() {
                     "Google Drive" if settings["secrets"].as_array().is_none_or(|v| v.len() != 3) =>
                         return Err("VLESS XDRIVE: для Google Drive нужны 3 secrets: ClientID, ClientSecret и RefreshToken.".into()),
                     "template" if settings.get("template").is_none() =>
                         return Err("VLESS XDRIVE: для service=template требуется параметр template с JSON.".into()),
-                    "local" | "Google Drive" | "template" => {},
-                    _ => return Err("VLESS XDRIVE: service должен быть local, Google Drive или template.".into()),
+                    "local" if settings["remoteFolder"].as_str().is_none_or(|v| v.trim().is_empty()) =>
+                        return Err("VLESS XDRIVE: для service=local требуется remoteFolder с общим путём к каталогу.".into()),
+                    "template" if settings["remoteFolder"].as_str().is_none_or(|v| v.trim().is_empty()) =>
+                        return Err("VLESS XDRIVE: для service=template требуется remoteFolder.".into()),
+                    "local" | "Google Drive" | "Yandex Disk" | "template" => {},
+                    _ => return Err("VLESS XDRIVE: service должен быть local, Google Drive, Yandex Disk или template.".into()),
                 }
                 stream["network"] = serde_json::json!("xdrive");
                 stream["xdriveSettings"] = settings;
@@ -1114,7 +1122,7 @@ mod tests {
         let runtime: serde_json::Value =
             serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
         let stream = &runtime["xray_config"]["outbounds"][0]["streamSettings"];
-        assert_eq!(stream["network"], "mkcp");
+        assert_eq!(stream["network"], "kcp");
         assert_eq!(stream["kcpSettings"]["mtu"], 1200);
         assert_eq!(stream["kcpSettings"]["tti"], 40);
         assert_eq!(stream["kcpSettings"]["uplinkCapacity"], 10);
@@ -1152,7 +1160,7 @@ mod tests {
         assert_eq!(profile.engine(), "sing-box");
         let runtime: serde_json::Value =
             serde_json::from_str(&profile.to_windows_runtime_json().unwrap()).unwrap();
-        assert_eq!(runtime["sing_box_config"]["outbounds"][0]["transport"]["type"], "tcp");
+        assert!(runtime["sing_box_config"]["outbounds"][0].get("transport").is_none(), "RAW is native TCP and needs no sing-box transport block");
     }
 
     #[test]
