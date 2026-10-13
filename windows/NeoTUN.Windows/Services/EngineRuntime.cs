@@ -138,13 +138,16 @@ internal sealed class EngineRuntime : IDisposable
                     WriteLog($"Xray config validation failed: {ex.Message}");
                     throw;
                 }
+                EnsureStartupActive(cancellationToken);
                 _xray = StartProcess(xrayPath, "run -config " + Quote(xrayConfigPath), "xray");
                 xrayStarted = true;
                 await WaitForSocks5Async(IPAddress.Loopback, 10808, TimeSpan.FromSeconds(8), cancellationToken);
+                EnsureStartupActive(cancellationToken);
                 WriteLog("Xray SOCKS5 listener is accepting no-auth handshakes on 127.0.0.1:10808.");
             }
 
             await ValidateAsync(singBoxPath, cancellationToken, "check", "-c", singBoxConfigPath);
+            EnsureStartupActive(cancellationToken);
             var singBoxProcess = StartProcess(singBoxPath, "run -c " + Quote(singBoxConfigPath), "sing-box");
             lock (_sync) _singBox = singBoxProcess;
             singBoxStarted = true;
@@ -168,6 +171,7 @@ internal sealed class EngineRuntime : IDisposable
             _totalUpload = 0;
             _totalDownload = 0;
             await WaitForClashApiAsync(apiPort, apiSecret, TimeSpan.FromSeconds(6), cancellationToken);
+            EnsureStartupActive(cancellationToken);
             WriteLog("sing-box control API is responsive; TUN process startup confirmed (internet reachability is not yet proven).");
             _trafficMonitor = new TrafficMonitor(apiPort, apiSecret);
             _trafficMonitor.LogLine += WriteLog;
@@ -199,13 +203,23 @@ internal sealed class EngineRuntime : IDisposable
             }
             if (singBoxStarted) await StopSingBoxAsync();
             if (xrayStarted) await StopXrayAsync();
-            StateChanged?.Invoke(false, "Ошибка запуска: " + ex.Message);
+            if (Volatile.Read(ref _stopRequested) != 0 || ex is OperationCanceledException)
+                WriteLog("Runtime startup was cancelled; cleanup completed.");
+            else
+                StateChanged?.Invoke(false, "Ошибка запуска: " + ex.Message);
             throw;
         }
         finally
         {
             Interlocked.Exchange(ref _isStarting, 0);
         }
+    }
+
+    private void EnsureStartupActive(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Volatile.Read(ref _stopRequested) != 0)
+            throw new OperationCanceledException("Подключение отменено запросом отключения.");
     }
 
     public async Task StopAsync()
