@@ -2,7 +2,7 @@ pub mod dpi;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 use crate::dpi::controller::{ConnectionController, ConnectionState};
-use crate::dpi::shaper::DpiConfig;
+use crate::dpi::shaper::{select_strategy, DpiConfig, DpiStrategy};
 use jni::sys::{jboolean, jint};
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
@@ -467,11 +467,8 @@ impl Profile {
         // TLS proxy handshakes. It is a real transport-layer strategy, not a
         // universal DPI bypass. QUIC and REALITY are intentionally excluded.
         let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
-        let supports_tls_record_fragmentation =
-            self.protocol == "trojan"
-            || (matches!(self.protocol.as_str(), "vless" | "vmess")
-                && self.params.get("security").is_some_and(|value| value.eq_ignore_ascii_case("tls")));
-        if dpi_enabled && supports_tls_record_fragmentation
+        let security = self.params.get("security").map(String::as_str).unwrap_or("none");
+        if select_strategy(dpi_enabled, &self.protocol, security) == DpiStrategy::TlsRecordFragmentation
             && outbound.get("tls").and_then(|tls| tls.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false) {
             outbound["tls"]["record_fragment"] = serde_json::Value::Bool(true);
         }
@@ -510,7 +507,8 @@ impl Profile {
         // TCP segmentation. Chain only the proxy-server dial through it; ordinary
         // tunneled traffic and REALITY profiles remain untouched.
         let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
-        let use_tls_hello_fragment = dpi_enabled && security == "tls";
+        let use_tls_hello_fragment =
+            select_strategy(dpi_enabled, &self.protocol, &security) == DpiStrategy::TlsRecordFragmentation;
         if use_tls_hello_fragment {
             stream["sockopt"] = serde_json::json!({ "dialerProxy": "dpi-fragment" });
         }
