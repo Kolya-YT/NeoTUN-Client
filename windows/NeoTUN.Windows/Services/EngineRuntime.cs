@@ -25,6 +25,7 @@ internal sealed class EngineRuntime : IDisposable
     private long _totalUpload;
     private long _totalDownload;
     private int _stopRequested;
+    private long _lifecycleGeneration;
     private int _isStarting;
     private readonly System.Collections.Generic.List<string> _singBoxErrors = new();
     private readonly System.Collections.Generic.List<string> _xrayErrors = new();
@@ -61,13 +62,22 @@ internal sealed class EngineRuntime : IDisposable
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Windows runtime доступен только в Windows.");
         if (!IsAdministrator())
             throw new InvalidOperationException("Для создания системного TUN нужны права администратора. Запусти NeoTUN от имени администратора.");
-        if (IsRunning) return;
-        if (_singBox is not null || _xray is not null) await StopAsync();
 
-        // Reset the stop flag only after cleaning up a previous session: StopAsync
-        // sets it intentionally, and resetting it before that cleanup would either
-        // hide a concurrent disconnect or make the new startup cancel itself.
-        Interlocked.Exchange(ref _stopRequested, 0);
+        // Capture disconnect intent before cleaning stale processes. A StopAsync
+        // racing with this cleanup must not be erased by the subsequent flag reset.
+        var lifecycleGeneration = Volatile.Read(ref _lifecycleGeneration);
+        if (IsRunning) return;
+        if (_singBox is not null || _xray is not null) await StopCoreAsync();
+
+        lock (_sync)
+        {
+            if (lifecycleGeneration != Volatile.Read(ref _lifecycleGeneration))
+                throw new OperationCanceledException("Запуск отменён запросом отключения.");
+
+            // Reset only after stale-process cleanup and while serialized against
+            // StopAsync's lifecycle-generation update.
+            Interlocked.Exchange(ref _stopRequested, 0);
+        }
         lock (_errorSync)
         {
             _singBoxErrors.Clear();
@@ -244,12 +254,24 @@ internal sealed class EngineRuntime : IDisposable
 
     public async Task StopAsync()
     {
-        Interlocked.Exchange(ref _stopRequested, 1);
+        // Publish the disconnect before touching processes so an overlapping
+        // StartAsync cannot reset the stop flag and resurrect the old request.
+        lock (_sync)
+        {
+            Interlocked.Increment(ref _lifecycleGeneration);
+            Interlocked.Exchange(ref _stopRequested, 1);
+        }
+
         CancellationTokenSource? startupCancellation;
         lock (_sync) startupCancellation = _startupCancellation;
         try { startupCancellation?.Cancel(); }
         catch (ObjectDisposedException) { }
 
+        await StopCoreAsync();
+    }
+
+    private async Task StopCoreAsync()
+    {
         if (_trafficMonitor is not null)
         {
             await _trafficMonitor.DisposeAsync();
