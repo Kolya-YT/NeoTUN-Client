@@ -1562,6 +1562,7 @@ class MainActivity : Activity() {
     }
 
     private var switchGeneration = 0
+    private var isSwitching = false
 
     private fun switchServer(profile: NeoTunProfile) {
         if (isFinishing || isDestroyed) return
