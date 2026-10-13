@@ -285,7 +285,7 @@ impl Profile {
                 return Err("VLESS profile uses the Xray runtime and cannot be converted to a sing-box outbound".into());
             }
         }
-        let outbound = match self.protocol.as_str() {
+        let mut outbound = match self.protocol.as_str() {
             "vless" => serde_json::from_str::<serde_json::Value>(&self.to_sing_box_json()?).unwrap()["outbounds"][0].clone(),
             "trojan" => {
                 let mut o=serde_json::json!({"type":"trojan","tag":"proxy","server":self.address,"server_port":self.port,"password":self.password.clone().unwrap_or_default()});
