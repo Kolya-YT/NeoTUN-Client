@@ -143,7 +143,7 @@ public sealed class SubscriptionStore
         // active routing configuration.
         if (routingProfileStore != null)
         {
-            ImportRoutingIfPresent(body + "\n" + decodedBody, routingHeader, autoRoutingHeader, routingProfileStore);
+            await ImportRoutingIfPresentAsync(body + "\n" + decodedBody, routingHeader, autoRoutingHeader, routingProfileStore, cancellationToken);
         }
 
         subscription.LastUpdated = DateTimeOffset.UtcNow;
@@ -225,11 +225,12 @@ public sealed class SubscriptionStore
         return links;
     }
 
-    private static void ImportRoutingIfPresent(
+    private static async Task ImportRoutingIfPresentAsync(
         string combinedBody,
         string? routingHeader,
         string? autoRoutingHeader,
-        RoutingProfileStore routingProfileStore)
+        RoutingProfileStore routingProfileStore,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -238,26 +239,120 @@ public sealed class SubscriptionStore
                             l.Contains("://routing/", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
+            // Match Android's precedence: autorouting header, autorouting body,
+            // routing header, then routing body.
             var candidate = (!string.IsNullOrWhiteSpace(autoRoutingHeader) ? autoRoutingHeader : null)
                 ?? lines.FirstOrDefault(l => l.Contains("://autorouting/", StringComparison.OrdinalIgnoreCase))
                 ?? (!string.IsNullOrWhiteSpace(routingHeader) ? routingHeader : null)
                 ?? lines.FirstOrDefault(l => l.Contains("://routing/", StringComparison.OrdinalIgnoreCase));
 
             if (string.IsNullOrWhiteSpace(candidate)) return;
+            candidate = DecodeRoutingDirective(candidate.Trim());
 
-            // Android-like decoding for routing payload
-            var decodedCandidate = candidate;
-            try {
-                if (!candidate.Contains("://", StringComparison.OrdinalIgnoreCase)) {
-                    decodedCandidate = Encoding.UTF8.GetString(Convert.FromBase64String(candidate.Replace(" ", "")));
-                }
-            } catch { }
+            if (candidate.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+                candidate.Contains("://routing/off", StringComparison.OrdinalIgnoreCase) ||
+                candidate.Contains("://autorouting/off", StringComparison.OrdinalIgnoreCase))
+            {
+                // Routing enable/disable is not yet a persisted Windows setting.
+                // Do not reinterpret an explicit "off" directive as a profile.
+                return;
+            }
 
-            routingProfileStore.ImportFromDeepLink(decodedCandidate);
+            var remoteUrl = ExtractRemoteRoutingUrl(candidate);
+            if (remoteUrl != null)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, remoteUrl);
+                request.Headers.UserAgent.ParseAdd("NeoTUN-Windows/0.4");
+                request.Headers.Accept.ParseAdd("application/json, text/plain, */*");
+                using var response = await Http.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                if (bytes.Length == 0 || bytes.Length > 1024 * 1024) return;
+                var remoteBody = Encoding.UTF8.GetString(bytes).Trim().TrimStart('\uFEFF');
+                if (remoteBody.StartsWith("{", StringComparison.Ordinal))
+                    routingProfileStore.ImportFromDeepLink(remoteBody);
+                else
+                    routingProfileStore.ImportFromDeepLink(DecodeRoutingDirective(remoteBody));
+                return;
+            }
+
+            routingProfileStore.ImportFromDeepLink(candidate);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
-            // Routing directive in subscription is optional; do not fail server import
+            // Routing metadata is optional; a bad directive must not fail server import.
         }
     }
+
+    private static string DecodeRoutingDirective(string candidate)
+    {
+        var value = candidate.Trim().TrimStart('\uFEFF');
+        if (value.Contains("://", StringComparison.OrdinalIgnoreCase)) return value;
+
+        var encoded = string.Concat(value.Where(c => !char.IsWhiteSpace(c)))
+            .Replace('-', '+')
+            .Replace('_', '/')
+            .TrimEnd('=');
+        if (encoded.Length == 0) return value;
+        encoded = encoded.PadRight(encoded.Length + ((4 - encoded.Length % 4) % 4), '=');
+
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(encoded)).Trim().TrimStart('\uFEFF');
+            return decoded.Length > 0 ? decoded : value;
+        }
+        catch (FormatException)
+        {
+            return value;
+        }
+    }
+
+    private static string? ExtractRemoteRoutingUrl(string candidate)
+    {
+        var marker = candidate.IndexOf("://autorouting/", StringComparison.OrdinalIgnoreCase);
+        var auto = marker >= 0;
+        if (marker < 0) marker = candidate.IndexOf("://routing/", StringComparison.OrdinalIgnoreCase);
+        if (marker < 0) return null;
+
+        var prefixLength = auto ? "://autorouting/".Length : "://routing/".Length;
+        var payload = candidate[(marker + prefixLength)..].Trim();
+        if (!auto)
+        {
+            if (payload.StartsWith("onadd/", StringComparison.OrdinalIgnoreCase))
+                payload = payload["onadd/".Length..];
+            else if (payload.StartsWith("add/", StringComparison.OrdinalIgnoreCase))
+                payload = payload["add/".Length..];
+            else
+                return null;
+        }
+
+        // Preserve the URL's own path and query; remove only an optional fragment.
+        var fragment = payload.IndexOf('#');
+        if (fragment >= 0) payload = payload[..fragment];
+        payload = Uri.UnescapeDataString(payload);
+        if (!Uri.TryCreate(payload, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            return null;
+
+        if (uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) &&
+            uri.AbsolutePath.Contains("/blob/", StringComparison.OrdinalIgnoreCase))
+        {
+            var path = uri.AbsolutePath.Replace("/blob/", "/", StringComparison.OrdinalIgnoreCase);
+            var builder = new UriBuilder(uri)
+            {
+                Host = "raw.githubusercontent.com",
+                Path = path
+            };
+            return builder.Uri.ToString();
+        }
+
+        return uri.ToString();
+    }
+
 }
