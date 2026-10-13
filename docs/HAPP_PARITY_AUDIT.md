@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Xray `onDestroy()` and `stopWithError()` now increment the startup generation, invalidating outstanding GeoData preparation/retry callbacks on teardown and failure so delayed work cannot resurrect a stopped run (commit `e15967e`). CI and Android device validation remain pending.
+
 - [x] Android Xray startup/retry now checks the captured lifecycle generation inside native-start exception handlers. If a synchronous Xray start fails after disconnect or engine switching has invalidated that attempt, the stale exception is logged and ignored instead of invoking `stopWithError()` against the newly selected engine (commit `ca24903`). Android CI and device-side rapid switching still need confirmation.
 
 - [x] Added a core regression test that alternates REALITY → ordinary VLESS TLS/WebSocket → VLESS XHTTP → plain TCP and checks that each selected URI produces its own engine/config (Xray profiles carry `xray_config` plus the Windows sing-box TUN bridge; sing-box profiles carry a native VLESS outbound and no stale Xray config). This guards per-profile engine selection, but it does not replace UI-level rapid-switch or real-traffic testing (commit `5ff874e`).
