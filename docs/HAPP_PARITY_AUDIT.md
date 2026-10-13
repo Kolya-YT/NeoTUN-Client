@@ -54,6 +54,8 @@
 
 ## Work log (2026-10-13)
 
+- [x] Prevented Xray `onDestroy()` from repeating native stop/DNS reset on Android's main thread after the expected disconnect/error cleanup has already completed on a worker. `nativeCleanupComplete` is reset on a new start and set only after worker cleanup; unexpected destruction retains a guarded fallback cleanup (commit `8249dc2`). CI/device verification remains open.
+
 - [x] Xray startup-failure cleanup now also runs native stop, TUN-fd release, DNS reset and native reinitialization on a worker thread. The error state is recorded before cleanup, and the service only stops after asynchronous cleanup completes, avoiding another main-thread stall on malformed profiles or native startup errors (commit `1b7fc80`). Android CI and device verification remain open.
 
 - [x] Xray explicit disconnect now invalidates queued startup/GeoData callbacks and runs native stop, DNS reset and TUN-fd cleanup on a dedicated worker instead of the Android main thread. The service remains alive until cleanup finishes, preserving the switcher's service-exit gate; duplicate disconnect commands are ignored while teardown is active (commit `7cc804a`). Android CI and device-side Xray↔sing-box rapid-switch checks remain required.
