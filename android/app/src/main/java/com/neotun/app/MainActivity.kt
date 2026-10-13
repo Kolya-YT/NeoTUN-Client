@@ -1622,37 +1622,21 @@ class MainActivity : Activity() {
     }
 
     private fun isVpnServiceActiveOrStarting(): Boolean {
-        if (isRunning()) return true
-        val serviceNames = setOf(
-            NeoTunVpnService::class.java.name,
-            NeoTunXrayVpnService::class.java.name,
-        )
-        return runCatching {
-            (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
-                .getRunningServices(Int.MAX_VALUE)
-                .any { it.service.className in serviceNames }
-        }.getOrDefault(true)
+        return isRunning() ||
+            NeoTunVpnService.isEngineBusy ||
+            NeoTunXrayVpnService.isEngineBusy
     }
 
     private fun waitForVpnServicesStopped(profile: NeoTunProfile, generation: Int, attempt: Int = 0) {
         if (isFinishing || isDestroyed || generation != switchGeneration) return
-        val serviceNames = setOf(
-            NeoTunVpnService::class.java.name,
-            NeoTunXrayVpnService::class.java.name,
-        )
-        val activeServices = runCatching {
-            (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
-                .getRunningServices(Int.MAX_VALUE)
-                .filter { it.service.className in serviceNames }
-                .map { it.service.className.substringAfterLast('.') }
-        }.getOrElse {
-            NeoTunDiagnostics.error(this, "Unable to verify VPN service shutdown", it)
-            listOf("unknown")
+        val activeEngines = buildList {
+            if (NeoTunVpnService.isEngineBusy) add("sing-box")
+            if (NeoTunXrayVpnService.isEngineBusy) add("Xray")
         }
-        val stillRunning = activeServices.isNotEmpty()
+        val stillRunning = activeEngines.isNotEmpty()
 
         if (!stillRunning) {
-            NeoTunDiagnostics.log(this, "Both VPN services stopped; starting selected profile; generation=" + generation)
+            NeoTunDiagnostics.log(this, "Both VPN engines stopped; starting selected profile; generation=" + generation)
             isSwitching = false
             connect(profile)
             return
@@ -1668,7 +1652,7 @@ class MainActivity : Activity() {
                 .putString(NeoTunVpnService.KEY_ERROR,
                     "Не удалось остановить предыдущее соединение за 20 секунд. Повторите переключение.")
                 .apply()
-            NeoTunDiagnostics.error(this, "Server switch aborted: VPN services did not stop within 20 seconds; remaining=" + activeServices.joinToString(","))
+            NeoTunDiagnostics.error(this, "Server switch aborted: native VPN engines did not stop within 20 seconds; remaining=" + activeEngines.joinToString(","))
             if (screen == Screen.HOME) renderHome() else renderProfiles()
             NeoTunHomeWidget.refreshAll(this)
             return
