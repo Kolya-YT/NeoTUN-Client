@@ -122,7 +122,7 @@ jobs:
           Get-ChildItem $singBoxExe.DirectoryName -File | Where-Object { $_.Name -ne "sing-box.exe" } | Copy-Item -Destination $runtime -Force
 
           $xrayZip = Join-Path $temp "xray.zip"
-          Get-PinnedArchive "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-windows-64.zip" $xrayZip
+          Get-PinnedArchive "https://github.com/XTLS/Xray-core/releases/download/v26.10.10/Xray-windows-64.zip" $xrayZip
           Expand-Archive $xrayZip (Join-Path $temp "xray") -Force
           $xrayExe = Get-ChildItem (Join-Path $temp "xray") -Filter "xray.exe" -Recurse | Select-Object -First 1
           if (!$xrayExe) { throw "xray.exe missing from pinned upstream archive" }
