@@ -59,7 +59,7 @@
 - [x] Windows routing import accepts typed JSON booleans/numbers, array or string route order, DNS aliases, IPv6, MTU and process exclusions (commit `ccf4728`).
 - [x] Windows routing deep-link decoder accepts path payloads as well as query payloads (commit `6d912c9`; Windows CI passed including app-start smoke test and installer packaging).
 - [x] Windows sing-box runtime now maps supported Happ/INCY GeoSite/GeoIP tokens to remote binary rule-sets, separates domain matchers from GeoSite matchers and IP matchers from GeoIP matchers, and uses the direct outbound for downloads (implementation commits `832bae2`, `697ba5a`, `b02e7d6`; source-boundary cleanup `f4e2778`).
-- [x] Fixed the Windows build error identified by run `38419511815`: `StopAfterUnexpectedExitAsync` was truncated after `try`, causing CS1513. Added awaited runtime cleanup and error reporting (commit `57ce03a`); Windows CI for this fix is queued.
+- [x] Identified the Windows build failure in run `38419511815` (`CS1513`): `StopAfterUnexpectedExitAsync` was truncated at the end of `EngineRuntime.cs`. First correction restored the `try/catch`; a follow-up correction added the missing method and class closing braces (commit `d329565`). Latest Windows CI is queued; successful compilation still needs confirmation.
 - [ ] Confirm latest Windows CI for GeoSite/GeoIP support succeeds.
 - [ ] Verify remote `.srs` endpoints and sing-box config validation with the pinned sing-box version.
 - [ ] Validate on Windows with a real profile: DIRECT for selected domestic rules, PROXY for selected proxy rules, BLOCK for selected block rules; include cold start with empty geodata cache.
