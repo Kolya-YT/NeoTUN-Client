@@ -809,4 +809,14 @@ internal sealed class EngineRuntime : IDisposable
             StateChanged?.Invoke(false, $"Ошибка очистки после завершения {name}: {ex.Message}");
         }
     }
+    
+    public void Dispose()
+    {
+        _trafficMonitor?.Dispose();
+        _trafficMonitor = null;
+
+        // Dispose can be called by the UI during shutdown; do not block its thread.
+        _ = StopAsync();
+        GC.SuppressFinalize(this);
+    }
 }
