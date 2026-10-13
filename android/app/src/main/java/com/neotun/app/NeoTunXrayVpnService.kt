@@ -16,6 +16,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class NeoTunXrayVpnService : VpnService() {
     private var tunFd: Int = -1
@@ -403,8 +405,24 @@ class NeoTunXrayVpnService : VpnService() {
                 .put("inboundTag", JSONArray().put("tun"))
                 .put("outboundTag", if (routingProfile?.globalProxy == false) "direct" else "proxy"),
         )
+        // A running Xray instance does not prove packets are flowing. Expose
+        // Xray's own traffic counters on loopback so diagnostics can distinguish
+        // "core alive" from "TUN/outbound actually carrying traffic".
         val config = JSONObject()
             .put("log", JSONObject().put("loglevel", "warning"))
+            .put("metrics", JSONObject().put("listen", "127.0.0.1:49227"))
+            .put(
+                "policy",
+                JSONObject().put(
+                    "system",
+                    JSONObject()
+                        .put("statsInboundDownlink", true)
+                        .put("statsInboundUplink", true)
+                        .put("statsOutboundDownlink", true)
+                        .put("statsOutboundUplink", true),
+                ),
+            )
+            .put("stats", JSONObject())
             .put(
                 "env",
                 JSONObject().put("xray.tun.fd", tunFd.toString()),
@@ -501,7 +519,44 @@ class NeoTunXrayVpnService : VpnService() {
                     state.optString("error", "running=false"),
             )
         }
-        NeoTunDiagnostics.log(this, "Xray запущен успешно. Ждём трафик через TUN.")
+        NeoTunDiagnostics.log(this, "Xray instance running; this confirms process state only, not traffic flow.")
+        scheduleXrayTrafficDiagnostics()
+    }
+
+    private fun scheduleXrayTrafficDiagnostics() {
+        // Give Android and the selected app a moment to send packets, then sample
+        // Xray's counters off the main thread. This is diagnostic only: no traffic
+        // is generated and an idle tunnel is not incorrectly marked as failed.
+        mainHandler.postDelayed({
+            if (destroyed || !running || tunFd < 0) return@postDelayed
+            Thread({
+                var connection: HttpURLConnection? = null
+                try {
+                    connection = (URL("http://127.0.0.1:49227/debug/vars").openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 1500
+                        readTimeout = 1500
+                        requestMethod = "GET"
+                    }
+                    val body = connection.inputStream.bufferedReader().use { it.readText() }
+                    val counters = body.lineSequence()
+                        .filter { it.contains("inbound>>>tun>>>traffic") || it.contains("outbound>>>proxy>>>traffic") }
+                        .take(12)
+                        .joinToString("; ")
+                    NeoTunDiagnostics.log(
+                        this,
+                        if (counters.isBlank()) {
+                            "Xray traffic metrics: endpoint answered, but no TUN/proxy counters were exposed."
+                        } else {
+                            "Xray traffic metrics: $counters"
+                        },
+                    )
+                } catch (error: Throwable) {
+                    NeoTunDiagnostics.error(this, "Xray traffic metrics unavailable", error)
+                } finally {
+                    connection?.disconnect()
+                }
+            }, "NeoTUN-Xray-Traffic-Metrics").start()
+        }, 8000L)
     }
 
     override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
