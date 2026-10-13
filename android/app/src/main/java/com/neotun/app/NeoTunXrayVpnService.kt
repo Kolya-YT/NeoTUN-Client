@@ -535,12 +535,12 @@ class NeoTunXrayVpnService : VpnService() {
                     socket.connect(java.net.InetSocketAddress("127.0.0.1", 49227), 1500)
                     socket.soTimeout = 1500
                     socket.getOutputStream().write(
-                        "GET /debug/vars HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n"
+                        "GET /debug/vars HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
                             .toByteArray(Charsets.US_ASCII),
                     )
                     val response = socket.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
                     socket.close()
-                    val body = response.substringAfter("\\r\\n\\r\\n", response.substringAfter("\\n\\n", ""))
+                    val body = response.substringAfter("\r\n\r\n", response.substringAfter("\n\n", ""))
                     val counters = body.lineSequence()
                         .filter { it.contains("inbound>>>tun>>>traffic") || it.contains("outbound>>>proxy>>>traffic") }
                         .take(12)
@@ -549,7 +549,7 @@ class NeoTunXrayVpnService : VpnService() {
                         this,
                         if (counters.isBlank()) {
                             "Xray traffic metrics: endpoint answered, but no TUN/proxy counters were exposed. Response: " +
-                                response.take(180).replace("\\n", " ")
+                                response.take(180).replace("\n", " ")
                         } else {
                             "Xray traffic metrics: $counters"
                         },
