@@ -344,6 +344,7 @@
             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,16">
               <StackPanel>
                 <TextBlock Text="ПАРАМЕТРЫ ПРОФИЛЯ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
+                <CheckBox Content="Включить пользовательские правила маршрутизации (Proxy / Direct / Block)" IsChecked="{Binding RoutingEnabled, Mode=TwoWay}" ToolTip="При выключении сохраняемый профиль не удаляется; изменения применяются при следующем подключении." Margin="0,0,0,14" FontWeight="SemiBold"/>
 
                 <Grid Margin="0,0,0,14">
                   <Grid.ColumnDefinitions>
