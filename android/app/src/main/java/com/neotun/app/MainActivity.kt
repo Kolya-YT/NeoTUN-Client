@@ -301,25 +301,7 @@ class MainActivity : Activity() {
             isFocusable = true
             setOnClickListener { showScreen(Screen.PROFILES) }
         }
-        serverCard.addView(txt("DPI Обход", 14f, NeoTunDesign.TEXT_PRIMARY),
-            LinearLayout.LayoutParams(0, -2, 1f))
-        val dpiSwitch = Switch(this)
-        val enabled = selected?.dpiBypassEnabled ?: false
-        dpiSwitch.isChecked = enabled
-        dpiSwitch.setOnCheckedChangeListener { _, isChecked ->
-            // Persist the profile option and apply the strategy to the next
-            // sing-box config. If connected, restart this profile so the new
-            // TLS record-fragmentation setting takes effect immediately.
-            val updated = selected?.copy(dpiBypassEnabled = isChecked)
-            if (updated != null) {
-                store.save(updated)
-                NeoTunCore.nativeSetDpiConfig(isChecked, 1200)
-                if (isRunning()) switchServer(updated)
-            } else {
-                NeoTunCore.nativeSetDpiConfig(isChecked, 1200)
-            }
-        }
-        serverCard.addView(dpiSwitch)
+
         val flag = FrameLayout(this).apply {
             background = rounded(NeoTunDesign.SURFACE_RAISED, 12)
             addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 20f,
@@ -1252,7 +1234,7 @@ class MainActivity : Activity() {
                 profile.uri.substringBefore("://").lowercase() + " -> " + activeProfile.engine)
         }
 
-        NeoTunCore.nativeSetDpiConfig(profile.dpiBypassEnabled, 1200)
+
 
         // Happ/INCY geosite/geoip tokens point to Xray .dat geodata. sing-box
         // cannot consume those tokens as plain domains, so don't silently let
@@ -2294,11 +2276,7 @@ class MainActivity : Activity() {
         val publicKey = EditText(this).apply { setText(first("pbk", "publicKey", "public_key")); hint = "REALITY PublicKey"; isSingleLine = true }
         val shortId = EditText(this).apply { setText(first("sid", "shortId", "short_id")); hint = "REALITY ShortId"; isSingleLine = true }
         val spiderX = EditText(this).apply { setText(first("spx", "spiderX", "spider_x")); hint = "REALITY SpiderX"; isSingleLine = true }
-        val dpiSwitch = Switch(this).apply {
-            text = "DPI Обход"
-            isChecked = p.dpiBypassEnabled
-            setPadding(dp(20), dp(10), dp(20), dp(10))
-        }
+
 
         val dialog = Dialog(this)
         val root = LinearLayout(this).apply {

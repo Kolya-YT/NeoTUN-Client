@@ -1,8 +1,4 @@
-pub mod dpi;
-use lazy_static::lazy_static;
-use std::sync::Mutex;
-use crate::dpi::controller::{ConnectionController, ConnectionState};
-use crate::dpi::shaper::{select_strategy, DpiConfig, DpiStrategy};
+
 use jni::sys::{jboolean, jint};
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
@@ -463,15 +459,7 @@ impl Profile {
             },
             _ => return Err("Протокол не поддерживается".into())
         };
-        // Use sing-box's built-in TLS record fragmentation on supported stream
-        // TLS proxy handshakes. It is a real transport-layer strategy, not a
-        // universal DPI bypass. QUIC and REALITY are intentionally excluded.
-        let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
-        let security = self.params.get("security").map(String::as_str).unwrap_or("none");
-        if select_strategy(dpi_enabled, &self.protocol, security) == DpiStrategy::TlsRecordFragmentation
-            && outbound.get("tls").and_then(|tls| tls.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false) {
-            outbound["tls"]["record_fragment"] = serde_json::Value::Bool(true);
-        }
+
 
         let config=serde_json::json!({"log":{"level":"info"},"inbounds":[{"type":"tun","tag":"tun-in","address":["172.19.0.1/30"],"auto_route":true,"dns_mode":"hijack","dns_address":["172.19.0.2"]}],"outbounds":[outbound,{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"dns":{"servers":[{"type":"local","tag":"system"}],"final":"system","strategy":"prefer_ipv4"},"route":{"rules":[{"protocol":"dns","action":"hijack-dns"}],"auto_detect_interface":true,"final":"proxy"}});
         serde_json::to_string_pretty(&config).map_err(|e|e.to_string())
@@ -503,15 +491,7 @@ impl Profile {
             stream["realitySettings"] = reality;
         }
 
-        // Xray's freedom fragment outbound performs actual TLS ClientHello
-        // TCP segmentation. Chain only the proxy-server dial through it; ordinary
-        // tunneled traffic and REALITY profiles remain untouched.
-        let dpi_enabled = DPI_CONTROLLER.lock().map(|controller| controller.is_enabled()).unwrap_or(false);
-        let use_tls_hello_fragment =
-            select_strategy(dpi_enabled, &self.protocol, &security) == DpiStrategy::TlsRecordFragmentation;
-        if use_tls_hello_fragment {
-            stream["sockopt"] = serde_json::json!({ "dialerProxy": "dpi-fragment" });
-        }
+
 
         let path = self.params.get("path").cloned().unwrap_or_else(|| "/".into());
         let host = self.params.get("host").filter(|v| !v.trim().is_empty()).cloned();
@@ -564,13 +544,7 @@ impl Profile {
         let mut outbounds = vec![
             serde_json::json!({ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": self.address, "port": self.port, "users": [{ "id": uuid, "encryption": "none", "flow": self.params.get("flow").cloned().unwrap_or_default() }] }] }, "streamSettings": stream }),
         ];
-        if use_tls_hello_fragment {
-            outbounds.push(serde_json::json!({
-                "tag": "dpi-fragment",
-                "protocol": "freedom",
-                "settings": { "fragment": { "packets": "tlshello", "length": "100-200", "interval": "10-20" } }
-            }));
-        }
+
         outbounds.push(serde_json::json!({ "tag": "direct", "protocol": "freedom" }));
         Ok(serde_json::json!({
             "log": { "loglevel": "warning" },
@@ -1245,22 +1219,4 @@ pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeShareEngine(mut env:
 }
 
 
-lazy_static! {
-    static ref DPI_CONTROLLER: Mutex<ConnectionController> = Mutex::new(ConnectionController::new(DpiConfig { enabled: false, fragmentation_threshold: 1200, out_of_order: false }));
-}
 
-#[no_mangle]
-pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeSetDpiConfig(mut _env: JNIEnv, _class: JClass, enabled: jboolean, threshold: jint) -> () {
-    let mut controller = DPI_CONTROLLER.lock().unwrap();
-    controller.set_enabled(enabled == 1, threshold as usize);
-}
-
-#[no_mangle]
-pub extern "system" fn Java_com_neotun_app_NeoTunCore_nativeGetDpiState(mut _env: JNIEnv, _class: JClass) -> jint {
-    let controller = DPI_CONTROLLER.lock().unwrap();
-    match controller.get_state() {
-        ConnectionState::DpiBypassing => 0,
-        ConnectionState::FallbackTunnelActive => 1,
-        _ => 2
-    }
-}

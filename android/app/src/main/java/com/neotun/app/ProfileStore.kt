@@ -13,7 +13,6 @@ data class NeoTunProfile(
     val uri: String,
     val engine: String,
     val sourceSubscriptionId: String? = null,
-    val dpiBypassEnabled: Boolean = false,
 )
 
 class ProfileStore(context: Context) {
@@ -35,7 +34,6 @@ class ProfileStore(context: Context) {
                             uri = uri,
                             engine = item.optString("engine", NeoTunVpnService.ENGINE_SING_BOX),
                             sourceSubscriptionId = item.optString("sourceSubscriptionId").takeIf { it.isNotBlank() },
-                            dpiBypassEnabled = item.optBoolean("dpiBypassEnabled", false),
                         ),
                     )
                 }
@@ -152,8 +150,7 @@ class ProfileStore(context: Context) {
                     .put("name", profile.name)
                     .put("uri", profile.uri)
                     .put("engine", profile.engine)
-                    .put("sourceSubscriptionId", profile.sourceSubscriptionId ?: "")
-                    .put("dpiBypassEnabled", profile.dpiBypassEnabled),
+                    .put("sourceSubscriptionId", profile.sourceSubscriptionId ?: ""),
             )
         }
         prefs.edit().putString(KEY_PROFILES, array.toString()).apply()

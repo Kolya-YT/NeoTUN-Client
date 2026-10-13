@@ -258,33 +258,7 @@ class NeoTunXrayVpnService : VpnService() {
             ?: throw IllegalArgumentException("Xray parser вернул пустой outbound")
         firstOutbound.put("tag", "proxy")
         val streamForLog = firstOutbound.optJSONObject("streamSettings")
-        val dpiEnabled = ProfileStore(this).all()
-            .firstOrNull { it.uri == uri }?.dpiBypassEnabled == true
-        val useTlsHelloFragment = dpiEnabled &&
-            streamForLog?.optString("security").equals("tls", ignoreCase = true)
-        if (useTlsHelloFragment) {
-            val sockopt = streamForLog?.optJSONObject("sockopt")
-                ?: JSONObject().also { streamForLog?.put("sockopt", it) }
-            sockopt?.put("dialerProxy", "dpi-fragment")
-            outbounds.put(
-                JSONObject()
-                    .put("tag", "dpi-fragment")
-                    .put("protocol", "freedom")
-                    .put(
-                        "settings",
-                        JSONObject().put(
-                            "fragment",
-                            JSONObject()
-                                .put("packets", "tlshello")
-                                .put("length", "100-200")
-                                .put("interval", "10-20"),
-                        ),
-                    ),
-            )
-            NeoTunDiagnostics.log(this, "DPI strategy enabled: Xray TLS ClientHello fragmentation (100-200 bytes)")
-        } else if (dpiEnabled) {
-            NeoTunDiagnostics.log(this, "DPI strategy not applied: this Xray profile does not use standard TLS")
-        }
+
         NeoTunDiagnostics.log(
             this,
             "Outbound: protocol=" + firstOutbound.optString("protocol", "?") +
