@@ -40,6 +40,7 @@ class NeoTunXrayVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             teardownInProgress = true
+            val switchToken = intent.getStringExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN)
             mainHandler.removeCallbacksAndMessages(null)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -51,14 +52,25 @@ class NeoTunXrayVpnService : VpnService() {
             // Keep the service alive until the worker completes so a profile switch
             // cannot start another VPN service concurrently.
             Thread({
+                var stopSucceeded = false
                 try {
                     stopTunnel()
                     nativeCleanupComplete = true
                     isEngineBusy = false
+                    stopSucceeded = true
                     NeoTunDiagnostics.log(this, "Xray native teardown completed")
                 } catch (error: Throwable) {
                     NeoTunDiagnostics.error(this, "Xray teardown failed", error)
                 } finally {
+                    if (!switchToken.isNullOrBlank()) {
+                        sendBroadcast(
+                            Intent(NeoTunVpnService.ACTION_ENGINE_STOPPED)
+                                .setPackage(packageName)
+                                .putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, switchToken)
+                                .putExtra(NeoTunVpnService.EXTRA_ENGINE_NAME, "xray")
+                                .putExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, stopSucceeded),
+                        )
+                    }
                     mainHandler.post {
                         teardownInProgress = false
                         // Newer duplicate start commands may advance startId.
