@@ -1677,12 +1677,31 @@ class MainActivity : Activity() {
             .putString(NeoTunVpnService.KEY_ERROR, message)
             .apply()
         NeoTunDiagnostics.error(this, "Server switch aborted: $message")
+        // A failed acknowledgement should not permanently strand the UI OFFLINE.
+        // Retry only after the lifecycle settles; connect() retains the strict
+        // teardown-confirmed path if a service is still busy.
+        handler.postDelayed({
+            if (isFinishing || isDestroyed || generation != switchGeneration) return@postDelayed
+            val selected = selectedProfile(store.all())
+            if (selected != null && selected.id == selectedProfileId() &&
+                !isVpnServiceActiveOrStarting()) {
+                NeoTunDiagnostics.log(this, "Retrying selected profile after switch failure; generation=$generation")
+                connect(selected)
+            } else {
+                NeoTunDiagnostics.log(this, "Automatic switch retry skipped: service still busy or profile changed")
+                if (screen == Screen.HOME) renderHome() else renderProfiles()
+            }
+        }, 1200L)
         if (screen == Screen.HOME) renderHome() else renderProfiles()
         NeoTunHomeWidget.refreshAll(this)
     }
 
     private fun isVpnServiceActiveOrStarting(): Boolean {
-        return isRunning() ||
+        // The engine busy flags live in different Android processes and can briefly
+        // drop during service teardown. The Activity switch state is authoritative
+        // for the UI process and must keep controls from starting a competing engine.
+        return isSwitching ||
+            isRunning() ||
             NeoTunVpnService.isEngineBusy ||
             NeoTunXrayVpnService.isEngineBusy
     }
