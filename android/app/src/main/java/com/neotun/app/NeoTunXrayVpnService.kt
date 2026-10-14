@@ -698,14 +698,20 @@ class NeoTunXrayVpnService : VpnService() {
                 )
             }
         }
-        NeoTunXrayBridge.nativeResetDns()
+        // Cleanup steps must be independent: a DNS-reset failure must not
+        // prevent closing the TUN fd or releasing the native Xray instance.
+        runCatching { NeoTunXrayBridge.nativeResetDns() }
+            .onFailure { NeoTunDiagnostics.error(this, "Xray teardown: DNS reset failed", it) }
 
         if (tunFd >= 0) {
-            runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
+            val fdToClose = tunFd
             tunFd = -1
+            runCatching { ParcelFileDescriptor.adoptFd(fdToClose).close() }
+                .onFailure { NeoTunDiagnostics.error(this, "Xray teardown: closing TUN fd failed", it) }
         }
 
         runCatching { NeoTunXrayBridge.nativeInit(null) }
+            .onFailure { NeoTunDiagnostics.error(this, "Xray teardown: native reset failed", it) }
 
         running = false
         starting = false
