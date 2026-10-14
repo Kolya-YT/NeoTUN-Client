@@ -631,29 +631,50 @@ class NeoTunXrayVpnService : VpnService() {
         starting = false
         mainHandler.removeCallbacksAndMessages(null)
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
-        // Expected disconnect/error paths already completed native cleanup on a
-        // worker. Repeating native reset from onDestroy would run it on the main
-        // thread and can stall the profile switch or trigger an ANR.
+
         if (!nativeCleanupComplete) {
-            runCatching { stopTunnel() }
-                .onFailure { NeoTunDiagnostics.error(this, "Xray onDestroy cleanup failed", it) }
+            // Never wait for a potentially blocked JNI startup/stop on Android's
+            // main thread. The lifecycle lock serializes this fallback cleanup
+            // with any startup worker still unwinding.
+            isEngineBusy = true
+            Thread({
+                try {
+                    stopTunnel()
+                    nativeCleanupComplete = true
+                    stopAcknowledgementSucceeded = true
+                } catch (error: Throwable) {
+                    stopAcknowledgementSucceeded = false
+                    NeoTunDiagnostics.error(this, "Xray onDestroy cleanup failed", error)
+                } finally {
+                    isEngineBusy = false
+                    acknowledgePendingSwitchStops()
+                }
+            }, "NeoTUN-xray-destroy-cleanup").start()
+        } else {
+            isEngineBusy = false
+            acknowledgePendingSwitchStops()
         }
-        isEngineBusy = false
-        // Acknowledge only after this VpnService's final cleanup has run. This
-        // prevents MainActivity from starting another engine in the gap between
-        // native stop completion and Android's service destruction.
+        super.onDestroy()
+    }
+
+    private fun acknowledgePendingSwitchStops() {
         pendingSwitchStopTokens.toList().forEach { token ->
-            NeoTunDiagnostics.log(this, "Xray: acknowledging switch stop token after onDestroy; nativeCleanupComplete=$nativeCleanupComplete; success=$stopAcknowledgementSucceeded; token=$token")
+            NeoTunDiagnostics.log(
+                this,
+                "Xray: acknowledging switch stop token after cleanup; nativeCleanupComplete=$nativeCleanupComplete; success=$stopAcknowledgementSucceeded; token=$token"
+            )
             sendBroadcast(
                 Intent(NeoTunVpnService.ACTION_ENGINE_STOPPED)
                     .setPackage(packageName)
                     .putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, token)
                     .putExtra(NeoTunVpnService.EXTRA_ENGINE_NAME, "xray")
-                    .putExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, stopAcknowledgementSucceeded && nativeCleanupComplete),
+                    .putExtra(
+                        NeoTunVpnService.EXTRA_STOP_SUCCESS,
+                        stopAcknowledgementSucceeded && nativeCleanupComplete
+                    ),
             )
             pendingSwitchStopTokens.remove(token)
         }
-        super.onDestroy()
     }
 
     private fun stopTunnel() = synchronized(xrayLifecycleLock) {
@@ -687,12 +708,6 @@ class NeoTunXrayVpnService : VpnService() {
         if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
                 == NeoTunVpnService.ENGINE_XRAY) {
             prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
         }
     }
 
