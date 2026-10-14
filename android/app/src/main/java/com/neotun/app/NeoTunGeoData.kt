@@ -104,13 +104,21 @@ object NeoTunGeoData {
 
     private fun downloadAny(context: Context, sources: List<String>, target: File, label: String): Boolean {
         var lastError: Throwable? = null
+        // Bound mirror retries so an unreachable geodata host cannot stall Xray startup.
+        val deadlineNanos = System.nanoTime() + 25_000_000_000L
         for ((index, source) in sources.withIndex()) {
+            if (System.nanoTime() >= deadlineNanos) {
+                lastError = java.net.SocketTimeoutException("$label: превышено общее время загрузки геобазы")
+                NeoTunDiagnostics.error(context, "$label: время на зеркала исчерпано")
+                break
+            }
             try {
-                if (download(context, source, target, label)) return true
+                if (download(context, source, target, label, deadlineNanos)) return true
             } catch (t: Throwable) {
                 lastError = t
+                NeoTunDiagnostics.error(context, "$label: источник ${index + 1}/${sources.size} не сработал", t)
             }
-            if (index < sources.lastIndex) {
+            if (index < sources.lastIndex && System.nanoTime() < deadlineNanos) {
                 NeoTunDiagnostics.log(context, "$label: основной источник недоступен; пробую резервный")
             }
         }
@@ -139,15 +147,21 @@ object NeoTunGeoData {
         return null
     }
 
-    private fun download(context: Context, source: String, target: File, label: String): Boolean {
+    private fun download(
+        context: Context,
+        source: String,
+        target: File,
+        label: String,
+        deadlineNanos: Long,
+    ): Boolean {
         require(source.startsWith("https://", true)) { "$label: допускаются только HTTPS URL" }
         val temporary = File(target.parentFile, target.name + ".download")
         var connection: HttpURLConnection? = null
         NeoTunDiagnostics.log(context, "$label: загрузка геобазы")
         try {
             connection = URL(source).openConnection() as HttpURLConnection
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("User-Agent", "NeoTUN/0.5.4")
             connection.connect()
@@ -164,6 +178,9 @@ object NeoTunGeoData {
                 FileOutputStream(temporary).use { output ->
                     val buffer = ByteArray(32 * 1024)
                     while (true) {
+                        if (System.nanoTime() >= deadlineNanos) {
+                            throw java.net.SocketTimeoutException("$label: превышено общее время загрузки геобазы")
+                        }
                         val count = input.read(buffer)
                         if (count < 0) break
                         downloadedBytes += count
