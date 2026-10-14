@@ -39,6 +39,12 @@ public partial class MainWindow : Window
     private bool _isExplicitExit;
     private Task? _connectionOperation;
     private bool _switchingProfile;
+    private readonly object _runtimeLogQueueSync = new();
+    private readonly System.Collections.Generic.Queue<string> _runtimeLogQueue = new();
+    private readonly System.Windows.Threading.DispatcherTimer _runtimeLogFlushTimer;
+    private bool _runtimeLogQueueDropped;
+    private const int MaxQueuedUiLogLines = 1500;
+    private const int MaxVisibleLogChars = 250_000;
 
     public MainWindow()
     {
@@ -51,7 +57,13 @@ public partial class MainWindow : Window
         _appSettingsPath = Path.Combine(_dataDirectory, "app-settings.json");
 
         _runtime = new EngineRuntime();
-        _runtime.LogLine += msg => Dispatcher.Invoke(() => AddLog(msg));
+        _runtime.LogLine += QueueRuntimeLog;
+        _runtimeLogFlushTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(150)
+        };
+        _runtimeLogFlushTimer.Tick += (_, _) => FlushRuntimeLogs();
+        _runtimeLogFlushTimer.Start();
         _runtime.TrafficUpdated += (upload, download, totalUpload, totalDownload) =>
             Dispatcher.BeginInvoke(() => _vm.UpdateTraffic(download, upload, totalDownload, totalUpload));
         _runtime.StateChanged += (connected, message) => Dispatcher.BeginInvoke(() =>
@@ -1113,9 +1125,51 @@ public partial class MainWindow : Window
 
     private void AddLog(string message)
     {
-        var line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n";
-        LogsTextBox.AppendText(line);
-        LogsTextBox.ScrollToEnd();
+        AppendBoundedLogText($"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
+    }
+
+    private void QueueRuntimeLog(string message)
+    {
+        // Process output threads must not synchronously wait for the WPF dispatcher.
+        lock (_runtimeLogQueueSync)
+        {
+            if (_runtimeLogQueue.Count >= MaxQueuedUiLogLines)
+            {
+                _runtimeLogQueue.Dequeue();
+                _runtimeLogQueueDropped = true;
+            }
+            _runtimeLogQueue.Enqueue(message);
+        }
+    }
+
+    private void FlushRuntimeLogs()
+    {
+        var batch = new System.Collections.Generic.List<string>(200);
+        lock (_runtimeLogQueueSync)
+        {
+            if (_runtimeLogQueueDropped)
+            {
+                batch.Add("[NeoTUN] Часть старых строк скрыта: журнал поступает быстрее, чем интерфейс успевает его показать.");
+                _runtimeLogQueueDropped = false;
+            }
+            while (batch.Count < 200 && _runtimeLogQueue.Count > 0)
+                batch.Add(_runtimeLogQueue.Dequeue());
+        }
+        if (batch.Count == 0) return;
+        AppendBoundedLogText(string.Join("\n", batch) + "\n");
+    }
+
+    private void AppendBoundedLogText(string text)
+    {
+        LogsTextBox.AppendText(text);
+        var current = LogsTextBox.Text;
+        if (current.Length > MaxVisibleLogChars)
+        {
+            var removeThrough = current.Length - (MaxVisibleLogChars * 3 / 4);
+            var nextLine = current.IndexOf('\n', removeThrough);
+            LogsTextBox.Text = nextLine >= 0 ? current[(nextLine + 1)..] : current[^(MaxVisibleLogChars * 3 / 4)..];
+        }
+        if (_vm.ActivePage == "Журнал") LogsTextBox.ScrollToEnd();
     }
 
     private void CopyLogs_Click(object sender, RoutedEventArgs e)
