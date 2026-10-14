@@ -410,8 +410,18 @@ class NeoTunXrayVpnService : VpnService() {
         // A running Xray instance does not prove packets are flowing. Expose
         // Xray's own traffic counters on loopback so diagnostics can distinguish
         // "core alive" from "TUN/outbound actually carrying traffic".
-        xrayAccessLog = java.io.File(filesDir, "xray-access.log").absolutePath
-        xrayErrorLog = java.io.File(filesDir, "xray-error.log").absolutePath
+        val accessLogFile = java.io.File(filesDir, "xray-access.log")
+        val errorLogFile = java.io.File(filesDir, "xray-error.log")
+        xrayAccessLog = accessLogFile.absolutePath
+        xrayErrorLog = errorLogFile.absolutePath
+        // Start each session with fresh engine logs. Otherwise a failed current
+        // connection can be diagnosed from a previous session's REALITY/transport
+        // errors, which is misleading when users switch profiles or engines.
+        runCatching { accessLogFile.writeText("", Charsets.UTF_8) }
+            .onFailure { NeoTunDiagnostics.error(this, "Не удалось очистить предыдущий Xray access log", it) }
+        runCatching { errorLogFile.writeText("", Charsets.UTF_8) }
+            .onFailure { NeoTunDiagnostics.error(this, "Не удалось очистить предыдущий Xray error log", it) }
+        NeoTunDiagnostics.log(this, "Xray session logs prepared (old session contents cleared where possible)")
         // "running=true" only confirms lifecycle state. Keep Xray's own error and
         // access logs so transport/TLS/REALITY/dial failures are visible on-device.
         val config = JSONObject()
