@@ -37,7 +37,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             // worker may own native shutdown; a second worker could clear the
             // busy flag before the first worker has released the TUN.
             if (disconnectRequested) {
-                NeoTunDiagnostics.log(this, "sing-box: duplicate disconnect ignored; teardown already in progress")
+                NeoTunDiagnostics.log(this, "sing-box: duplicate disconnect received during teardown; queued token will be acknowledged after onDestroy")
                 return START_NOT_STICKY
             }
             disconnectRequested = true
@@ -220,16 +220,16 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             "; savedRunning=" + getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_RUNNING, false) +
             "; savedError=" + (getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ERROR, null) ?: "none"))
         stopServiceInternal()
-        // Do not release the next engine when native close finishes but this
-        // VpnService is still alive. A switch acknowledgement means onDestroy
-        // has been entered and the old service has relinquished its lifecycle.
+        // The service may have been instantiated only to receive ACTION_DISCONNECT.
+        // Its tokens are still drained here, after native cleanup and lifecycle teardown.
         pendingSwitchStopTokens.toList().forEach { token ->
+            NeoTunDiagnostics.log(this, "sing-box: acknowledging switch stop token after onDestroy; token=" + token)
             sendBroadcast(
                 Intent(ACTION_ENGINE_STOPPED)
                     .setPackage(packageName)
                     .putExtra(EXTRA_SWITCH_TOKEN, token)
                     .putExtra(EXTRA_ENGINE_NAME, "sing-box")
-                    .putExtra(EXTRA_STOP_SUCCESS, true),
+                    .putExtra(EXTRA_STOP_SUCCESS, !::commandServer.isInitialized || nativeCloseStarted),
             )
             pendingSwitchStopTokens.remove(token)
         }
