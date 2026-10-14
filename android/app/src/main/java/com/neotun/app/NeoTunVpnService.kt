@@ -72,17 +72,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 closeNativeResources()
                 isEngineBusy = false
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
-                pendingSwitchStopTokens.toList().forEach { token ->
-                    sendBroadcast(
-                        Intent(ACTION_ENGINE_STOPPED)
-                            .setPackage(packageName)
-                            .putExtra(EXTRA_SWITCH_TOKEN, token)
-                            .putExtra(EXTRA_ENGINE_NAME, "sing-box")
-                            .putExtra(EXTRA_STOP_SUCCESS, true),
-                    )
-                    pendingSwitchStopTokens.remove(token)
-                }
-                NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service")
+                NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service; waiting for onDestroy before acknowledging switch")
                 // Use stopSelf(), not stopSelf(startId): duplicate start commands
                 // can advance startId while this single teardown worker is running.
                 // stopSelf(startId) would then leave the service alive indefinitely.
@@ -230,6 +220,19 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             "; savedRunning=" + getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_RUNNING, false) +
             "; savedError=" + (getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ERROR, null) ?: "none"))
         stopServiceInternal()
+        // Do not release the next engine when native close finishes but this
+        // VpnService is still alive. A switch acknowledgement means onDestroy
+        // has been entered and the old service has relinquished its lifecycle.
+        pendingSwitchStopTokens.toList().forEach { token ->
+            sendBroadcast(
+                Intent(ACTION_ENGINE_STOPPED)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_SWITCH_TOKEN, token)
+                    .putExtra(EXTRA_ENGINE_NAME, "sing-box")
+                    .putExtra(EXTRA_STOP_SUCCESS, true),
+            )
+            pendingSwitchStopTokens.remove(token)
+        }
         super.onDestroy()
     }
 
