@@ -364,9 +364,11 @@ class MainActivity : Activity() {
                     setOnClickListener {
                         if (profile.id == selectedProfileId()) {
                             showScreen(Screen.PROFILES)
-                        } else if (isRunning()) {
-                            // Switch without a confirmation dialog. Fully request the
-                            // active tunnel shutdown before starting the new profile.
+                        } else if (isVpnServiceActiveOrStarting()) {
+                            // KEY_RUNNING can still be false while an engine is starting
+                            // or the previous VPN is tearing down. Treat that as an active
+                            // session so a quick-switch tap never only changes selection
+                            // while leaving the old/new service lifecycle untouched.
                             switchServer(profile)
                         } else {
                             setSelectedProfile(profile.id)
