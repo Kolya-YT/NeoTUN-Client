@@ -30,6 +30,7 @@ class NeoTunXrayVpnService : VpnService() {
     private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
     @Volatile private var stopAcknowledgementSucceeded = true
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val xrayLifecycleLock = Any()
     private var xrayAccessLog: String = ""
     private var xrayErrorLog: String = ""
 
@@ -125,7 +126,9 @@ class NeoTunXrayVpnService : VpnService() {
 
         NeoTunDiagnostics.log(this, "Профиль получен: VLESS-ссылка (секретные параметры скрыты)")
 
-        // Network I/O must not run on Android main thread.
+        // Keep all network and native startup work off Android's main thread.
+        // Native startup is serialized with teardown so disconnect/profile-switch cannot
+        // close the TUN while runXray is still attaching to it.
         Thread({
             try {
                 val routing = RoutingProfileStore(this).active()
@@ -143,90 +146,97 @@ class NeoTunXrayVpnService : VpnService() {
                         "ms; geoip=" + geo.geoIpBytes + " bytes, geosite=" + geo.geoSiteBytes +
                         " bytes, updated=" + geo.updated
                 )
-                if (generation != startupGeneration) {
+                if (!isXrayStartupCurrent(generation)) {
                     NeoTunDiagnostics.log(this, "Xray startup cancelled after GeoData preparation")
                     return@Thread
                 }
-                mainHandler.post {
-                    if (destroyed || !starting || generation != startupGeneration) return@post
-                    try {
-                        startXray(uri, geoDir.absolutePath)
-                        getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-                            .edit()
-                            .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
-                            .remove(NeoTunVpnService.KEY_ERROR)
-                            .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
-                            .apply()
-                        running = true
-                        starting = false
-                    } catch (t: Throwable) {
-                        // A synchronous native start can fail after the user has
-                        // already requested disconnect or selected another engine.
-                        // Do not let that stale failure stop or overwrite the new run.
-                        if (destroyed || generation != startupGeneration) {
-                            NeoTunDiagnostics.log(this, "Ignoring stale Xray startup failure after lifecycle changed")
-                            return@post
-                        }
-                        NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", t)
-                        if (isGeoDataIntegrityError(t)) {
-                            NeoTunDiagnostics.log(this, "Обнаружена ошибка чтения GeoIP/GeoSite. Обновляю геобазы и повторяю запуск один раз.")
-                            Thread({
-                                try {
-                                    val refreshed = NeoTunGeoData.ensure(
-                                        this,
-                                        geoDir,
-                                        routing?.json,
-                                        forceRefresh = true,
-                                    )
-                                    NeoTunDiagnostics.log(this, "GeoData после обновления: geoip=" +
-                                        refreshed.geoIpBytes + " bytes, geosite=" + refreshed.geoSiteBytes)
-                                    mainHandler.post {
-                                        if (destroyed || !starting || generation != startupGeneration) return@post
-                                        try {
-                                            startXray(uri, geoDir.absolutePath)
-                                            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-                                                .edit()
-                                                .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
-                                                .remove(NeoTunVpnService.KEY_ERROR)
-                                                .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
-                                                .apply()
-                                            running = true
-                                            starting = false
-                                        } catch (retryError: Throwable) {
-                                            if (destroyed || generation != startupGeneration) {
-                                                NeoTunDiagnostics.log(this, "Ignoring stale Xray retry failure after lifecycle changed")
-                                                return@post
-                                            }
-                                            NeoTunDiagnostics.error(this, "Повторный запуск Xray после обновления GeoData не удался", retryError)
-                                            stopWithError(retryError.message ?: "Xray не запустился после обновления геобаз")
-                                        }
-                                    }
-                                } catch (refreshError: Throwable) {
-                                    NeoTunDiagnostics.error(this, "Не удалось обновить повреждённые геобазы", refreshError)
-                                    mainHandler.post {
-                                        if (!destroyed && generation == startupGeneration) stopWithError(
-                                            "Ошибка GeoIP/GeoSite. Обновление не удалось: " +
-                                                (refreshError.message ?: "проверьте URL геобаз и интернет")
-                                        )
-                                    }
-                                }
-                            }, "NeoTUN-GeoData-Retry").start()
-                        } else {
-                            stopWithError(t.message ?: "Не удалось запустить Xray")
-                        }
-                    }
-                }
+                startXrayWithGeoDataRetry(uri, geoDir, routing?.json, generation)
             } catch (t: Throwable) {
-                NeoTunDiagnostics.error(this, "Критическая ошибка подготовки GeoData", t)
-                mainHandler.post {
-                    if (!destroyed && generation == startupGeneration) {
-                        stopWithError(t.message ?: "Не удалось подготовить геобазы")
-                    }
+                if (isXrayStartupCurrent(generation)) {
+                    NeoTunDiagnostics.error(this, "Критическая ошибка подготовки GeoData", t)
+                    stopWithError(t.message ?: "Не удалось подготовить геобазы")
+                } else {
+                    NeoTunDiagnostics.log(this, "Ignoring GeoData failure after Xray lifecycle changed")
                 }
             }
-        }, "NeoTUN-GeoData").start()
+        }, "NeoTUN-Xray-start").start()
 
         return START_NOT_STICKY
+    }
+
+    private fun isXrayStartupCurrent(generation: Int): Boolean =
+        !destroyed && starting && generation == startupGeneration && !teardownInProgress
+
+    private fun publishXrayStarted(generation: Int) {
+        mainHandler.post {
+            if (!isXrayStartupCurrent(generation)) {
+                NeoTunDiagnostics.log(this, "Xray startup completed after lifecycle changed; connection state not published")
+                return@post
+            }
+            getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                .edit()
+                .putString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_XRAY)
+                .remove(NeoTunVpnService.KEY_ERROR)
+                .putBoolean(NeoTunVpnService.KEY_RUNNING, true)
+                .apply()
+            running = true
+            starting = false
+            NeoTunDiagnostics.log(this, "Xray startup published to service state")
+        }
+    }
+
+    private fun startXrayWithGeoDataRetry(
+        uri: String,
+        geoDir: java.io.File,
+        routingJson: String?,
+        generation: Int,
+    ) {
+        try {
+            synchronized(xrayLifecycleLock) {
+                if (!isXrayStartupCurrent(generation)) return
+                startXray(uri, geoDir.absolutePath)
+            }
+            if (isXrayStartupCurrent(generation)) {
+                publishXrayStarted(generation)
+            } else {
+                NeoTunDiagnostics.log(this, "Xray started but lifecycle changed before state publication; teardown owns cleanup")
+            }
+        } catch (error: Throwable) {
+            if (!isXrayStartupCurrent(generation)) {
+                NeoTunDiagnostics.log(this, "Ignoring stale Xray startup failure after lifecycle changed")
+                return
+            }
+            NeoTunDiagnostics.error(this, "Критическая ошибка запуска Xray", error)
+            if (!isGeoDataIntegrityError(error)) {
+                stopWithError(error.message ?: "Не удалось запустить Xray")
+                return
+            }
+
+            NeoTunDiagnostics.log(this, "Обнаружена ошибка чтения GeoIP/GeoSite. Обновляю геобазы и повторяю запуск один раз.")
+            try {
+                val refreshed = NeoTunGeoData.ensure(this, geoDir, routingJson, forceRefresh = true)
+                NeoTunDiagnostics.log(
+                    this,
+                    "GeoData после обновления: geoip=" + refreshed.geoIpBytes +
+                        " bytes, geosite=" + refreshed.geoSiteBytes
+                )
+                if (!isXrayStartupCurrent(generation)) return
+                synchronized(xrayLifecycleLock) {
+                    if (!isXrayStartupCurrent(generation)) return
+                    startXray(uri, geoDir.absolutePath)
+                }
+                if (isXrayStartupCurrent(generation)) {
+                    publishXrayStarted(generation)
+                }
+            } catch (retryError: Throwable) {
+                if (isXrayStartupCurrent(generation)) {
+                    NeoTunDiagnostics.error(this, "Повторный запуск Xray после обновления GeoData не удался", retryError)
+                    stopWithError(retryError.message ?: "Xray не запустился после обновления геобаз")
+                } else {
+                    NeoTunDiagnostics.log(this, "Ignoring Xray GeoData retry failure after lifecycle changed")
+                }
+            }
+        }
     }
 
     private fun isGeoDataIntegrityError(error: Throwable): Boolean {
@@ -646,7 +656,7 @@ class NeoTunXrayVpnService : VpnService() {
         super.onDestroy()
     }
 
-    private fun stopTunnel() {
+    private fun stopTunnel() = synchronized(xrayLifecycleLock) {
         NeoTunDiagnostics.log(this, "Xray teardown: running=$running, tunFd=$tunFd")
         if (running || tunFd >= 0) {
             runCatching {
@@ -707,22 +717,8 @@ class NeoTunXrayVpnService : VpnService() {
 
         Thread({
             try {
-                // Stop Xray before releasing its TUN fd.
-                runCatching {
-                    NeoTunXrayBridge.nativeInvoke(
-                        JSONObject()
-                            .put("apiVersion", 3)
-                            .put("method", "stopXray")
-                            .put("payload", JSONObject())
-                            .toString(),
-                    )
-                }
-                if (tunFd >= 0) {
-                    runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
-                    tunFd = -1
-                }
-                runCatching { NeoTunXrayBridge.nativeResetDns() }
-                runCatching { NeoTunXrayBridge.nativeInit(null) }
+                // Share the same lifecycle lock as startup and explicit disconnect.
+                stopTunnel()
                 nativeCleanupComplete = true
             } catch (error: Throwable) {
                 NeoTunDiagnostics.error(this, "Xray error cleanup failed", error)
