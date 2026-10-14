@@ -29,6 +29,8 @@ class NeoTunXrayVpnService : VpnService() {
     @Volatile private var nativeCleanupComplete = false
     private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var xrayAccessLog: String = ""
+    private var xrayErrorLog: String = ""
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
@@ -408,8 +410,8 @@ class NeoTunXrayVpnService : VpnService() {
         // A running Xray instance does not prove packets are flowing. Expose
         // Xray's own traffic counters on loopback so diagnostics can distinguish
         // "core alive" from "TUN/outbound actually carrying traffic".
-        val xrayAccessLog = java.io.File(filesDir, "xray-access.log").absolutePath
-        val xrayErrorLog = java.io.File(filesDir, "xray-error.log").absolutePath
+        xrayAccessLog = java.io.File(filesDir, "xray-access.log").absolutePath
+        xrayErrorLog = java.io.File(filesDir, "xray-error.log").absolutePath
         // "running=true" only confirms lifecycle state. Keep Xray's own error and
         // access logs so transport/TLS/REALITY/dial failures are visible on-device.
         val config = JSONObject()
