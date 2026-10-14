@@ -188,7 +188,7 @@ class NeoTunXrayVpnService : VpnService() {
     private fun startXrayWithGeoDataRetry(
         uri: String,
         geoDir: java.io.File,
-        routingJson: String?,
+        routingJson: JSONObject?,
         generation: Int,
     ) {
         try {
