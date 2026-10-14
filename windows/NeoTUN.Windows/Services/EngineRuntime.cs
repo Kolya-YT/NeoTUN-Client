@@ -30,6 +30,14 @@ internal sealed class EngineRuntime : IDisposable
     private readonly System.Collections.Generic.List<string> _singBoxErrors = new();
     private readonly System.Collections.Generic.List<string> _xrayErrors = new();
     private readonly object _errorSync = new();
+    private readonly object _logQueueSync = new();
+    private readonly object _logFileSync = new();
+    private readonly System.Collections.Generic.Queue<string> _pendingFileLogs = new();
+    private readonly System.Threading.Timer _logFlushTimer;
+    private bool _droppedFileLogs;
+    private const int MaxPendingFileLogs = 3000;
+    private const int MaxLogLineChars = 8000;
+    private const long MaxLogFileBytes = 4L * 1024L * 1024L;
     private readonly string _dataDirectory;
     private readonly string _runtimeDirectory;
     private readonly string _logPath;
@@ -55,6 +63,11 @@ internal sealed class EngineRuntime : IDisposable
         _runtimeDirectory = Path.Combine(AppContext.BaseDirectory, "runtime");
         Directory.CreateDirectory(_dataDirectory);
         _logPath = Path.Combine(_dataDirectory, "windows-runtime.log");
+        _logFlushTimer = new System.Threading.Timer(
+            _ => FlushPendingLogs(),
+            null,
+            TimeSpan.FromMilliseconds(250),
+            TimeSpan.FromMilliseconds(250));
     }
 
     public async Task StartAsync(string shareUri, CancellationToken cancellationToken = default)
@@ -962,9 +975,55 @@ internal sealed class EngineRuntime : IDisposable
 
     private void WriteLog(string line)
     {
+        // Process stdout/stderr callbacks must never wait for disk I/O. Both
+        // engines can emit bursts; a full pipe can stall the tunnel.
+        if (line.Length > MaxLogLineChars)
+            line = line[..MaxLogLineChars] + " … [line truncated]";
         var entry = $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] {line}";
-        try { File.AppendAllText(_logPath, entry + Environment.NewLine, Encoding.UTF8); } catch { }
-        LogLine?.Invoke(entry);
+        lock (_logQueueSync)
+        {
+            if (_pendingFileLogs.Count >= MaxPendingFileLogs)
+            {
+                _pendingFileLogs.Dequeue();
+                _droppedFileLogs = true;
+            }
+            _pendingFileLogs.Enqueue(entry);
+        }
+        // The UI subscriber is intentionally required to be non-blocking.
+        try { LogLine?.Invoke(entry); } catch { }
+    }
+
+    private void FlushPendingLogs()
+    {
+        var batch = new System.Collections.Generic.List<string>(300);
+        lock (_logQueueSync)
+        {
+            if (_droppedFileLogs)
+            {
+                batch.Add($"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] [logger] Excess log burst; older queued lines were dropped.");
+                _droppedFileLogs = false;
+            }
+            while (batch.Count < 300 && _pendingFileLogs.Count > 0)
+                batch.Add(_pendingFileLogs.Dequeue());
+        }
+        if (batch.Count == 0) return;
+        try
+        {
+            lock (_logFileSync)
+            {
+                var payload = string.Join(Environment.NewLine, batch) + Environment.NewLine;
+                var incomingBytes = Encoding.UTF8.GetByteCount(payload);
+                var existingBytes = File.Exists(_logPath) ? new FileInfo(_logPath).Length : 0L;
+                if (existingBytes + incomingBytes > MaxLogFileBytes)
+                {
+                    var previous = _logPath + ".1";
+                    if (File.Exists(previous)) File.Delete(previous);
+                    if (File.Exists(_logPath)) File.Move(_logPath, previous);
+                }
+                File.AppendAllText(_logPath, payload, Encoding.UTF8);
+            }
+        }
+        catch { }
     }
 
     private static int GetAvailableLoopbackPort()
@@ -1023,5 +1082,11 @@ internal sealed class EngineRuntime : IDisposable
         // Dispose must not leave the tunnel engines running during application shutdown.
         try { StopAsync().GetAwaiter().GetResult(); } catch (Exception ex) { WriteLog("Runtime dispose cleanup failed: " + ex.Message); }
         _trafficMonitor = null;
+        _logFlushTimer.Dispose();
+        for (var i = 0; i < 20; i++)
+        {
+            lock (_logQueueSync) if (_pendingFileLogs.Count == 0 && !_droppedFileLogs) break;
+            FlushPendingLogs();
+        }
     }
 }
