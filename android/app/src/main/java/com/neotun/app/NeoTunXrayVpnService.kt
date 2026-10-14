@@ -85,7 +85,13 @@ class NeoTunXrayVpnService : VpnService() {
             }, "NeoTUN-xray-stop").start()
             return START_NOT_STICKY
         }
-        if (teardownInProgress || running || starting) return START_NOT_STICKY
+        if (teardownInProgress || running || starting) {
+            NeoTunDiagnostics.log(
+                this,
+                "Xray start command ignored: teardownInProgress=$teardownInProgress, running=$running, starting=$starting, nativeCleanupComplete=$nativeCleanupComplete"
+            )
+            return START_NOT_STICKY
+        }
         destroyed = false
         nativeCleanupComplete = false
         isEngineBusy = true
@@ -124,10 +130,19 @@ class NeoTunXrayVpnService : VpnService() {
             try {
                 val routing = RoutingProfileStore(this).active()
                 val geoDir = java.io.File(filesDir, "geodata")
-                NeoTunDiagnostics.log(this, "GeoData: проверка файлов в фоновом потоке")
+                NeoTunDiagnostics.log(
+                    this,
+                    "GeoData: checking files; routingProfile=" + (routing?.name ?: "none") +
+                        ", routingEnabled=" + RoutingProfileStore(this).enabled()
+                )
+                val geoStartedAt = android.os.SystemClock.elapsedRealtime()
                 val geo = NeoTunGeoData.ensure(this, geoDir, routing?.json)
-                NeoTunDiagnostics.log(this, "GeoData: geoip=" + geo.geoIpBytes +
-                    " bytes, geosite=" + geo.geoSiteBytes + " bytes, updated=" + geo.updated)
+                NeoTunDiagnostics.log(
+                    this,
+                    "GeoData: ready in " + (android.os.SystemClock.elapsedRealtime() - geoStartedAt) +
+                        "ms; geoip=" + geo.geoIpBytes + " bytes, geosite=" + geo.geoSiteBytes +
+                        " bytes, updated=" + geo.updated
+                )
                 if (generation != startupGeneration) {
                     NeoTunDiagnostics.log(this, "Xray startup cancelled after GeoData preparation")
                     return@Thread
