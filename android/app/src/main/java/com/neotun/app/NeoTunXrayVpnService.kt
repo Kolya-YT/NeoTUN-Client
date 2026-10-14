@@ -74,6 +74,7 @@ class NeoTunXrayVpnService : VpnService() {
                     // alone is insufficient: Android may still consider this old
                     // VpnService active while the replacement service starts.
                     stopAcknowledgementSucceeded = stopSucceeded
+                    NeoTunDiagnostics.log(this, "Xray: native teardown result=$stopSucceeded; requesting service destruction")
                     mainHandler.post {
                         teardownInProgress = false
                         // Newer duplicate start commands may advance startId.
@@ -617,12 +618,13 @@ class NeoTunXrayVpnService : VpnService() {
         // prevents MainActivity from starting another engine in the gap between
         // native stop completion and Android's service destruction.
         pendingSwitchStopTokens.toList().forEach { token ->
+            NeoTunDiagnostics.log(this, "Xray: acknowledging switch stop token after onDestroy; nativeCleanupComplete=$nativeCleanupComplete; success=$stopAcknowledgementSucceeded; token=$token")
             sendBroadcast(
                 Intent(NeoTunVpnService.ACTION_ENGINE_STOPPED)
                     .setPackage(packageName)
                     .putExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN, token)
                     .putExtra(NeoTunVpnService.EXTRA_ENGINE_NAME, "xray")
-                    .putExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, stopAcknowledgementSucceeded),
+                    .putExtra(NeoTunVpnService.EXTRA_STOP_SUCCESS, stopAcknowledgementSucceeded && nativeCleanupComplete),
             )
             pendingSwitchStopTokens.remove(token)
         }
