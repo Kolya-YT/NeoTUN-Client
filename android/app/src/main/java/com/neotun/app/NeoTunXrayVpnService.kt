@@ -212,8 +212,16 @@ class NeoTunXrayVpnService : VpnService() {
                 return
             }
 
-            NeoTunDiagnostics.log(this, "Обнаружена ошибка чтения GeoIP/GeoSite. Обновляю геобазы и повторяю запуск один раз.")
+            NeoTunDiagnostics.log(this, "Обнаружена ошибка чтения GeoIP/GeoSite. Очищаю неудачный запуск, обновляю геобазы и повторяю один раз.")
             try {
+                // A failed attempt may already have initialized JNI or established
+                // the TUN. Tear that partial state down before retrying the engine.
+                synchronized(xrayLifecycleLock) {
+                    if (!isXrayStartupCurrent(generation)) return
+                    stopTunnel()
+                    if (generation != startupGeneration || destroyed || teardownInProgress) return
+                    starting = true
+                }
                 val refreshed = NeoTunGeoData.ensure(this, geoDir, routingJson, forceRefresh = true)
                 NeoTunDiagnostics.log(
                     this,
