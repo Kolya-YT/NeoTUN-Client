@@ -167,7 +167,7 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
         root.addView(bottomActions, LinearLayout.LayoutParams(-1, -2))
-        root.addView(nav, LinearLayout.LayoutParams(-1, dp(58)))
+        // Navigation is contextual: Home has settings/import shortcuts and profiles are embedded below.
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
@@ -176,8 +176,7 @@ class MainActivity : Activity() {
                 dp(16) + bars.right, dp(12))
             // Reserve the system gesture/navigation area exactly once: in the
             // nav view's height, not both its height and padding.
-            nav.setPadding(dp(8) + bars.left, dp(3), dp(8) + bars.right, dp(3))
-            nav.layoutParams = nav.layoutParams.apply { height = dp(58) + bars.bottom }
+            nav.visibility = View.GONE
             bottomActions.setPadding(dp(14) + bars.left, dp(4), dp(14) + bars.right, dp(4))
             view.requestLayout()
             insets
@@ -200,7 +199,7 @@ class MainActivity : Activity() {
             Screen.PROFILES -> renderProfiles()
             Screen.SETTINGS -> renderSettings()
         }
-        renderNavigation()
+        nav.visibility = View.GONE
         content.animate().cancel()
         if (getSharedPreferences(UI_PREFS, MODE_PRIVATE).getBoolean("ui_animations", true)) {
             content.alpha = 0f
@@ -255,9 +254,14 @@ class MainActivity : Activity() {
         val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titleBox.addView(txt("NeoTUN", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
         titleBox.addView(txt("Защищённое соединение", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
+        top.addView(iconButton("⚙", 23) { showScreen(Screen.SETTINGS) }.apply {
+            background = rounded(NeoTunDesign.SURFACE, 14, NeoTunDesign.BORDER, 1)
+            contentDescription = "Настройки"
+        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { setMargins(0, 0, dp(10), 0) })
         top.addView(titleBox, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(iconButton("＋", 24) { showImportMenu() }.apply {
             background = rounded(NeoTunDesign.SURFACE, 14, NeoTunDesign.BORDER, 1)
+            contentDescription = "Добавить сервер или подписку"
         }, LinearLayout.LayoutParams(dp(44), dp(44)))
         content.addView(top)
 
@@ -537,6 +541,119 @@ class MainActivity : Activity() {
             val hint = txt("Начните с добавления сервера — NeoTUN поддерживает импорт ссылок и подписок.",
                 12f, NeoTunDesign.TEXT_MUTED).apply { gravity = Gravity.CENTER; maxLines = 3 }
             content.addView(hint, margins(top = 4, bottom = 14))
+        }
+
+        // Happ-inspired home layout: subscriptions and their profiles live on Home,
+        // rather than requiring a permanent bottom-navigation destination.
+        val currentSubscriptions = subscriptions.all()
+        if (currentSubscriptions.isNotEmpty() || profiles.isNotEmpty()) {
+            val listHeader = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            listHeader.addView(txt("Подписки и серверы", 16f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+                LinearLayout.LayoutParams(0, -2, 1f))
+            listHeader.addView(txt("${profiles.size} серверов", 11f, NeoTunDesign.TEXT_MUTED))
+            content.addView(listHeader, margins(top = 8, bottom = 9))
+
+            currentSubscriptions.forEachIndexed { index, sub ->
+                val owned = profiles.filter { it.sourceSubscriptionId == sub.id }
+                val prefs = getSharedPreferences(UI_PREFS, MODE_PRIVATE)
+                val expandedKey = "home_subscription_expanded_" + sub.id
+                val expanded = prefs.getBoolean(expandedKey, true)
+                val group = card().apply {
+                    setPadding(dp(9), dp(5), dp(9), dp(7))
+                }
+                val header = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(1), dp(5), 0, dp(5))
+                }
+                header.addView(iconButton(if (expanded) "⌄" else "›", 22) {
+                    prefs.edit().putBoolean(expandedKey, !prefs.getBoolean(expandedKey, true)).apply()
+                    renderHome()
+                }.apply {
+                    contentDescription = if (expanded) "Свернуть подписку" else "Развернуть подписку"
+                    background = ColorDrawable(Color.TRANSPARENT)
+                }, LinearLayout.LayoutParams(dp(32), dp(40)))
+                val subInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                subInfo.addView(txt(sub.name, 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                })
+                subInfo.addView(txt("Серверов: ${owned.size}" +
+                    if (sub.lastUpdated > 0L) " · Обновлено " +
+                        java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(sub.lastUpdated)) else " · Ожидает обновления",
+                    10f, NeoTunDesign.TEXT_MUTED), margins(top = 3))
+                subInfo.setOnClickListener {
+                    prefs.edit().putBoolean(expandedKey, !expanded).apply()
+                    renderHome()
+                }
+                header.addView(subInfo, LinearLayout.LayoutParams(0, -2, 1f))
+                header.addView(iconButton("↻", 20) { refreshSubscription(sub) }.apply {
+                    contentDescription = "Обновить подписку"
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 10)
+                }, LinearLayout.LayoutParams(dp(38), dp(38)))
+                header.addView(iconButton("◴", 19) {
+                    if (owned.isEmpty()) toast("В подписке пока нет серверов")
+                    else owned.forEach { pingSelected(it) }
+                }.apply {
+                    contentDescription = "Проверить пинг серверов подписки"
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 10)
+                }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { setMargins(dp(4), 0, 0, 0) })
+                header.addView(iconButton("⋯", 21) { subscriptionActions(sub) }.apply {
+                    contentDescription = "Действия с подпиской"
+                    background = rounded(NeoTunDesign.SURFACE_RAISED, 10)
+                }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { setMargins(dp(4), 0, 0, 0) })
+                group.addView(header)
+                if (expanded) {
+                    owned.forEachIndexed { rowIndex, profile ->
+                        val row = serverRow(profile, profile.id == selected?.id, compact = true)
+                        row.setOnClickListener {
+                            if (profile.id != selectedProfileId() && isVpnServiceActiveOrStarting()) switchServer(profile)
+                            else { setSelectedProfile(profile.id); renderHome() }
+                        }
+                        row.setOnLongClickListener {
+                            setSelectedProfile(profile.id)
+                            profileActions(profile)
+                            true
+                        }
+                        group.addView(row)
+                        if (rowIndex < owned.lastIndex) group.addView(View(this).apply {
+                            setBackgroundColor(NeoTunDesign.BORDER)
+                        }, LinearLayout.LayoutParams(-1, dp(1)))
+                    }
+                    if (owned.isEmpty()) group.addView(txt("Нет серверов. Обновите подписку.", 11f,
+                        NeoTunDesign.TEXT_MUTED), margins(start = 8, top = 6, bottom = 5))
+                }
+                content.addView(group, margins(bottom = 9))
+            }
+
+            val standalone = profiles.filter { it.sourceSubscriptionId.isNullOrBlank() ||
+                currentSubscriptions.none { sub -> sub.id == it.sourceSubscriptionId } }
+            if (standalone.isNotEmpty()) {
+                content.addView(txt("ОТДЕЛЬНЫЕ СЕРВЕРЫ", 10f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD),
+                    margins(start = 4, top = 5, bottom = 6))
+                val standaloneCard = card().apply { setPadding(dp(7), dp(5), dp(7), dp(5)) }
+                standalone.forEachIndexed { rowIndex, profile ->
+                    val row = serverRow(profile, profile.id == selected?.id, compact = true)
+                    row.setOnClickListener {
+                        if (profile.id != selectedProfileId() && isVpnServiceActiveOrStarting()) switchServer(profile)
+                        else { setSelectedProfile(profile.id); renderHome() }
+                    }
+                    row.setOnLongClickListener {
+                        setSelectedProfile(profile.id)
+                        profileActions(profile)
+                        true
+                    }
+                    standaloneCard.addView(row)
+                    if (rowIndex < standalone.lastIndex) standaloneCard.addView(View(this).apply {
+                        setBackgroundColor(NeoTunDesign.BORDER)
+                    }, LinearLayout.LayoutParams(-1, dp(1)))
+                }
+                content.addView(standaloneCard, margins(bottom = 12))
+            }
         }
     }
 
