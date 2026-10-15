@@ -567,8 +567,8 @@
                 <TextBlock Text="СИСТЕМА И ТРЕЙ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
 
                 <CheckBox x:Name="SettingsLaunchWithWindows" Content="Запускать NeoTUN вместе с Windows" Margin="0,0,0,8" Click="LaunchWithWindows_Click"/>
-                <CheckBox x:Name="SettingsMinimizeToTrayOnClose" Content="Сворачивать в системный трей при закрытии окна (крестик)" IsChecked="True" Margin="0,0,0,8"/>
-                <CheckBox x:Name="SettingsMinimizeToTrayOnStart" Content="Запускать свёрнутым в трей" IsChecked="False"/>
+                <CheckBox x:Name="SettingsMinimizeToTrayOnClose" Content="Сворачивать в системный трей при закрытии окна (крестик)" IsChecked="True" Margin="0,0,0,8" Checked="SettingsMinimizeToTray_Changed" Unchecked="SettingsMinimizeToTray_Changed"/>
+                <CheckBox x:Name="SettingsMinimizeToTrayOnStart" Content="Запускать свёрнутым в трей" IsChecked="False" Checked="SettingsMinimizeToTray_Changed" Unchecked="SettingsMinimizeToTray_Changed"/>
               </StackPanel>
             </Border>
 
