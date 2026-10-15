@@ -121,3 +121,9 @@
 - [x] sing-box now marks intentional disconnects and ignores `serviceStop()` callbacks emitted during native teardown, leaving final service stop and state cleanup to the disconnect worker. This avoids a native shutdown callback racing the next profile's state; validate on Android CI and device (commit `e829f35`).
 - [ ] Confirm Android/Windows CI for current source changes. Device-side reconnect, DNS, TCP/UDP and routing tests remain open.
 - [ ] Continue the audit: Xray `.dat` lifecycle, subscription edge cases, Android/Windows profile management parity, protocol engine coverage, real TCP/UDP and cleanup.
+
+## UI alignment log (2026-10-15)
+
+- [x] Android profile list now marks the selected server with a compact “ВЫБРАН” badge (commit `f53a65c`). Android APK CI and Windows Desktop CI both passed for that commit; device-side visual/accessibility checks remain open.
+- [x] Android subscription profile rows use tighter vertical padding and a 36dp flag tile while retaining a 44dp minimum row height (commit `d76f683`). Android APK and Windows Desktop CI are running for this commit; do not mark the change verified until both complete. No profile, subscription, engine, routing or connection behavior was changed.
+- [ ] Continue the Android-first visual pass: review the home screen's information density and selected-server hierarchy, then audit profile/subscription actions and settings consistency. Keep this work UI-only and update the parity matrix as checks complete.
