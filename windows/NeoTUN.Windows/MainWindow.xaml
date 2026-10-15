@@ -1,12 +1,14 @@
 <Window x:Class="NeoTUN.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:NeoTUN.Windows"
         Title="NeoTUN Client" Height="720" Width="1040" MinHeight="600" MinWidth="840"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
         Closing="MainWindow_Closing">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+    <local:ProfileSelectionConverter x:Key="ProfileSelectionConverter"/>
   </Window.Resources>
   <Grid>
     <Grid.RowDefinitions>
@@ -301,7 +303,25 @@
                   <ItemsControl ItemsSource="{Binding Items}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate>
-                        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,6">
+                        <Border BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,6">
+                          <Border.Style>
+                            <Style TargetType="{x:Type Border}">
+                              <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                              <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
+                              <Style.Triggers>
+                                <DataTrigger Value="True">
+                                  <DataTrigger.Binding>
+                                    <MultiBinding Converter="{StaticResource ProfileSelectionConverter}">
+                                      <Binding Path="Id"/>
+                                      <Binding Path="DataContext.SelectedProfile.Id" RelativeSource="{RelativeSource AncestorType={x:Type Window}}"/>
+                                    </MultiBinding>
+                                  </DataTrigger.Binding>
+                                  <Setter Property="Background" Value="{StaticResource RaisedSurfaceBrush}"/>
+                                  <Setter Property="BorderBrush" Value="{StaticResource BorderAccentBrush}"/>
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Border.Style>
                           <Grid>
                             <Grid.ColumnDefinitions>
                               <ColumnDefinition Width="Auto"/>

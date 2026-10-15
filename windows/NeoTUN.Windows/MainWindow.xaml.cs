@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using Microsoft.Win32;
 using NeoTUN.Windows.Models;
@@ -1294,3 +1296,17 @@ public partial class MainWindow : Window
     #endregion
 }
 
+
+public sealed class ProfileSelectionConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        return values.Length >= 2
+            && values[0] is Guid profileId
+            && values[1] is Guid selectedProfileId
+            && profileId == selectedProfileId;
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
