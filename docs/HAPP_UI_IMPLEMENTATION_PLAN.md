@@ -83,3 +83,55 @@ The APK's string tables include names relating to subscription refresh and prope
 - VLESS TCP must continue to use Xray where the current engine-selection logic requires it.
 - Do not reintroduce the removed DPI packet-shaping code.
 - Do not claim that the APK was run or fully decompiled; current analysis was static.
+
+## Deeper static APK review — component and screen inventory
+
+The APK contains three DEX files. Static strings from the app-specific DEX expose a richer set of UI components and state than the screenshot alone. This is a static inventory, not proof that every item is visible in every version or screen.
+
+### Reusable visual components identified
+
+- `HappBottomSheetDialog`, `HappBottomSheetShape`, and a drag-handle style: bottom sheets are a core interaction pattern for contextual tasks.
+- `HappInfoField`, `HappInputField`, and `HappForwardField`: settings/profile forms appear to use consistent label/value/help rows rather than unrelated one-off controls.
+- `HappToggleField`, `HappSwitch`, `HappSpinnerField`, `HappSliderField`, and `HappCheckbox`: switches, selectors, sliders and checkboxes are part of a shared component language.
+- `HappSettingsDivider`: settings use dedicated separators instead of placing every option in a separate large card.
+- `HappSnackbarAction`: short confirmation/action feedback is part of the component set.
+- Custom button/text button and debounced image button types suggest repeated-action protection and consistent action affordances.
+
+### Screens and interaction states indicated by app-specific strings
+
+- **Main/server selection:** selected server/profile state, profile dragging/reordering, profile naming, selected-server timestamp and least-ping sorting.
+- **Profile actions:** create profile, create profile from subscription, edit/name profile, delete, export selected profile, import from clipboard, custom config import result and profile copy.
+- **Subscription management:** subscription edit sheet, subscription sync dialog, refresh/update actions, import into a subscription, and hiding/closing the subscription-selection bottom sheet.
+- **Connection:** explicit connect/disconnect commands, including variants that operate without showing UI; connection/error states and ping lifecycle.
+- **Routing:** routing-enabled state, routing JSON and invalid-routing feedback.
+- **Settings:** automatic update enablement and interval, update notifications, DNS-related options, exclusions, light/dark themes and other preference state.
+- **Diagnostics/operations:** separate access/error/subscription logs, update state and service-related messages.
+
+These names are evidence that the APK contains code paths or state for those concepts. They do not reveal every layout dimension, exact color value or exact sequence of interactions; those require runtime screenshots or a complete decompilation.
+
+### Design implications for NeoTUN
+
+1. **Use sheets for contextual operations.** Server actions, subscription actions, import choices and profile naming should open compact bottom sheets/dialogs instead of sending the user to a new top-level destination for every action.
+2. **Use one settings grammar.** Build on the existing settings rows but normalize spacing, dividers, labels, helper text, switches, selectors and slider controls so settings feel like one coherent system.
+3. **Keep the home list as the primary navigation.** Profiles should be selectable/reorderable in the home list. Advanced editing can remain a dedicated screen or sheet; it must still be reachable without a bottom navigation bar.
+4. **Show actions progressively.** Main rows should stay compact. Less frequent actions belong in an overflow sheet; destructive actions require confirmation.
+5. **Keep states explicit.** Selected, connecting, connected, disconnecting, pinging, refresh-in-progress and error states must be visually distinct.
+6. **Respect data provenance.** Happ's traffic/expiry/support information is not a reason to fabricate those fields in NeoTUN. Display only values available from the provider or app's own reliable state.
+7. **Accessibility and responsive behavior are part of the design.** Preserve 44–48dp touch targets, readable text at larger font scales, long-name truncation, clear labels and narrow-screen layouts.
+
+### Full implementation checklist
+
+- [ ] Home header and connection focal point.
+- [ ] Home-embedded subscriptions and server selection.
+- [ ] Subscription collapse/expand, refresh feedback and action sheet.
+- [ ] Server row selected/ping/loading states, reordering and sorting affordances.
+- [ ] Server action sheet: edit, rename, QR, export/copy, pin, delete.
+- [ ] Subscription action sheet: rename/edit URL where supported, refresh, copy/share URL where safe, delete with confirmation.
+- [ ] Import sheet for clipboard, URI, QR and subscription paths.
+- [ ] Profile editor: protocol-aware fields, validation, advanced/raw mode kept separate.
+- [ ] Settings component consistency: switches, selectors, sliders, helper copy and separators.
+- [ ] Routing editor and DNS/MTU/IPv6/exclusion settings remain reachable and behavior-preserving.
+- [ ] Diagnostics, app update, about/version and reset confirmation.
+- [ ] Empty, loading, error, no-ping and offline states.
+- [ ] Android large-font/narrow-screen/accessibility checks.
+- [ ] Windows desktop parity after Android flows stabilize.
