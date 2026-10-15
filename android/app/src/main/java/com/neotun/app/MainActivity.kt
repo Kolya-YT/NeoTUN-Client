@@ -92,8 +92,6 @@ class MainActivity : Activity() {
     private var scroll: ScrollView? = null
     private var homeRxValue: TextView? = null
     private var homeTxValue: TextView? = null
-    private var homeRxRateValue: TextView? = null
-    private var homeTxRateValue: TextView? = null
     private var homeConnectionButton: Button? = null
     private var homeStatusDot: TextView? = null
     private var homeNetworkState: TextView? = null
@@ -215,8 +213,6 @@ class MainActivity : Activity() {
     private fun renderHome() {
         homeRxValue = null
         homeTxValue = null
-        homeRxRateValue = null
-        homeTxRateValue = null
         homeConnectionButton = null
         homeStatusDot = null
         homeNetworkState = null
@@ -471,7 +467,7 @@ class MainActivity : Activity() {
             elevation = 0f
         }
         val trafficHeader = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        trafficHeader.addView(txt("Скорость и трафик", 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+        trafficHeader.addView(txt("Трафик за сеанс", 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
         trafficHeader.addView(txt(when {
             running -> "АКТИВНО"
@@ -491,32 +487,6 @@ class MainActivity : Activity() {
             }, 8)
         })
         trafficCard.addView(trafficHeader)
-
-        val rxSpeed = when {
-            !running -> "—"
-            traffic.interfaceName == null -> "Ожидание"
-            else -> formatRate(traffic.rxRate)
-        }
-        val txSpeed = when {
-            !running -> "—"
-            traffic.interfaceName == null -> "Ожидание"
-            else -> formatRate(traffic.txRate)
-        }
-        val rxSpeedMetric = liveMetric("↓", rxSpeed, "СКАЧИВАНИЕ")
-        val txSpeedMetric = liveMetric("↑", txSpeed, "ОТПРАВКА")
-        homeRxRateValue = rxSpeedMetric.second
-        homeTxRateValue = txSpeedMetric.second
-
-        val speedRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(2))
-        }
-        speedRow.addView(rxSpeedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
-        speedRow.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
-            LinearLayout.LayoutParams(dp(1), dp(42)))
-        speedRow.addView(txSpeedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
-        trafficCard.addView(speedRow)
 
         trafficCard.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
             LinearLayout.LayoutParams(-1, dp(1)).apply {
@@ -724,16 +694,6 @@ class MainActivity : Activity() {
         val traffic = readVpnTraffic()
         homeRxValue?.text = formatBytes(traffic.sessionRx)
         homeTxValue?.text = formatBytes(traffic.sessionTx)
-        homeRxRateValue?.text = when {
-            !running -> "—"
-            traffic.interfaceName == null -> "Ожидание"
-            else -> formatRate(traffic.rxRate)
-        }
-        homeTxRateValue?.text = when {
-            !running -> "—"
-            traffic.interfaceName == null -> "Ожидание"
-            else -> formatRate(traffic.txRate)
-        }
         homeConnectionButton?.text = when { running -> "Отключиться"; connecting -> "Отменить подключение"; stopping -> "Отключение…"; else -> "Подключиться" }
         homeConnectionButton?.isEnabled = !stopping
         homeConnectionButton?.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
