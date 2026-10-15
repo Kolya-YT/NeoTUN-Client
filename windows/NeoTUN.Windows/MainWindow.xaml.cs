@@ -932,9 +932,11 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool _isLoadingSettings;
+
     private void SettingsMinimizeToTray_Changed(object sender, RoutedEventArgs e)
     {
-        if (SettingsMinimizeToTrayOnClose == null || SettingsMinimizeToTrayOnStart == null) return;
+        if (_isLoadingSettings || SettingsMinimizeToTrayOnClose == null || SettingsMinimizeToTrayOnStart == null) return;
 
         _settings.MinimizeToTrayOnClose = SettingsMinimizeToTrayOnClose.IsChecked == true;
         _settings.MinimizeToTrayOnStart = SettingsMinimizeToTrayOnStart.IsChecked == true;
@@ -943,13 +945,14 @@ public partial class MainWindow : Window
 
     private void SettingsAutoUpdateSubscriptions_Changed(object sender, RoutedEventArgs e)
     {
-        if (SettingsAutoUpdateSubscriptions == null) return;
+        if (_isLoadingSettings || SettingsAutoUpdateSubscriptions == null) return;
         _settings.AutoUpdateSubscriptions = SettingsAutoUpdateSubscriptions.IsChecked == true;
         SaveAppSettings();
     }
 
     private void SettingsPingTimeout_LostFocus(object sender, RoutedEventArgs e)
     {
+        if (_isLoadingSettings) return;
         if (!int.TryParse(SettingsPingTimeoutBox.Text, out var timeout))
             timeout = _settings.PingTimeoutMs;
 
@@ -961,7 +964,7 @@ public partial class MainWindow : Window
 
     private void SettingsSubInterval_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SettingsSubInterval.SelectedIndex >= 0)
+        if (!_isLoadingSettings && SettingsSubInterval.SelectedIndex >= 0)
         {
             _settings.SubscriptionIntervalHours = SettingsSubInterval.SelectedIndex switch
             {
@@ -1047,6 +1050,7 @@ public partial class MainWindow : Window
 
     private void LoadAppSettings()
     {
+        _isLoadingSettings = true;
         try
         {
             if (File.Exists(_appSettingsPath))
@@ -1073,6 +1077,7 @@ public partial class MainWindow : Window
         SettingsLaunchWithWindows.IsChecked = _settings.LaunchWithWindows;
         SettingsMinimizeToTrayOnClose.IsChecked = _settings.MinimizeToTrayOnClose;
         SettingsMinimizeToTrayOnStart.IsChecked = _settings.MinimizeToTrayOnStart;
+        _isLoadingSettings = false;
     }
 
     private void SaveAppSettings()
