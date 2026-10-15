@@ -4,7 +4,9 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.Dialog
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -47,6 +49,45 @@ class MainActivity : Activity() {
     private var trafficLastTx = -1L
     private var trafficLastAt = 0L
     private var lastWidgetRunning: Boolean? = null
+    @Volatile private var xrayServiceRunning = false
+    @Volatile private var xrayServiceStarting = false
+    @Volatile private var xrayServiceStopping = false
+    @Volatile private var xrayServiceBusy = false
+    private var xrayStateReceiverRegistered = false
+    private var xrayLastStateQueryAt = 0L
+    private var xrayFirstStateQueryAt = 0L
+    private var xrayLastStateResponseAt = 0L
+    private var xrayStateTimeoutHandled = false
+    private val xrayStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action != NeoTunXrayVpnService.ACTION_STATE_CHANGED) return
+            val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+            if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX) !=
+                NeoTunVpnService.ENGINE_XRAY) return
+            val receivedUri = intent.getStringExtra(NeoTunXrayVpnService.EXTRA_STATE_URI)
+            val currentUri = prefs.getString(NeoTunVpnService.KEY_URI, null)
+            if (!receivedUri.isNullOrBlank() && receivedUri != currentUri) {
+                NeoTunDiagnostics.log(this@MainActivity, "Ignoring stale Xray state from a different profile")
+                return
+            }
+            xrayServiceRunning = intent.getBooleanExtra(NeoTunXrayVpnService.EXTRA_STATE_RUNNING, false)
+            xrayServiceStarting = intent.getBooleanExtra(NeoTunXrayVpnService.EXTRA_STATE_STARTING, false)
+            xrayServiceStopping = intent.getBooleanExtra(NeoTunXrayVpnService.EXTRA_STATE_STOPPING, false)
+            xrayServiceBusy = intent.getBooleanExtra(NeoTunXrayVpnService.EXTRA_STATE_BUSY, false)
+            xrayLastStateResponseAt = android.os.SystemClock.elapsedRealtime()
+            xrayFirstStateQueryAt = 0L
+            xrayStateTimeoutHandled = false
+            val stateError = intent.getStringExtra(NeoTunXrayVpnService.EXTRA_STATE_ERROR)
+            val editor = prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, xrayServiceRunning)
+            if (xrayServiceRunning || xrayServiceStarting) editor.remove(NeoTunVpnService.KEY_ERROR)
+            else if (!stateError.isNullOrBlank()) editor.putString(NeoTunVpnService.KEY_ERROR, stateError)
+            else editor.remove(NeoTunVpnService.KEY_ERROR)
+            editor.apply()
+            NeoTunDiagnostics.log(this@MainActivity, "Xray state received across process boundary: running=$xrayServiceRunning, starting=$xrayServiceStarting, stopping=$xrayServiceStopping")
+            if (screen == Screen.HOME) updateHomeLiveData()
+            NeoTunHomeWidget.refreshAll(this@MainActivity)
+        }
+    }
     private var shellRoot: LinearLayout? = null
     private var scroll: ScrollView? = null
     private var homeRxValue: TextView? = null
@@ -187,6 +228,8 @@ class MainActivity : Activity() {
         val profiles = store.all()
         val selected = selectedProfile(profiles)
         val running = isRunning()
+        val connecting = isConnectionStarting()
+        val stopping = isConnectionStopping()
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
 
         val top = LinearLayout(this).apply {
@@ -229,17 +272,17 @@ class MainActivity : Activity() {
         val statusDot = txt("●", 11f, if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET, Typeface.BOLD)
         homeStatusDot = statusDot
         stateRow.addView(statusDot, LinearLayout.LayoutParams(dp(18), -2))
-        val stateLabel = txt(if (running) "СОЕДИНЕНИЕ АКТИВНО" else "ГОТОВО К ЗАПУСКУ",
+        val stateLabel = txt(when { running -> "СОЕДИНЕНИЕ АКТИВНО"; connecting -> "ПОДКЛЮЧЕНИЕ"; stopping -> "ОТКЛЮЧЕНИЕ"; else -> "ГОТОВО К ЗАПУСКУ" },
             10f, if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD)
         homeConnectionLabel = stateLabel
         stateRow.addView(stateLabel, LinearLayout.LayoutParams(0, -2, 1f))
-        val online = txt(if (running) "ONLINE" else "OFFLINE", 10f,
+        val online = txt(when { running -> "ONLINE"; connecting -> "CONNECTING"; stopping -> "STOPPING"; else -> "OFFLINE" }, 10f,
             if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED, Typeface.BOLD)
         homeNetworkState = online
         stateRow.addView(online)
         connection.addView(stateRow)
 
-        connection.addView(txt(if (running) "Вы подключены" else "Всё под контролем",
+        connection.addView(txt(if (running) "Вы подключены" else if (connecting) "Подключаемся к серверу" else if (stopping) "Останавливаем соединение" else "Всё под контролем",
             if (resources.displayMetrics.widthPixels < dp(360)) 22f else 24f,
             NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
@@ -247,11 +290,13 @@ class MainActivity : Activity() {
         }, margins(top = 8))
         connection.addView(txt(
             if (running) "Трафик проходит через выбранный профиль."
+            else if (connecting) "Ожидайте завершения запуска ядра."
+            else if (stopping) "Завершаем работу сетевого движка."
             else "Подключитесь к серверу одним нажатием.",
             12f, NeoTunDesign.TEXT_SECONDARY
         ), margins(top = 4, bottom = 12))
 
-        val connectButton = button(if (running) "Отключиться" else "Подключиться") {
+        val connectButton = button(when { running -> "Отключиться"; connecting -> "Отменить подключение"; stopping -> "Отключение…"; else -> "Подключиться" }) {
             if (isVpnServiceActiveOrStarting()) disconnect()
             else {
                 val current = selectedProfile(store.all())
@@ -264,6 +309,7 @@ class MainActivity : Activity() {
             setTextColor(if (running) NeoTunDesign.TEXT_PRIMARY else Color.WHITE)
         }
         homeConnectionButton = connectButton
+        connectButton.isEnabled = !stopping
         connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(48)))
         content.addView(connection, margins(bottom = 14))
 
@@ -469,62 +515,39 @@ class MainActivity : Activity() {
         parent?.visibility = if (error == null) View.GONE else View.VISIBLE
     }
 
-    @Volatile private var xrayStateCheckInProgress = false
-
-    /**
-     * Recover the UI state from Xray's actual native state if the persisted
-     * running flag became stale. This is read-only until native Xray confirms
-     * running=true, and executes off the main thread.
-     */
+    /** Xray runs in :xray; the Activity queries that process instead of a separate native instance. */
     private fun reconcileXrayRunningState() {
-        if (xrayStateCheckInProgress || isFinishing || isDestroyed) return
+        if (isFinishing || isDestroyed) return
         val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-        if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
-                != NeoTunVpnService.ENGINE_XRAY ||
-            prefs.getBoolean(NeoTunVpnService.KEY_RUNNING, false)) return
-        val expectedUri = prefs.getString(NeoTunVpnService.KEY_URI, null) ?: return
-
-        xrayStateCheckInProgress = true
-        Thread({
-            val actuallyRunning = runCatching {
-                val response = NeoTunXrayBridge.nativeInvoke(
-                    JSONObject()
-                        .put("apiVersion", 3)
-                        .put("method", "getXrayState")
-                        .put("payload", JSONObject())
-                        .toString()
-                )
-                val root = JSONObject(response)
-                root.optBoolean("success", false) &&
-                    (root.optJSONObject("data")?.optBoolean("running", false) == true)
-            }.getOrDefault(false)
-
-            runOnUiThread {
-                xrayStateCheckInProgress = false
-                if (isFinishing || isDestroyed || !actuallyRunning) return@runOnUiThread
-                val latest = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
-                // Re-check that Xray is still the selected engine and no
-                // disconnect/error was recorded while the native query ran.
-                if (latest.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX)
-                        == NeoTunVpnService.ENGINE_XRAY &&
-                    latest.getString(NeoTunVpnService.KEY_URI, null) == expectedUri &&
-                    !latest.getBoolean(NeoTunVpnService.KEY_RUNNING, false)) {
-                    // Native Xray state is authoritative when the persisted UI
-                    // flag is stale. A previous startup error must not mask a
-                    // successfully running native core.
-                    NeoTunDiagnostics.log(this, "UI state reconciled from native Xray state: running=true")
-                    latest.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, true).remove(NeoTunVpnService.KEY_ERROR).apply()
-                    updateHomeLiveData()
-                    NeoTunHomeWidget.refreshAll(this)
-                }
-            }
-        }, "NeoTun-Xray-State-Reconcile").start()
+        if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX) != NeoTunVpnService.ENGINE_XRAY) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (xrayLastStateQueryAt == 0L || now - xrayLastStateQueryAt >= 1500L) {
+            xrayLastStateQueryAt = now
+            if (xrayFirstStateQueryAt == 0L) xrayFirstStateQueryAt = now
+            sendBroadcast(Intent(NeoTunXrayVpnService.ACTION_STATE_QUERY).setPackage(packageName))
+        }
+        val referenceAt = if (xrayLastStateResponseAt >= xrayFirstStateQueryAt && xrayLastStateResponseAt > 0L) xrayLastStateResponseAt else xrayFirstStateQueryAt
+        if (referenceAt > 0L && now - referenceAt >= 4000L && !xrayStateTimeoutHandled) {
+            xrayStateTimeoutHandled = true
+            val hadActiveState = xrayServiceRunning || xrayServiceStarting || xrayServiceStopping || xrayServiceBusy
+            xrayServiceRunning = false
+            xrayServiceStarting = false
+            xrayServiceStopping = false
+            xrayServiceBusy = false
+            prefs.edit().putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
+            NeoTunDiagnostics.log(this, "Xray state query timed out; showing offline until the service responds")
+            if (hadActiveState) NeoTunHomeWidget.refreshAll(this)
+        }
     }
 
     private fun updateHomeLiveData() {
         if (screen != Screen.HOME || isFinishing) return
+        if (getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+                .getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX) ==
+            NeoTunVpnService.ENGINE_XRAY) reconcileXrayRunningState()
         val running = isRunning()
-        if (!running) reconcileXrayRunningState()
+        val connecting = isConnectionStarting()
+        val stopping = isConnectionStopping()
         if (lastWidgetRunning != running) {
             lastWidgetRunning = running
             NeoTunHomeWidget.refreshAll(this)
@@ -537,12 +560,13 @@ class MainActivity : Activity() {
             traffic.interfaceName == null -> "Ожидание"
             else -> formatRate(maxOf(traffic.rxRate, traffic.txRate))
         }
-        homeConnectionButton?.text = if (running) "Отключиться" else "Подключиться"
+        homeConnectionButton?.text = when { running -> "Отключиться"; connecting -> "Отменить подключение"; stopping -> "Отключение…"; else -> "Подключиться" }
+        homeConnectionButton?.isEnabled = !stopping
         homeConnectionButton?.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
-        homeConnectionLabel?.text = if (running) "ПОДКЛЮЧЕНО" else "ГОТОВО К ПОДКЛЮЧЕНИЮ"
+        homeConnectionLabel?.text = when { running -> "СОЕДИНЕНИЕ АКТИВНО"; connecting -> "ПОДКЛЮЧЕНИЕ"; stopping -> "ОТКЛЮЧЕНИЕ"; else -> "ГОТОВО К ПОДКЛЮЧЕНИЮ" }
         homeConnectionLabel?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT)
         homeStatusDot?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET)
-        homeNetworkState?.text = if (running) "●  ONLINE" else "○  OFFLINE"
+        homeNetworkState?.text = when { running -> "●  ONLINE"; connecting -> "○  CONNECTING"; stopping -> "○  STOPPING"; else -> "○  OFFLINE" }
         homeNetworkState?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED)
         homeConnectionCard?.background = NeoTunDesign.connectionCardDrawable(resources.displayMetrics.density, running)
         updateHomeError(getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
@@ -1579,6 +1603,14 @@ class MainActivity : Activity() {
                 renderHome()
                 return
             }
+            xrayServiceRunning = false
+            xrayServiceStarting = true
+            xrayServiceStopping = false
+            xrayServiceBusy = true
+            xrayLastStateResponseAt = 0L
+            xrayFirstStateQueryAt = android.os.SystemClock.elapsedRealtime()
+            xrayLastStateQueryAt = 0L
+            xrayStateTimeoutHandled = false
             ContextCompat.startForegroundService(this, Intent(this, NeoTunXrayVpnService::class.java).putExtra(NeoTunXrayVpnService.EXTRA_URI, uri))
         } else {
             val config = prefs.getString(NeoTunVpnService.KEY_CONFIG, null)
@@ -1702,8 +1734,8 @@ class MainActivity : Activity() {
         // for the UI process and must keep controls from starting a competing engine.
         return isSwitching ||
             isRunning() ||
-            NeoTunVpnService.isEngineBusy ||
-            NeoTunXrayVpnService.isEngineBusy
+            xrayServiceRunning || xrayServiceStarting || xrayServiceStopping || xrayServiceBusy ||
+            NeoTunVpnService.isEngineBusy
     }
 
     private fun disconnect(switchToken: String? = null) {
@@ -3016,6 +3048,25 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (!xrayStateReceiverRegistered) {
+            ContextCompat.registerReceiver(this, xrayStateReceiver, IntentFilter(NeoTunXrayVpnService.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
+            xrayStateReceiverRegistered = true
+        }
+        xrayLastStateQueryAt = 0L
+        xrayFirstStateQueryAt = 0L
+        reconcileXrayRunningState()
+    }
+
+    override fun onStop() {
+        if (xrayStateReceiverRegistered) {
+            runCatching { unregisterReceiver(xrayStateReceiver) }
+            xrayStateReceiverRegistered = false
+        }
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         if (!::content.isInitialized) return
@@ -3028,6 +3079,10 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(poll)
+        if (xrayStateReceiverRegistered) {
+            runCatching { unregisterReceiver(xrayStateReceiver) }
+            xrayStateReceiverRegistered = false
+        }
         switchStopReceiver?.let { runCatching { unregisterReceiver(it) } }
         switchStopReceiver = null
         super.onDestroy()
@@ -3541,8 +3596,21 @@ class MainActivity : Activity() {
         }
     }
     private fun isRunning(): Boolean {
-        return NeoTunVpnService.isServiceRunning || getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE).getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        return if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX) == NeoTunVpnService.ENGINE_XRAY) {
+            xrayServiceRunning
+        } else {
+            NeoTunVpnService.isServiceRunning || prefs.getBoolean(NeoTunVpnService.KEY_RUNNING, false)
+        }
     }
+
+    private fun isConnectionStarting(): Boolean {
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        return if (prefs.getString(NeoTunVpnService.KEY_ENGINE, NeoTunVpnService.ENGINE_SING_BOX) == NeoTunVpnService.ENGINE_XRAY) xrayServiceStarting else
+            !isRunning() && NeoTunVpnService.isEngineBusy
+    }
+
+    private fun isConnectionStopping(): Boolean = xrayServiceStopping || isSwitching
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     private fun fontScaleFactor(): Float =
         getSharedPreferences(UI_PREFS, MODE_PRIVATE).getInt("font_scale", 100).coerceIn(85, 130) / 100f

@@ -3,7 +3,10 @@ package com.neotun.app
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.VpnService
@@ -14,6 +17,7 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -21,7 +25,7 @@ import java.net.URL
 
 class NeoTunXrayVpnService : VpnService() {
     private var tunFd: Int = -1
-    private var running = false
+    @Volatile private var running = false
     @Volatile private var starting = false
     @Volatile private var destroyed = false
     @Volatile private var startupGeneration = 0
@@ -33,6 +37,22 @@ class NeoTunXrayVpnService : VpnService() {
     private val xrayLifecycleLock = Any()
     private var xrayAccessLog: String = ""
     private var xrayErrorLog: String = ""
+    @Volatile private var activeUri: String? = null
+    @Volatile private var stateError: String? = null
+    private var stateQueryReceiver: BroadcastReceiver? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == ACTION_STATE_QUERY) broadcastXrayState()
+            }
+        }
+        stateQueryReceiver = receiver
+        ContextCompat.registerReceiver(
+            this, receiver, IntentFilter(ACTION_STATE_QUERY), ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
@@ -50,6 +70,9 @@ class NeoTunXrayVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             teardownInProgress = true
+            running = false
+            stateError = null
+            broadcastXrayState()
             mainHandler.removeCallbacksAndMessages(null)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -78,6 +101,7 @@ class NeoTunXrayVpnService : VpnService() {
                     NeoTunDiagnostics.log(this, "Xray: native teardown result=$stopSucceeded; requesting service destruction")
                     mainHandler.post {
                         teardownInProgress = false
+                        broadcastXrayState()
                         // Newer duplicate start commands may advance startId.
                         // stopSelf(startId) would then leave the service alive.
                         stopSelf()
@@ -99,6 +123,7 @@ class NeoTunXrayVpnService : VpnService() {
         val generation = ++startupGeneration
         starting = true
 
+        stateError = null
         NeoTunDiagnostics.clear(this)
         NeoTunDiagnostics.log(this, "Xray service: onStartCommand")
         try {
@@ -124,7 +149,9 @@ class NeoTunXrayVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
+        activeUri = uri
         NeoTunDiagnostics.log(this, "Профиль получен: VLESS-ссылка (секретные параметры скрыты)")
+        broadcastXrayState()
 
         // Keep all network and native startup work off Android's main thread.
         // Native startup is serialized with teardown so disconnect/profile-switch cannot
@@ -164,6 +191,21 @@ class NeoTunXrayVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
+    private fun broadcastXrayState() {
+        val prefs = getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
+        val uri = activeUri ?: prefs.getString(NeoTunVpnService.KEY_URI, null)
+        sendBroadcast(
+            Intent(ACTION_STATE_CHANGED)
+                .setPackage(packageName)
+                .putExtra(EXTRA_STATE_URI, uri)
+                .putExtra(EXTRA_STATE_RUNNING, running)
+                .putExtra(EXTRA_STATE_STARTING, starting)
+                .putExtra(EXTRA_STATE_STOPPING, teardownInProgress && !starting)
+                .putExtra(EXTRA_STATE_BUSY, isEngineBusy || starting || teardownInProgress)
+                .putExtra(EXTRA_STATE_ERROR, stateError)
+        )
+    }
+
     private fun isXrayStartupCurrent(generation: Int): Boolean =
         !destroyed && starting && generation == startupGeneration && !teardownInProgress
 
@@ -181,7 +223,10 @@ class NeoTunXrayVpnService : VpnService() {
                 .apply()
             running = true
             starting = false
+            isEngineBusy = false
+            stateError = null
             NeoTunDiagnostics.log(this, "Xray startup published to service state")
+            broadcastXrayState()
         }
     }
 
@@ -655,12 +700,18 @@ class NeoTunXrayVpnService : VpnService() {
                     NeoTunDiagnostics.error(this, "Xray onDestroy cleanup failed", error)
                 } finally {
                     isEngineBusy = false
+                    broadcastXrayState()
                     acknowledgePendingSwitchStops()
                 }
             }, "NeoTUN-xray-destroy-cleanup").start()
         } else {
             isEngineBusy = false
+            broadcastXrayState()
             acknowledgePendingSwitchStops()
+        }
+        stateQueryReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+            stateQueryReceiver = null
         }
         super.onDestroy()
     }
@@ -732,6 +783,7 @@ class NeoTunXrayVpnService : VpnService() {
         NeoTunDiagnostics.error(this, "Остановка с ошибкой: $message")
         running = false
         starting = false
+        stateError = message
         if (teardownInProgress) {
             NeoTunDiagnostics.log(this, "Xray error cleanup skipped because teardown is already in progress")
             return
@@ -743,12 +795,14 @@ class NeoTunXrayVpnService : VpnService() {
             prefs.edit().putString(NeoTunVpnService.KEY_ERROR, message)
                 .putBoolean(NeoTunVpnService.KEY_RUNNING, false).apply()
         }
+        broadcastXrayState()
 
         Thread({
             try {
                 // Share the same lifecycle lock as startup and explicit disconnect.
                 stopTunnel()
                 nativeCleanupComplete = true
+                isEngineBusy = false
             } catch (error: Throwable) {
                 NeoTunDiagnostics.error(this, "Xray error cleanup failed", error)
             } finally {
@@ -762,6 +816,7 @@ class NeoTunXrayVpnService : VpnService() {
                         stopForeground(true)
                     }
                     teardownInProgress = false
+                    broadcastXrayState()
                     stopSelf()
                 }
             }
@@ -813,5 +868,13 @@ class NeoTunXrayVpnService : VpnService() {
         @Volatile var isEngineBusy: Boolean = false
         const val EXTRA_URI = "neotun.xray.uri"
         const val ACTION_DISCONNECT = "com.neotun.app.action.DISCONNECT_XRAY"
+        const val ACTION_STATE_QUERY = "com.neotun.app.action.QUERY_XRAY_STATE"
+        const val ACTION_STATE_CHANGED = "com.neotun.app.action.XRAY_STATE_CHANGED"
+        const val EXTRA_STATE_URI = "neotun.xray.state.uri"
+        const val EXTRA_STATE_RUNNING = "neotun.xray.state.running"
+        const val EXTRA_STATE_STOPPING = "neotun.xray.state.stopping"
+        const val EXTRA_STATE_STARTING = "neotun.xray.state.starting"
+        const val EXTRA_STATE_BUSY = "neotun.xray.state.busy"
+        const val EXTRA_STATE_ERROR = "neotun.xray.state.error"
     }
 }
