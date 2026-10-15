@@ -154,23 +154,36 @@ public sealed class ServerProfile : INotifyPropertyChanged
     {
         get
         {
-            var target = (Name + " " + Host).ToLowerInvariant();
-            if (target.Contains("нидерланд") || target.Contains("netherland") || target.Contains("nl")) return "🇳🇱";
-            if (target.Contains("финлянд") || target.Contains("finland") || target.Contains("fi")) return "🇫🇮";
-            if (target.Contains("герман") || target.Contains("german") || target.Contains("de") || target.Contains("ютуб")) return "🇩🇪";
-            if (target.Contains("швед") || target.Contains("sweden") || target.Contains("se")) return "🇸🇪";
-            if (target.Contains("франц") || target.Contains("france") || target.Contains("fr")) return "🇫🇷";
-            if (target.Contains("сша") || target.Contains("usa") || target.Contains("us") || target.Contains("united states")) return "🇺🇸";
-            if (target.Contains("британ") || target.Contains("uk") || target.Contains("united kingdom")) return "🇬🇧";
-            if (target.Contains("турц") || target.Contains("turkey") || target.Contains("tr")) return "🇹🇷";
-            if (target.Contains("росс") || target.Contains("russia") || target.Contains("ru")) return "🇷🇺";
-            if (target.Contains("япон") || target.Contains("japan") || target.Contains("jp")) return "🇯🇵";
-            if (target.Contains("сингапур") || target.Contains("singapore") || target.Contains("sg")) return "🇸🇬";
-            if (target.Contains("польш") || target.Contains("poland") || target.Contains("pl")) return "🇵🇱";
-            if (target.Contains("казах") || target.Contains("kazakhstan") || target.Contains("kz")) return "🇰🇿";
+            // Use readable country names from the profile label, plus exact country-code
+            // tokens. Short codes such as "fi", "de" and "us" must not match arbitrary
+            // substrings in hostnames or names (for example, "office" contains "fi").
+            var label = Name.ToLowerInvariant();
+            var tokens = System.Text.RegularExpressions.Regex
+                .Split(label, @"[^a-z0-9]+")
+                .Where(token => token.Length > 0)
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (ContainsAny(label, "нидерланд", "netherland") || HasToken(tokens, "nl")) return "🇳🇱";
+            if (ContainsAny(label, "финлянд", "finland") || HasToken(tokens, "fi")) return "🇫🇮";
+            if (ContainsAny(label, "герман", "german", "ютуб") || HasToken(tokens, "de")) return "🇩🇪";
+            if (ContainsAny(label, "швед", "sweden") || HasToken(tokens, "se")) return "🇸🇪";
+            if (ContainsAny(label, "франц", "france") || HasToken(tokens, "fr")) return "🇫🇷";
+            if (ContainsAny(label, "сша", "usa", "united states", "america", "америк") || HasToken(tokens, "us")) return "🇺🇸";
+            if (ContainsAny(label, "британ", "united kingdom", "great britain") || HasToken(tokens, "uk")) return "🇬🇧";
+            if (ContainsAny(label, "турц", "turkey") || HasToken(tokens, "tr")) return "🇹🇷";
+            if (ContainsAny(label, "росс", "russia") || HasToken(tokens, "ru")) return "🇷🇺";
+            if (ContainsAny(label, "япон", "japan") || HasToken(tokens, "jp")) return "🇯🇵";
+            if (ContainsAny(label, "сингапур", "singapore") || HasToken(tokens, "sg")) return "🇸🇬";
+            if (ContainsAny(label, "польш", "poland") || HasToken(tokens, "pl")) return "🇵🇱";
+            if (ContainsAny(label, "казах", "kazakhstan") || HasToken(tokens, "kz")) return "🇰🇿";
             return "🌐";
         }
     }
+
+    private static bool ContainsAny(string value, params string[] candidates) =>
+        candidates.Any(candidate => value.Contains(candidate, StringComparison.Ordinal));
+
+    private static bool HasToken(HashSet<string> tokens, string token) => tokens.Contains(token);
 
     public string DisplayPing =>
         IsPingInProgress ? "…" : (string.IsNullOrWhiteSpace(Ping) ? "—" : Ping);
