@@ -868,11 +868,25 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        info.addView(txt(profile.name, if (compact) 13f else 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
+        val nameRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        nameRow.addView(txt(profile.name, if (compact) 13f else 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 1
             // Preserve the start of long subscription names while keeping rows aligned.
             ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-        })
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (selected) {
+            nameRow.addView(txt("ВЫБРАН", 8f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD, Gravity.CENTER).apply {
+                setPadding(dp(6), dp(3), dp(6), dp(3))
+                background = rounded(NeoTunDesign.BRAND_SOFT, 6)
+                contentDescription = "Выбранный сервер"
+            }, LinearLayout.LayoutParams(-2, -2).apply {
+                setMargins(dp(5), 0, 0, 0)
+            })
+        }
+        info.addView(nameRow)
         val detail = if (compact) maskUri(profile.uri) else protocolLabel(profile) + "  ·  " + maskUri(profile.uri)
         info.addView(txt(detail, 10f, NeoTunDesign.TEXT_MUTED).apply {
             maxLines = 1
