@@ -31,11 +31,12 @@ class NeoTunXrayVpnService : VpnService() {
     private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
     @Volatile private var stopAcknowledgementSucceeded = true
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val notificationHandler = Handler(Looper.getMainLooper())
+    private val notificationThread = android.os.HandlerThread("NeoTUN-xray-notification").apply { start() }
+    private val notificationHandler = Handler(notificationThread.looper)
     private val notificationUpdater = object : Runnable {
         override fun run() {
             if (destroyed) return
-            refreshForegroundNotification()
+            tickForegroundNotification()
             notificationHandler.postDelayed(this, 1000L)
         }
     }
@@ -690,6 +691,7 @@ class NeoTunXrayVpnService : VpnService() {
         startupGeneration++
         starting = false
         notificationHandler.removeCallbacks(notificationUpdater)
+        notificationThread.quitSafely()
         mainHandler.removeCallbacksAndMessages(null)
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
 
@@ -837,6 +839,18 @@ class NeoTunXrayVpnService : VpnService() {
         notificationHandler.postDelayed(notificationUpdater, 1000L)
     }
 
+    private fun tickForegroundNotification() {
+        val actual = when {
+            teardownInProgress -> "stopping"
+            starting -> "starting"
+            running -> "running"
+            else -> "error"
+        }
+        runCatching {
+            NeoTunForegroundNotification.tickAndUpdate(this, "Xray + XHTTP", actual)
+        }.onFailure { NeoTunDiagnostics.error(this, "Xray notification update failed", it) }
+    }
+
     private fun refreshForegroundNotification(state: String? = null) {
         val actual = state ?: when {
             teardownInProgress -> "stopping"
@@ -845,8 +859,8 @@ class NeoTunXrayVpnService : VpnService() {
             else -> "error"
         }
         runCatching {
-            NeoTunForegroundNotification.update(this, "Xray + XHTTP", actual, tunFd)
-        }.onFailure { NeoTunDiagnostics.error(this, "Xray notification update failed", it) }
+            NeoTunForegroundNotification.updateStatus(this, "Xray + XHTTP", actual)
+        }.onFailure { NeoTunDiagnostics.error(this, "Xray notification state update failed", it) }
     }
 
     companion object {

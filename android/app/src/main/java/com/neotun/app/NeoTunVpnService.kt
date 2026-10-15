@@ -6,6 +6,8 @@ import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
+import org.json.JSONObject
+import java.util.UUID
 import androidx.core.app.ServiceCompat
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
@@ -22,7 +24,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     @Volatile private var nativeCloseStarted = false
     @Volatile private var disconnectRequested = false
     @Volatile private var startupThread: Thread? = null
-    private val notificationHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val notificationThread = android.os.HandlerThread("NeoTUN-singbox-notification").apply { start() }
+    private val notificationHandler = android.os.Handler(notificationThread.looper)
     private val notificationUpdater = object : Runnable {
         override fun run() {
             val currentState = when {
@@ -32,7 +35,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 else -> "error"
             }
             runCatching {
-                NeoTunForegroundNotification.update(this@NeoTunVpnService, "sing-box", currentState, -1)
+                NeoTunForegroundNotification.tickAndUpdate(this@NeoTunVpnService, "sing-box", currentState)
             }.onFailure { NeoTunDiagnostics.error(this@NeoTunVpnService, "sing-box notification update failed", it) }
             if (!disconnectRequested && !nativeCloseStarted) notificationHandler.postDelayed(this, 1000L)
         }
@@ -85,6 +88,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 closeNativeResources()
                 isEngineBusy = false
                 notificationHandler.removeCallbacks(notificationUpdater)
+                notificationThread.quitSafely()
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service; waiting for onDestroy before acknowledging switch")
                 // Use stopSelf(), not stopSelf(startId): duplicate start commands
@@ -111,12 +115,13 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             stopWithError("Нет конфигурации sing-box")
             return START_NOT_STICKY
         }
-        val normalizedConfig = config.trim()
-        if (!normalizedConfig.startsWith("{")) {
+        val rawConfig = config.trim()
+        if (!rawConfig.startsWith("{")) {
             starting = false
             stopWithError("Некорректная конфигурация sing-box")
             return START_NOT_STICKY
         }
+        val normalizedConfig = configureNotificationStatsApi(rawConfig)
 
         // Remote sing-box rule sets may need network I/O during startup. Never call
         // startOrReloadService on Android's main thread: it can block long enough
@@ -187,7 +192,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 }
                 getSharedPreferences(PREFS, MODE_PRIVATE)
                     .edit()
-                    .putString(KEY_CONFIG, config)
+                    .putString(KEY_CONFIG, normalizedConfig)
                     .remove(KEY_ERROR)
                     .putBoolean(KEY_RUNNING, true)
                     .apply()
@@ -224,6 +229,17 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         return START_NOT_STICKY
     }
 
+    private fun configureNotificationStatsApi(rawConfig: String): String {
+        val root = JSONObject(rawConfig)
+        val experimental = root.optJSONObject("experimental")
+            ?: JSONObject().also { root.put("experimental", it) }
+        val clashApi = experimental.optJSONObject("clash_api")
+            ?: JSONObject().also { experimental.put("clash_api", it) }
+        clashApi.put("external_controller", "127.0.0.1:49228")
+        clashApi.put("secret", UUID.randomUUID().toString().replace("-", ""))
+        return root.toString()
+    }
+
     private fun runOnMainThread(action: () -> Unit) {
         android.os.Handler(android.os.Looper.getMainLooper()).post(action)
     }
@@ -233,6 +249,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
 
     override fun onDestroy() {
         notificationHandler.removeCallbacks(notificationUpdater)
+        notificationThread.quitSafely()
         NeoTunDiagnostics.log(this, "sing-box: service onDestroy; running=" + running +
             "; savedRunning=" + getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_RUNNING, false) +
             "; savedError=" + (getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ERROR, null) ?: "none"))
@@ -364,6 +381,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         running = false; isServiceRunning = false
         notificationHandler.removeCallbacks(notificationUpdater)
         updateForegroundNotification("error")
+        notificationThread.quitSafely()
         getSharedPreferences(PREFS, MODE_PRIVATE)
             .edit()
             .putString(KEY_ERROR, message)
@@ -392,7 +410,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
             else -> "error"
         }
         runCatching {
-            NeoTunForegroundNotification.update(this, "sing-box", actual, -1)
+            NeoTunForegroundNotification.updateStatus(this, "sing-box", actual)
         }.onFailure { NeoTunDiagnostics.error(this, "sing-box notification update failed", it) }
     }
 
