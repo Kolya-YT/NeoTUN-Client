@@ -386,14 +386,17 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(24), dp(44)))
         content.addView(serverCard, margins(bottom = 8))
 
-        if (profiles.size > 1) {
+        // The current server is already presented above. Keep this row focused on
+        // alternatives so the same profile is not repeated twice on the home screen.
+        val quickProfiles = profiles.filter { it.id != selected?.id }
+        if (quickProfiles.isNotEmpty()) {
             val quickHeader = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
             quickHeader.addView(txt("Быстрое переключение", 12f, NeoTunDesign.TEXT_SECONDARY, Typeface.BOLD),
                 LinearLayout.LayoutParams(0, -2, 1f))
-            quickHeader.addView(txt("${profiles.size} серверов", 10f, NeoTunDesign.TEXT_MUTED))
+            quickHeader.addView(txt("${quickProfiles.size} серверов", 10f, NeoTunDesign.TEXT_MUTED))
             content.addView(quickHeader, margins(bottom = 7))
 
             val quickScroll = HorizontalScrollView(this).apply {
@@ -405,7 +408,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
-            profiles.forEach { profile ->
+            quickProfiles.forEach { profile ->
                 val isSelected = profile.id == selected?.id
                 val chip = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
