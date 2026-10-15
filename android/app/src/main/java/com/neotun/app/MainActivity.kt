@@ -351,9 +351,7 @@ class MainActivity : Activity() {
         }
         sectionHeader.addView(txt("Текущий сервер", 16f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        sectionHeader.addView(txt("Все серверы  ›", 11f, NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD).apply {
-            setOnClickListener { showScreen(Screen.PROFILES) }
-        })
+        // Server selection stays on the Home screen; the full list is embedded below.
         content.addView(sectionHeader, margins(top = 2, bottom = 9))
 
         val serverCard = LinearLayout(this).apply {
@@ -363,7 +361,10 @@ class MainActivity : Activity() {
             background = rounded(NeoTunDesign.SURFACE, 16, NeoTunDesign.BORDER, 1)
             isClickable = true
             isFocusable = true
-            setOnClickListener { showScreen(Screen.PROFILES) }
+            contentDescription = "Действия с текущим сервером"
+            setOnClickListener {
+                if (selected != null) profileActions(selected) else showImportMenu()
+            }
         }
 
         val flag = FrameLayout(this).apply {
@@ -429,7 +430,8 @@ class MainActivity : Activity() {
                     contentDescription = "Выбрать сервер ${profile.name}"
                     setOnClickListener {
                         if (profile.id == selectedProfileId()) {
-                            showScreen(Screen.PROFILES)
+                            // Already selected: keep the user on Home instead of opening a duplicate list.
+                            renderHome()
                         } else if (isVpnServiceActiveOrStarting()) {
                             // KEY_RUNNING can still be false while an engine is starting
                             // or the previous VPN is tearing down. Treat that as an active
