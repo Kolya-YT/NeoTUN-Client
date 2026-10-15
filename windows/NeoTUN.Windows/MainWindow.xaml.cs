@@ -981,32 +981,38 @@ public partial class MainWindow : Window
 
     private void LaunchWithWindows_Click(object sender, RoutedEventArgs e)
     {
+        var isChecked = SettingsLaunchWithWindows.IsChecked == true;
         try
         {
-            var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-            var isChecked = SettingsLaunchWithWindows.IsChecked == true;
-            _settings.LaunchWithWindows = isChecked;
+            using var runKey = Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true)
+                ?? Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
 
-            if (runKey != null)
+            if (isChecked)
             {
-                if (isChecked)
-                {
-                    var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
-                    if (!string.IsNullOrEmpty(exePath))
-                    {
-                        runKey.SetValue("NeoTUN", $"\"{exePath}\"");
-                    }
-                }
-                else
-                {
-                    runKey.DeleteValue("NeoTUN", false);
-                }
+                var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrWhiteSpace(exePath))
+                    throw new InvalidOperationException("Не удалось определить путь к исполняемому файлу NeoTUN.");
+
+                runKey.SetValue("NeoTUN", $"\"{exePath}\"", RegistryValueKind.String);
             }
+            else
+            {
+                runKey.DeleteValue("NeoTUN", throwOnMissingValue: false);
+            }
+
+            _settings.LaunchWithWindows = isChecked;
             SaveAppSettings();
+            _vm.Notice = isChecked
+                ? "NeoTUN будет запускаться вместе с Windows."
+                : "Автозапуск NeoTUN вместе с Windows отключён.";
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException or ArgumentException or NotSupportedException)
         {
-            MessageBox.Show("Ошибка реестра автозапуска: " + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _isLoadingSettings = true;
+            SettingsLaunchWithWindows.IsChecked = _settings.LaunchWithWindows;
+            _isLoadingSettings = false;
+            MessageBox.Show("Не удалось изменить автозапуск Windows: " + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -1042,6 +1048,21 @@ public partial class MainWindow : Window
         if (MessageBox.Show("Сбросить все настройки к значениям по умолчанию?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
         {
             _settings = new AppSettings();
+            try
+            {
+                using var runKey = Registry.CurrentUser.OpenSubKey(
+                    @"SoftwareMicrosoftWindowsCurrentVersionRun", writable: true);
+                runKey?.DeleteValue("NeoTUN", throwOnMissingValue: false);
+                _settings.LaunchWithWindows = false;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException or NotSupportedException)
+            {
+                AddLog("Не удалось сбросить параметр автозапуска Windows: " + ex.Message);
+                MessageBox.Show("Остальные настройки будут сброшены, но отключить автозапуск не удалось.
+" + ex.Message,
+                    "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
             SaveAppSettings();
             LoadAppSettings();
             ApplyThemeAndScale();
@@ -1059,7 +1080,13 @@ public partial class MainWindow : Window
                 _settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_appSettingsPath)) ?? new AppSettings();
             }
         }
-        catch { _settings = new AppSettings(); }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            _settings = new AppSettings();
+            AddLog("Не удалось прочитать настройки приложения; использованы значения по умолчанию.");
+        }
+
+        _settings.LaunchWithWindows = IsLaunchWithWindowsEnabled();
 
         SettingsThemeSelector.SelectedIndex = _settings.Theme switch { "light" => 1, "oled" => 2, _ => 0 };
         SettingsFontScaleSelector.SelectedIndex = _settings.FontScale switch { 0.85 => 0, 1.15 => 2, 1.30 => 3, _ => 1 };
@@ -1085,9 +1112,35 @@ public partial class MainWindow : Window
     {
         try
         {
-            File.WriteAllText(_appSettingsPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
+            var tempPath = _appSettingsPath + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(tempPath, _appSettingsPath, overwrite: true);
         }
-        catch { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            AddLog("Не удалось сохранить настройки приложения: " + ex.Message);
+        }
+    }
+
+    private bool IsLaunchWithWindowsEnabled()
+    {
+        try
+        {
+            using var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: false);
+            var value = runKey?.GetValue("NeoTUN") as string;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            var configuredPath = Environment.ExpandEnvironmentVariables(value.Trim().Trim('"'));
+            var currentPath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+            return !string.IsNullOrWhiteSpace(currentPath) &&
+                   string.Equals(Path.GetFullPath(configuredPath), Path.GetFullPath(currentPath),
+                       StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException or NotSupportedException)
+        {
+            AddLog("Не удалось проверить автозапуск Windows: " + ex.Message);
+            return false;
+        }
     }
 
     private void ApplyThemeAndScale()
