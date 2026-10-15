@@ -163,10 +163,26 @@
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <Button Tag="{Binding}" Click="SelectProfile_Click"
-                              Background="{StaticResource SurfaceBrush}"
-                              BorderBrush="{StaticResource BorderBrushNeo}"
                               Padding="12,8" MinHeight="48" MinWidth="150" MaxWidth="220"
                               Margin="0,0,8,0" ToolTip="{Binding Endpoint}">
+                        <Button.Style>
+                          <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushNeo}"/>
+                            <Style.Triggers>
+                              <DataTrigger Value="True">
+                                <DataTrigger.Binding>
+                                  <MultiBinding Converter="{StaticResource ProfileSelectionConverter}">
+                                    <Binding Path="Id"/>
+                                    <Binding Path="DataContext.SelectedProfile.Id" RelativeSource="{RelativeSource AncestorType={x:Type Window}}"/>
+                                  </MultiBinding>
+                                </DataTrigger.Binding>
+                                <Setter Property="Background" Value="{StaticResource RaisedSurfaceBrush}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BorderAccentBrush}"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Button.Style>
                         <StackPanel>
                           <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
                                      TextTrimming="CharacterEllipsis" MaxWidth="190"/>
