@@ -902,7 +902,7 @@ public partial class MainWindow : Window
 
     private void SettingsTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SettingsThemeSelector.SelectedIndex >= 0)
+        if (!_isLoadingSettings && SettingsThemeSelector.SelectedIndex >= 0)
         {
             var theme = SettingsThemeSelector.SelectedIndex switch
             {
@@ -918,7 +918,7 @@ public partial class MainWindow : Window
 
     private void SettingsFontScale_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SettingsFontScaleSelector.SelectedIndex >= 0)
+        if (!_isLoadingSettings && SettingsFontScaleSelector.SelectedIndex >= 0)
         {
             var scale = SettingsFontScaleSelector.SelectedIndex switch
             {
