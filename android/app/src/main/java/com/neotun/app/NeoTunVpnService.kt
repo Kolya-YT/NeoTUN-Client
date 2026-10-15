@@ -1,14 +1,11 @@
 package com.neotun.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
@@ -25,6 +22,21 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     @Volatile private var nativeCloseStarted = false
     @Volatile private var disconnectRequested = false
     @Volatile private var startupThread: Thread? = null
+    private val notificationHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val notificationUpdater = object : Runnable {
+        override fun run() {
+            val currentState = when {
+                disconnectRequested -> "stopping"
+                starting -> "starting"
+                running -> "running"
+                else -> "error"
+            }
+            runCatching {
+                NeoTunForegroundNotification.update(this@NeoTunVpnService, "sing-box", currentState, -1)
+            }.onFailure { NeoTunDiagnostics.error(this@NeoTunVpnService, "sing-box notification update failed", it) }
+            if (!disconnectRequested && !nativeCloseStarted) notificationHandler.postDelayed(this, 1000L)
+        }
+    }
     private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -41,6 +53,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 return START_NOT_STICKY
             }
             disconnectRequested = true
+            notificationHandler.removeCallbacks(notificationUpdater)
             // A disconnect command can start this service even when it was not
             // previously active. Mark teardown busy before launching the worker,
             // otherwise MainActivity may observe false and start Xray while this
@@ -71,6 +84,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 }
                 closeNativeResources()
                 isEngineBusy = false
+                notificationHandler.removeCallbacks(notificationUpdater)
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_RUNNING, false).apply()
                 NeoTunDiagnostics.log(this, "sing-box: native shutdown completed; stopping service; waiting for onDestroy before acknowledging switch")
                 // Use stopSelf(), not stopSelf(startId): duplicate start commands
@@ -87,6 +101,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         isEngineBusy = true
         val generation = ++startupGeneration
         starting = true
+        NeoTunForegroundNotification.resetRates()
         NeoTunDiagnostics.clear(this)
         NeoTunDiagnostics.log(this, "sing-box: onStartCommand; Android SDK=" + Build.VERSION.SDK_INT)
         val config = intent?.getStringExtra(EXTRA_CONFIG)
@@ -179,6 +194,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 running = true
                 isServiceRunning = true
                 starting = false
+                updateForegroundNotification("running")
                 NeoTunDiagnostics.log(this, "sing-box: startup completed")
             } catch (error: Throwable) {
                 if (generation == startupGeneration) {
@@ -216,6 +232,7 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         super.onBind(intent) ?: error("VPN binder unavailable")
 
     override fun onDestroy() {
+        notificationHandler.removeCallbacks(notificationUpdater)
         NeoTunDiagnostics.log(this, "sing-box: service onDestroy; running=" + running +
             "; savedRunning=" + getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_RUNNING, false) +
             "; savedError=" + (getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ERROR, null) ?: "none"))
@@ -345,6 +362,8 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
         starting = false
         NeoTunDiagnostics.error(this, "sing-box stopped: " + message)
         running = false; isServiceRunning = false
+        notificationHandler.removeCallbacks(notificationUpdater)
+        updateForegroundNotification("error")
         getSharedPreferences(PREFS, MODE_PRIVATE)
             .edit()
             .putString(KEY_ERROR, message)
@@ -360,45 +379,21 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
     }
 
     private fun startForegroundNotification() {
-        val channelId = "neotun-service"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val enabled = getSharedPreferences("neotun_ui", MODE_PRIVATE)
-                .getBoolean("notifications_enabled", true)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(
-                    channelId,
-                    "NeoTUN",
-                    if (enabled) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_MIN,
-                ),
-            )
+        NeoTunForegroundNotification.startForeground(this, "sing-box", "starting", -1)
+        notificationHandler.removeCallbacks(notificationUpdater)
+        notificationHandler.postDelayed(notificationUpdater, 1000L)
+    }
+
+    private fun updateForegroundNotification(state: String? = null) {
+        val actual = state ?: when {
+            disconnectRequested -> "stopping"
+            starting -> "starting"
+            running -> "running"
+            else -> "error"
         }
-
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("NeoTUN")
-            .setContentText("Соединение запускается…")
-            .setOngoing(true)
-            .setSilent(true)
-            .setPriority(if (getSharedPreferences("neotun_ui", MODE_PRIVATE).getBoolean("notifications_enabled", true))
-                NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this,
-                    0,
-                    Intent(this, MainActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE,
-                ),
-            )
-            .build()
-
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        } else {
-            0
-        }
-
-        ServiceCompat.startForeground(this, 1, notification, type)
+        runCatching {
+            NeoTunForegroundNotification.update(this, "sing-box", actual, -1)
+        }.onFailure { NeoTunDiagnostics.error(this, "sing-box notification update failed", it) }
     }
 
     companion object {

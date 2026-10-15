@@ -1,8 +1,6 @@
 package com.neotun.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -15,7 +13,6 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
-import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
@@ -34,6 +31,14 @@ class NeoTunXrayVpnService : VpnService() {
     private val pendingSwitchStopTokens = java.util.concurrent.CopyOnWriteArraySet<String>()
     @Volatile private var stopAcknowledgementSucceeded = true
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val notificationHandler = Handler(Looper.getMainLooper())
+    private val notificationUpdater = object : Runnable {
+        override fun run() {
+            if (destroyed) return
+            refreshForegroundNotification()
+            notificationHandler.postDelayed(this, 1000L)
+        }
+    }
     private val xrayLifecycleLock = Any()
     private var xrayAccessLog: String = ""
     private var xrayErrorLog: String = ""
@@ -124,6 +129,7 @@ class NeoTunXrayVpnService : VpnService() {
         starting = true
 
         stateError = null
+        NeoTunForegroundNotification.resetRates()
         NeoTunDiagnostics.clear(this)
         NeoTunDiagnostics.log(this, "Xray service: onStartCommand")
         try {
@@ -227,6 +233,7 @@ class NeoTunXrayVpnService : VpnService() {
             stateError = null
             NeoTunDiagnostics.log(this, "Xray startup published to service state")
             broadcastXrayState()
+            refreshForegroundNotification("running")
         }
     }
 
@@ -682,6 +689,7 @@ class NeoTunXrayVpnService : VpnService() {
         destroyed = true
         startupGeneration++
         starting = false
+        notificationHandler.removeCallbacks(notificationUpdater)
         mainHandler.removeCallbacksAndMessages(null)
         NeoTunDiagnostics.log(this, "Xray service: onDestroy")
 
@@ -824,44 +832,21 @@ class NeoTunXrayVpnService : VpnService() {
     }
 
     private fun startForegroundNotification() {
-        val channelId = "neotun-xray"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val enabled = getSharedPreferences("neotun_ui", MODE_PRIVATE)
-                .getBoolean("notifications_enabled", true)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(
-                    channelId,
-                    "NeoTUN Xray",
-                    if (enabled) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_MIN,
-                ),
-            )
-        }
+        NeoTunForegroundNotification.startForeground(this, "Xray + XHTTP", "starting", tunFd)
+        notificationHandler.removeCallbacks(notificationUpdater)
+        notificationHandler.postDelayed(notificationUpdater, 1000L)
+    }
 
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("NeoTUN")
-            .setContentText("Xray + XHTTP запускается…")
-            .setOngoing(true)
-            .setSilent(true)
-            .setPriority(if (getSharedPreferences("neotun_ui", MODE_PRIVATE).getBoolean("notifications_enabled", true))
-                NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this,
-                    0,
-                    Intent(this, MainActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE,
-                ),
-            )
-            .build()
-
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        } else {
-            0
+    private fun refreshForegroundNotification(state: String? = null) {
+        val actual = state ?: when {
+            teardownInProgress -> "stopping"
+            starting -> "starting"
+            running -> "running"
+            else -> "error"
         }
-        ServiceCompat.startForeground(this, 2, notification, type)
+        runCatching {
+            NeoTunForegroundNotification.update(this, "Xray + XHTTP", actual, tunFd)
+        }.onFailure { NeoTunDiagnostics.error(this, "Xray notification update failed", it) }
     }
 
     companion object {
