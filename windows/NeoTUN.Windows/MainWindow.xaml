@@ -132,6 +132,52 @@
               </Grid>
             </Border>
 
+            <!-- Quick server switch: compact, horizontally scrollable, matching Android's dashboard -->
+            <StackPanel Margin="0,0,0,14">
+              <StackPanel.Style>
+                <Style TargetType="{x:Type StackPanel}">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding Profiles.Count}" Value="0">
+                      <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </StackPanel.Style>
+              <DockPanel Margin="0,0,0,7">
+                <TextBlock Text="Быстрое переключение" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right" Content="Все серверы  ›" Style="{StaticResource OutlineButton}"
+                        Padding="8,3" MinHeight="28" FontSize="11" Margin="8,0,0,0"
+                        Click="ServersNav_Click"/>
+              </DockPanel>
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                            CanContentScroll="True">
+                <ItemsControl ItemsSource="{Binding Profiles}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Tag="{Binding}" Click="SelectProfile_Click"
+                              Background="{StaticResource SurfaceBrush}"
+                              BorderBrush="{StaticResource BorderBrushNeo}"
+                              Padding="12,8" MinHeight="48" MinWidth="150" MaxWidth="220"
+                              Margin="0,0,8,0" ToolTip="{Binding Endpoint}">
+                        <StackPanel>
+                          <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                     TextTrimming="CharacterEllipsis" MaxWidth="190"/>
+                          <TextBlock Text="{Binding Protocol}" FontSize="10"
+                                     Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </StackPanel>
+
             <!-- Quick Action Shortcuts -->
             <Grid Margin="0,0,0,16">
               <Grid.ColumnDefinitions>
