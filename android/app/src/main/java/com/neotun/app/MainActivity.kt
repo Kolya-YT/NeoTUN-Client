@@ -851,11 +851,13 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(7), dp(7), dp(6), dp(7))
+            // Subscription lists can contain hundreds of profiles: keep rows dense
+            // without dropping below Android's 44dp minimum touch target.
+            setPadding(dp(7), dp(if (compact) 4 else 7), dp(6), dp(if (compact) 4 else 7))
             background = if (selected) rounded(NeoTunDesign.NAV_SELECTED, 15,
                 NeoTunDesign.BORDER_ACCENT, 1) else ColorDrawable(Color.TRANSPARENT)
         }
-        val iconSize = if (compact) 40 else 44
+        val iconSize = if (compact) 36 else 44
         val flag = FrameLayout(this).apply {
             background = rounded(if (selected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE_RAISED, 11)
         }
