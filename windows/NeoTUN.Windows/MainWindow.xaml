@@ -518,7 +518,7 @@
               <StackPanel>
                 <TextBlock Text="ПОДПИСКИ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
 
-                <CheckBox x:Name="SettingsAutoUpdateSubscriptions" Content="Обновлять подписки при запуске NeoTUN" IsChecked="True" Margin="0,0,0,10"/>
+                <CheckBox x:Name="SettingsAutoUpdateSubscriptions" Content="Обновлять подписки при запуске NeoTUN" IsChecked="True" Margin="0,0,0,10" Checked="SettingsAutoUpdateSubscriptions_Changed" Unchecked="SettingsAutoUpdateSubscriptions_Changed"/>
 
                 <TextBlock Text="Интервал фонового обновления" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
                 <ComboBox x:Name="SettingsSubInterval" SelectionChanged="SettingsSubInterval_SelectionChanged" Width="260" HorizontalAlignment="Left">
@@ -545,19 +545,19 @@
 
                   <StackPanel Margin="0,0,8,0">
                     <TextBlock Text="Режим проверки пинга" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                    <ComboBox x:Name="SettingsPingModeSelector">
+                    <ComboBox x:Name="SettingsPingModeSelector" IsEnabled="False" SelectedIndex="0" ToolTip="Сейчас используется TCP handshake. Другие режимы ещё не реализованы.">
                       <ComboBoxItem Content="TCP Handshake (быстрый)"/>
-                      <ComboBoxItem Content="HTTP Ping (проверка до веб-ресурса)"/>
+                      
                     </ComboBox>
                   </StackPanel>
 
                   <StackPanel Grid.Column="1" Margin="8,0,0,0">
                     <TextBlock Text="Таймаут пинга (мс)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                    <TextBox x:Name="SettingsPingTimeoutBox" Text="3500"/>
+                    <TextBox x:Name="SettingsPingTimeoutBox" Text="3500" ToolTip="Таймаут TCP-проверки сервера, 500–30000 мс" LostFocus="SettingsPingTimeout_LostFocus"/>
                   </StackPanel>
                 </Grid>
 
-                <CheckBox x:Name="SettingsAutoReconnect" Content="Автоматически переподключаться при обрыве соединения"/>
+                <CheckBox x:Name="SettingsAutoReconnect" Content="Автоматически переподключаться при обрыве соединения" IsEnabled="False" ToolTip="Автоматическое переподключение пока не реализовано."/>
               </StackPanel>
             </Border>
 
