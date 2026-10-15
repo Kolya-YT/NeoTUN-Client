@@ -7,7 +7,7 @@ This document is the visual contract for Android and Windows. Use it for new UI 
 1. **Connection comes first.** The current profile, real service state and primary connect/disconnect action dominate the home screen.
 2. **One source of truth.** Connection labels and colors reflect actual engine/service state, not just a button press. Starting, stopping, connected and failed are distinct.
 3. **Compact and responsive.** Avoid oversized empty hero areas, giant circular controls, redundant action rows and nested cards. Prefer clear hierarchy, modest spacing and useful density.
-4. **Parity across platforms.** Android and Windows share colors, typography intent, radius/spacing scale, connection semantics and terminology. Layouts may respect each platform's conventions.
+4. **Parity across platforms.** Android and Windows share colors, typography intent, radius/spacing scale, connection semantics and terminology. Layouts may respect each platform's conventions. On Android, the Happ-inspired flow uses Home as the server list and has no persistent bottom navigation; Windows may retain desktop top navigation.
 5. **Data-safe UI.** Do not change profile parsing, subscriptions, routing, engine selection, persistence, or connection lifecycle as part of visual work.
 6. **Accessible by default.** Maintain readable contrast, scalable text, clear touch/click targets, keyboard focus, labels for icon-only actions and visible error text.
 7. **Show, don't imply.** Do not label a tunnel connected until the service reports it active. A successful build is not proof of network behavior.
@@ -59,8 +59,8 @@ Recommended order:
 1. Compact brand row and settings/import shortcuts.
 2. One primary connection panel with a small status indicator, a clear current state, selected profile/endpoint and primary action.
 3. Compact live statistics with separate upload/download values; label units and avoid repeating the same statistic in multiple places.
-4. A concise selected-server row and an entry to all profiles.
-5. Only high-value shortcuts; diagnostics and advanced options belong below or on their own screen.
+4. The subscription/server list embedded directly on Home, with the selected row clearly highlighted.
+5. Only high-value shortcuts; diagnostics and advanced options belong below or on their own screen. Android should not require a separate top-level Servers destination to select a profile.
 
 Connected state uses the green semantic token. Starting uses violet/blue. Disconnecting uses a neutral/warning treatment and disables conflicting actions. Errors use the error surface and display a useful, clipped message with a path to diagnostics. Never show a hardcoded “driver ready” or online label unless it is actually verified.
 
@@ -74,7 +74,7 @@ Group settings by topic with short descriptions. Preserve platform-specific sett
 
 ## Navigation and interaction
 
-Use one consistent navigation pattern per platform: Android bottom navigation and Windows top/side navigation are both acceptable. Highlight only the current destination. The navigation must not compete visually with the connection action. Maintain Android system insets, Windows keyboard focus, Escape/back behavior, and scroll position where practical. Animations should be subtle, brief, and nonessential; respect the existing animation preference.
+Use one consistent navigation pattern per platform. Windows top/side navigation is acceptable. The Happ-inspired Android home keeps settings and import in the top action row and embeds server selection on Home, without a persistent bottom navigation bar. Navigation must not compete visually with the connection action. Maintain Android system insets, Windows keyboard focus, Escape/back behavior, and scroll position where practical. Animations should be subtle, brief, and nonessential; respect the existing animation preference.
 
 ## Implementation checklist
 
