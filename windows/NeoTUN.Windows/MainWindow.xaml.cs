@@ -1237,11 +1237,6 @@ public partial class MainWindow : Window
 
     #endregion
 }
-    {
-        if (SettingsAutoUpdateSubscriptions == null) return;
-        _settings.AutoUpdateSubscriptions = SettingsAutoUpdateSubscriptions.IsChecked == true;
-        SaveAppSettings();
-    }
 
     private void SettingsPingTimeout_LostFocus(object sender, RoutedEventArgs e)
     {
