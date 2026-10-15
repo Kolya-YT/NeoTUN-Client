@@ -932,7 +932,306 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SettingsMinimizeToTray_Changed(object sender, RoutedEventArgs e)
+    {
+        if (SettingsMinimizeToTrayOnClose == null || SettingsMinimizeToTrayOnStart == null) return;
+
+        _settings.MinimizeToTrayOnClose = SettingsMinimizeToTrayOnClose.IsChecked == true;
+        _settings.MinimizeToTrayOnStart = SettingsMinimizeToTrayOnStart.IsChecked == true;
+        SaveAppSettings();
+    }
+
     private void SettingsAutoUpdateSubscriptions_Changed(object sender, RoutedEventArgs e)
+    {
+        if (SettingsAutoUpdateSubscriptions == null) return;
+        _settings.AutoUpdateSubscriptions = SettingsAutoUpdateSubscriptions.IsChecked == true;
+        SaveAppSettings();
+    }
+
+    private void SettingsPingTimeout_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(SettingsPingTimeoutBox.Text, out var timeout))
+            timeout = _settings.PingTimeoutMs;
+
+        timeout = Math.Clamp(timeout, 500, 30000);
+        _settings.PingTimeoutMs = timeout;
+        SettingsPingTimeoutBox.Text = timeout.ToString();
+        SaveAppSettings();
+    }
+
+    private void SettingsSubInterval_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SettingsSubInterval.SelectedIndex >= 0)
+        {
+            _settings.SubscriptionIntervalHours = SettingsSubInterval.SelectedIndex switch
+            {
+                0 => 1,
+                1 => 6,
+                2 => 12,
+                3 => 24,
+                4 => 72,
+                _ => 168
+            };
+            SaveAppSettings();
+        }
+    }
+
+    private void LaunchWithWindows_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
+            var isChecked = SettingsLaunchWithWindows.IsChecked == true;
+            _settings.LaunchWithWindows = isChecked;
+
+            if (runKey != null)
+            {
+                if (isChecked)
+                {
+                    var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(exePath))
+                    {
+                        runKey.SetValue("NeoTUN", $"\"{exePath}\"");
+                    }
+                }
+                else
+                {
+                    runKey.DeleteValue("NeoTUN", false);
+                }
+            }
+            SaveAppSettings();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Ошибка реестра автозапуска: " + ex.Message, "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsUpdateSummary.Text = "Проверка наличия обновлений на GitHub…";
+        try
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("NeoTUN-Windows/0.4");
+            var json = await client.GetStringAsync("https://api.github.com/repos/Kolya-YT/NeoTUN-Client/releases/latest");
+            using var doc = JsonDocument.Parse(json);
+            var tag = doc.RootElement.GetProperty("tag_name").GetString();
+            SettingsUpdateSummary.Text = $"Последняя версия на GitHub: {tag}. Текущая: v0.1.1.";
+        }
+        catch (Exception ex)
+        {
+            SettingsUpdateSummary.Text = "Не удалось проверить обновления: " + ex.Message;
+        }
+    }
+
+    private void OpenGitHubReleases_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/Kolya-YT/NeoTUN-Client/releases") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private void ResetSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Сбросить все настройки к значениям по умолчанию?", "NeoTUN", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+        {
+            _settings = new AppSettings();
+            SaveAppSettings();
+            ApplyThemeAndScale();
+            MessageBox.Show("Настройки сброшены.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void LoadAppSettings()
+    {
+        try
+        {
+            if (File.Exists(_appSettingsPath))
+            {
+                _settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_appSettingsPath)) ?? new AppSettings();
+            }
+        }
+        catch { _settings = new AppSettings(); }
+
+        SettingsThemeSelector.SelectedIndex = _settings.Theme switch { "light" => 1, "oled" => 2, _ => 0 };
+        SettingsFontScaleSelector.SelectedIndex = _settings.FontScale switch { 0.85 => 0, 1.15 => 2, 1.30 => 3, _ => 1 };
+        SettingsAutoUpdateSubscriptions.IsChecked = _settings.AutoUpdateSubscriptions;
+        SettingsSubInterval.SelectedIndex = _settings.SubscriptionIntervalHours switch
+        {
+            1 => 0,
+            6 => 1,
+            12 => 2,
+            24 => 3,
+            72 => 4,
+            168 => 5,
+            _ => 2
+        };
+        SettingsPingTimeoutBox.Text = Math.Clamp(_settings.PingTimeoutMs, 500, 30000).ToString();
+        SettingsLaunchWithWindows.IsChecked = _settings.LaunchWithWindows;
+        SettingsMinimizeToTrayOnClose.IsChecked = _settings.MinimizeToTrayOnClose;
+        SettingsMinimizeToTrayOnStart.IsChecked = _settings.MinimizeToTrayOnStart;
+    }
+
+    private void SaveAppSettings()
+    {
+        try
+        {
+            File.WriteAllText(_appSettingsPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { }
+    }
+
+    private void ApplyThemeAndScale()
+    {
+        ThemeManager.ApplyTheme(_settings.Theme);
+    }
+
+    #endregion
+
+    #region System Tray
+
+    private void InitializeSystemTray()
+    {
+        try
+        {
+            _notifyIcon = new System.Windows.Forms.NotifyIcon
+            {
+                Text = "NeoTUN Client",
+                Icon = System.Drawing.SystemIcons.Shield,
+                Visible = true
+            };
+
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+            menu.Items.Add("Открыть NeoTUN", null, (s, e) => ShowAndRestore());
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add("Подключить / Отключить", null, (s, e) => Dispatcher.Invoke(() => Connect_Click(s, new RoutedEventArgs())));
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add("Выход", null, (s, e) => Dispatcher.Invoke(ExitApplication));
+
+            _notifyIcon.ContextMenuStrip = menu;
+            _notifyIcon.DoubleClick += (s, e) => Dispatcher.Invoke(ShowAndRestore);
+        }
+        catch (Exception ex)
+        {
+            AddLog("System tray init: " + ex.Message);
+        }
+    }
+
+    private void UpdateTrayStatus(bool connected, string? serverName = null)
+    {
+        if (_notifyIcon == null) return;
+        _notifyIcon.Text = connected
+            ? $"NeoTUN: Подключено ({serverName ?? "VPN"})"
+            : "NeoTUN: Отключено";
+    }
+
+    private void MinimizeToTray_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+    }
+
+    private void ShowAndRestore()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void ExitApplication()
+    {
+        _isExplicitExit = true;
+        CleanupSystemTray();
+        Application.Current.Shutdown();
+    }
+
+    private void CleanupSystemTray()
+    {
+        if (_notifyIcon != null)
+        {
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _notifyIcon = null;
+        }
+    }
+
+    #endregion
+
+    #region Logs & Diagnostics
+
+    private void AddLog(string message)
+    {
+        AppendBoundedLogText($"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
+    }
+
+    private void QueueRuntimeLog(string message)
+    {
+        // Process output threads must not synchronously wait for the WPF dispatcher.
+        lock (_runtimeLogQueueSync)
+        {
+            if (_runtimeLogQueue.Count >= MaxQueuedUiLogLines)
+            {
+                _runtimeLogQueue.Dequeue();
+                _runtimeLogQueueDropped = true;
+            }
+            _runtimeLogQueue.Enqueue(message);
+        }
+    }
+
+    private void FlushRuntimeLogs()
+    {
+        var batch = new System.Collections.Generic.List<string>(200);
+        lock (_runtimeLogQueueSync)
+        {
+            if (_runtimeLogQueueDropped)
+            {
+                batch.Add("[NeoTUN] Часть старых строк скрыта: журнал поступает быстрее, чем интерфейс успевает его показать.");
+                _runtimeLogQueueDropped = false;
+            }
+            while (batch.Count < 200 && _runtimeLogQueue.Count > 0)
+                batch.Add(_runtimeLogQueue.Dequeue());
+        }
+        if (batch.Count == 0) return;
+        AppendBoundedLogText(string.Join("\n", batch) + "\n");
+    }
+
+    private void AppendBoundedLogText(string text)
+    {
+        LogsTextBox.AppendText(text);
+        var current = LogsTextBox.Text;
+        if (current.Length > MaxVisibleLogChars)
+        {
+            var removeThrough = current.Length - (MaxVisibleLogChars * 3 / 4);
+            var nextLine = current.IndexOf('\n', removeThrough);
+            LogsTextBox.Text = nextLine >= 0 ? current[(nextLine + 1)..] : current[^(MaxVisibleLogChars * 3 / 4)..];
+        }
+        if (_vm.ActivePage == "Журнал") LogsTextBox.ScrollToEnd();
+    }
+
+    private void CopyLogs_Click(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(LogsTextBox.Text);
+        MessageBox.Show("Журнал скопирован в буфер обмена.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ClearLogs_Click(object sender, RoutedEventArgs e)
+    {
+        LogsTextBox.Clear();
+    }
+
+    private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", _dataDirectory) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    #endregion
+}
     {
         if (SettingsAutoUpdateSubscriptions == null) return;
         _settings.AutoUpdateSubscriptions = SettingsAutoUpdateSubscriptions.IsChecked == true;
