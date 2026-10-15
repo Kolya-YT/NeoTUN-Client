@@ -65,17 +65,42 @@ class NeoTunXrayVpnService : VpnService() {
             intent.getStringExtra(NeoTunVpnService.EXTRA_SWITCH_TOKEN)?.takeIf { it.isNotBlank() }?.let {
                 pendingSwitchStopTokens.add(it)
             }
+            // Capture the state before invalidating startup. The opposite engine
+            // also sends a stop command to Xray during a switch; a fresh, idle
+            // service has no TUN fd or native session to tear down.
+            val hadNativeSession = running || starting || tunFd >= 0 ||
+                (activeUri != null && !nativeCleanupComplete)
             startupGeneration++
             starting = false
-            // ACTION_DISCONNECT may instantiate an otherwise idle service.
-            // Keep Xray marked busy until native cleanup has completed, or the
-            // switch waiter can start sing-box/Xray while stopTunnel is running.
+            // Keep Xray marked busy until the service stop is acknowledged, so
+            // MainActivity cannot start a replacement TUN too early.
             isEngineBusy = true
             if (teardownInProgress) {
                 NeoTunDiagnostics.log(this, "Xray disconnect already in progress; ignoring duplicate request")
                 return START_NOT_STICKY
             }
             teardownInProgress = true
+            if (!hadNativeSession) {
+                NeoTunDiagnostics.log(this, "Xray: idle service received disconnect; skipping native teardown")
+                notificationHandler.removeCallbacks(notificationUpdater)
+                running = false
+                stateError = null
+                nativeCleanupComplete = true
+                stopAcknowledgementSucceeded = true
+                mainHandler.removeCallbacksAndMessages(null)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    stopForeground(true)
+                }
+                mainHandler.post {
+                    teardownInProgress = false
+                    broadcastXrayState()
+                    stopSelf()
+                }
+                return START_NOT_STICKY
+            }
             notificationHandler.removeCallbacks(notificationUpdater)
             running = false
             stateError = null

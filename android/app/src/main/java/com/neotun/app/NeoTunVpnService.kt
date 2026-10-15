@@ -55,17 +55,31 @@ class NeoTunVpnService : VpnService(), CommandServerHandler {
                 NeoTunDiagnostics.log(this, "sing-box: duplicate disconnect received during teardown; queued token will be acknowledged after onDestroy")
                 return START_NOT_STICKY
             }
+            // Switching from the other engine also sends a stop command here.
+            // If this service has never initialized libbox, do not create a
+            // shutdown worker just to close an engine that has no native state.
+            val hadNativeSession = running || starting || startupThread != null || ::commandServer.isInitialized
             disconnectRequested = true
             notificationHandler.removeCallbacks(notificationUpdater)
             // A disconnect command can start this service even when it was not
-            // previously active. Mark teardown busy before launching the worker,
-            // otherwise MainActivity may observe false and start Xray while this
-            // service is still releasing its TUN.
+            // previously active. Mark teardown busy before acknowledging the
+            // service stop so MainActivity cannot race a replacement TUN.
             isEngineBusy = true
             startupGeneration++
             starting = false
             running = false
             isServiceRunning = false
+            if (!hadNativeSession) {
+                NeoTunDiagnostics.log(this, "sing-box: idle service received disconnect; skipping native teardown")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    stopForeground(true)
+                }
+                stopSelf()
+                return START_NOT_STICKY
+            }
             NeoTunDiagnostics.log(this, "sing-box: disconnect requested; closing native engine off main thread")
             // libbox shutdown can block while draining TUN flows. Do not perform
             // native teardown on Android's main thread; keep this service alive
