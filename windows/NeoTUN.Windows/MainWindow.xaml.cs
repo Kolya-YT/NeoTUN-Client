@@ -1051,15 +1051,14 @@ public partial class MainWindow : Window
             try
             {
                 using var runKey = Registry.CurrentUser.OpenSubKey(
-                    @"SoftwareMicrosoftWindowsCurrentVersionRun", writable: true);
+                    @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
                 runKey?.DeleteValue("NeoTUN", throwOnMissingValue: false);
                 _settings.LaunchWithWindows = false;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException or NotSupportedException)
             {
                 AddLog("Не удалось сбросить параметр автозапуска Windows: " + ex.Message);
-                MessageBox.Show("Остальные настройки будут сброшены, но отключить автозапуск не удалось.
-" + ex.Message,
+                MessageBox.Show("Остальные настройки будут сброшены, но отключить автозапуск не удалось.\n" + ex.Message,
                     "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
