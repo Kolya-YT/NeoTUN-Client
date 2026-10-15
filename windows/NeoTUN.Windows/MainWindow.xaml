@@ -234,12 +234,12 @@
                       <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                           <TextBlock Text="📦  " FontSize="14"/>
-                          <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                          <TextBlock Text="{Binding Title}" ToolTip="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
                           <Border Background="{StaticResource BrandSoftBrush}" CornerRadius="6" Padding="6,1" Margin="8,0,0,0">
                             <TextBlock Text="{Binding Count, StringFormat='{}{0} серверов'}" FontSize="10" Foreground="{StaticResource BrandVioletLightBrush}"/>
                           </Border>
                         </StackPanel>
-                        <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="20,2,0,0"/>
+                        <TextBlock Text="{Binding Subtitle}" ToolTip="{Binding Subtitle}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="20,2,0,0"/>
                       </StackPanel>
 
                       <!-- Subscription Action Buttons -->
@@ -272,7 +272,7 @@
                             <!-- Details -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                               <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
-                              <TextBlock Text="{Binding Endpoint}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,4"/>
+                              <TextBlock Text="{Binding Endpoint}" ToolTip="{Binding Endpoint}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,4"/>
                               <StackPanel Orientation="Horizontal">
                                 <Border Background="{StaticResource InputSurfaceBrush}" CornerRadius="4" Padding="5,1" Margin="0,0,6,0">
                                   <TextBlock Text="{Binding Protocol}" FontSize="10" Foreground="{StaticResource BrandVioletLightBrush}"/>
