@@ -1,6 +1,6 @@
 # Happ UI audit and NeoTUN implementation plan
 
-**Status:** analysis complete at the APK static-inspection level; implementation not yet complete.  
+**Status:** static APK analysis completed; Android home-screen restructuring is underway.  
 **Reference:** user-provided Happ APK (65.7 MB) and the user's home-screen screenshot.  
 **Scope:** use the interaction structure and visual hierarchy as inspiration. Do not copy Happ branding, proprietary artwork, or source code.
 
@@ -41,10 +41,10 @@ The APK's string tables include names relating to subscription refresh and prope
 ## Implementation sequence
 
 ### Phase 1 — Navigation and home-screen composition
-- [ ] Remove the permanent bottom navigation from the Android shell.
-- [ ] Keep settings reachable from the top gear and profile import reachable from the plus.
-- [ ] Render subscription groups and server rows directly below the connection panel on Home.
-- [ ] Replace the current separate profile-screen dependency with home-embedded groups while preserving the profile-management operations.
+- [x] Remove the permanent bottom navigation from the Android shell (commit `57ed77e`; CI pending).
+- [x] Keep settings reachable from the top gear and profile import reachable from the plus (commit `57ed77e`; CI pending).
+- [x] Render subscription groups and server rows directly on Home, with collapsible groups, refresh/ping/actions and selected-profile switching (commit `57ed77e`; CI pending).
+- [ ] Finish removing remaining navigation paths that can open the legacy separate profile screen; preserve profile-management operations through contextual actions and settings.
 - [ ] Preserve system insets, scrolling, narrow-screen layout, large fonts and minimum touch targets.
 
 ### Phase 2 — Connection panel
