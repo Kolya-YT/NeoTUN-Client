@@ -92,9 +92,9 @@ class MainActivity : Activity() {
     private var scroll: ScrollView? = null
     private var homeRxValue: TextView? = null
     private var homeTxValue: TextView? = null
-    private var homeSpeedValue: TextView? = null
+    private var homeRxRateValue: TextView? = null
+    private var homeTxRateValue: TextView? = null
     private var homeConnectionButton: Button? = null
-    private var homeConnectionLabel: TextView? = null
     private var homeStatusDot: TextView? = null
     private var homeNetworkState: TextView? = null
     private var homeConnectionCard: LinearLayout? = null
@@ -216,9 +216,9 @@ class MainActivity : Activity() {
     private fun renderHome() {
         homeRxValue = null
         homeTxValue = null
-        homeSpeedValue = null
+        homeRxRateValue = null
+        homeTxRateValue = null
         homeConnectionButton = null
-        homeConnectionLabel = null
         homeStatusDot = null
         homeNetworkState = null
         homeConnectionCard = null
@@ -272,17 +272,30 @@ class MainActivity : Activity() {
         val statusDot = txt("●", 11f, if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET, Typeface.BOLD)
         homeStatusDot = statusDot
         stateRow.addView(statusDot, LinearLayout.LayoutParams(dp(18), -2))
-        val stateLabel = txt(when { running -> "СОЕДИНЕНИЕ АКТИВНО"; connecting -> "ПОДКЛЮЧЕНИЕ"; stopping -> "ОТКЛЮЧЕНИЕ"; else -> "ГОТОВО К ЗАПУСКУ" },
-            10f, if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT, Typeface.BOLD)
-        homeConnectionLabel = stateLabel
-        stateRow.addView(stateLabel, LinearLayout.LayoutParams(0, -2, 1f))
-        val online = txt(when { running -> "ONLINE"; connecting -> "CONNECTING"; stopping -> "STOPPING"; else -> "OFFLINE" }, 10f,
-            if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED, Typeface.BOLD)
-        homeNetworkState = online
-        stateRow.addView(online)
+        stateRow.addView(txt("СОЕДИНЕНИЕ", 10f, NeoTunDesign.TEXT_SECONDARY, Typeface.BOLD),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        val stateChip = txt(when {
+            running -> "Активно"
+            connecting -> "Подключение"
+            stopping -> "Отключение"
+            else -> "Отключено"
+        }, 10f, when {
+            running -> NeoTunDesign.SUCCESS
+            connecting -> NeoTunDesign.BRAND_VIOLET_LIGHT
+            else -> NeoTunDesign.TEXT_MUTED
+        }, Typeface.BOLD).apply {
+            setPadding(dp(8), dp(5), dp(8), dp(5))
+            background = rounded(when {
+                running -> NeoTunDesign.SUCCESS_SURFACE
+                connecting -> NeoTunDesign.BRAND_SOFT
+                else -> NeoTunDesign.SURFACE_RAISED
+            }, 8)
+        }
+        homeNetworkState = stateChip
+        stateRow.addView(stateChip)
         connection.addView(stateRow)
 
-        connection.addView(txt(if (running) "Вы подключены" else if (connecting) "Подключаемся к серверу" else if (stopping) "Останавливаем соединение" else "Всё под контролем",
+        connection.addView(txt(if (running) "Вы подключены" else if (connecting) "Подключаемся к серверу" else if (stopping) "Останавливаем соединение" else "Готово к подключению",
             if (resources.displayMetrics.widthPixels < dp(360)) 22f else 24f,
             NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
             maxLines = 2
@@ -449,38 +462,72 @@ class MainActivity : Activity() {
             elevation = 0f
         }
         val trafficHeader = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        trafficHeader.addView(txt("Статистика сессии", 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
+        trafficHeader.addView(txt("Скорость и трафик", 14f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
             LinearLayout.LayoutParams(0, -2, 1f))
-        trafficHeader.addView(txt(if (running) "LIVE" else "ОЖИДАНИЕ", 9f,
-            if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED, Typeface.BOLD).apply {
+        trafficHeader.addView(txt(when {
+            running -> "АКТИВНО"
+            connecting -> "ЗАПУСК"
+            stopping -> "ОСТАНОВКА"
+            else -> "ОЖИДАНИЕ"
+        }, 9f, when {
+            running -> NeoTunDesign.SUCCESS
+            connecting -> NeoTunDesign.BRAND_VIOLET_LIGHT
+            else -> NeoTunDesign.TEXT_MUTED
+        }, Typeface.BOLD).apply {
             setPadding(dp(8), dp(5), dp(8), dp(5))
-            background = rounded(if (running) NeoTunDesign.SUCCESS_SURFACE else NeoTunDesign.SURFACE_RAISED, 8)
+            background = rounded(when {
+                running -> NeoTunDesign.SUCCESS_SURFACE
+                connecting -> NeoTunDesign.BRAND_SOFT
+                else -> NeoTunDesign.SURFACE_RAISED
+            }, 8)
         })
         trafficCard.addView(trafficHeader)
-        val metrics = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(14), 0, dp(1))
-        }
-        val rxMetric = liveMetric("↓", formatBytes(traffic.sessionRx), "ПОЛУЧЕНО")
-        val txMetric = liveMetric("↑", formatBytes(traffic.sessionTx), "ОТПРАВЛЕНО")
-        val speed = when {
+
+        val rxSpeed = when {
             !running -> "—"
             traffic.interfaceName == null -> "Ожидание"
-            else -> formatRate(maxOf(traffic.rxRate, traffic.txRate))
+            else -> formatRate(traffic.rxRate)
         }
-        val speedMetric = liveMetric("↯", speed, "СКОРОСТЬ")
+        val txSpeed = when {
+            !running -> "—"
+            traffic.interfaceName == null -> "Ожидание"
+            else -> formatRate(traffic.txRate)
+        }
+        val rxSpeedMetric = liveMetric("↓", rxSpeed, "СКАЧИВАНИЕ")
+        val txSpeedMetric = liveMetric("↑", txSpeed, "ОТПРАВКА")
+        homeRxRateValue = rxSpeedMetric.second
+        homeTxRateValue = txSpeedMetric.second
+
+        val speedRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(10), 0, dp(2))
+        }
+        speedRow.addView(rxSpeedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
+        speedRow.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
+            LinearLayout.LayoutParams(dp(1), dp(42)))
+        speedRow.addView(txSpeedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
+        trafficCard.addView(speedRow)
+
+        trafficCard.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
+            LinearLayout.LayoutParams(-1, dp(1)).apply {
+                setMargins(dp(8), dp(10), dp(8), dp(2))
+            })
+
+        val rxMetric = liveMetric("↓", formatBytes(traffic.sessionRx), "ПОЛУЧЕНО")
+        val txMetric = liveMetric("↑", formatBytes(traffic.sessionTx), "ОТПРАВЛЕНО")
         homeRxValue = rxMetric.second
         homeTxValue = txMetric.second
-        homeSpeedValue = speedMetric.second
-        metrics.addView(rxMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
-        metrics.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
+        val totalsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(3), 0, dp(1))
+        }
+        totalsRow.addView(rxMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
+        totalsRow.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
             LinearLayout.LayoutParams(dp(1), dp(42)))
-        metrics.addView(txMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
-        metrics.addView(View(this).apply { setBackgroundColor(NeoTunDesign.BORDER) },
-            LinearLayout.LayoutParams(dp(1), dp(42)))
-        metrics.addView(speedMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
-        trafficCard.addView(metrics)
+        totalsRow.addView(txMetric.first, LinearLayout.LayoutParams(0, -2, 1f))
+        trafficCard.addView(totalsRow)
         content.addView(trafficCard, margins(bottom = 12))
 
         if (selected == null) {
@@ -555,19 +602,40 @@ class MainActivity : Activity() {
         val traffic = readVpnTraffic()
         homeRxValue?.text = formatBytes(traffic.sessionRx)
         homeTxValue?.text = formatBytes(traffic.sessionTx)
-        homeSpeedValue?.text = when {
+        homeRxRateValue?.text = when {
             !running -> "—"
             traffic.interfaceName == null -> "Ожидание"
-            else -> formatRate(maxOf(traffic.rxRate, traffic.txRate))
+            else -> formatRate(traffic.rxRate)
+        }
+        homeTxRateValue?.text = when {
+            !running -> "—"
+            traffic.interfaceName == null -> "Ожидание"
+            else -> formatRate(traffic.txRate)
         }
         homeConnectionButton?.text = when { running -> "Отключиться"; connecting -> "Отменить подключение"; stopping -> "Отключение…"; else -> "Подключиться" }
         homeConnectionButton?.isEnabled = !stopping
         homeConnectionButton?.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
-        homeConnectionLabel?.text = when { running -> "СОЕДИНЕНИЕ АКТИВНО"; connecting -> "ПОДКЛЮЧЕНИЕ"; stopping -> "ОТКЛЮЧЕНИЕ"; else -> "ГОТОВО К ПОДКЛЮЧЕНИЮ" }
-        homeConnectionLabel?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT)
-        homeStatusDot?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET)
-        homeNetworkState?.text = when { running -> "●  ONLINE"; connecting -> "○  CONNECTING"; stopping -> "○  STOPPING"; else -> "○  OFFLINE" }
-        homeNetworkState?.setTextColor(if (running) NeoTunDesign.SUCCESS else NeoTunDesign.TEXT_MUTED)
+        homeStatusDot?.setTextColor(when {
+            running -> NeoTunDesign.SUCCESS
+            connecting -> NeoTunDesign.BRAND_VIOLET_LIGHT
+            else -> NeoTunDesign.TEXT_MUTED
+        })
+        homeNetworkState?.text = when {
+            running -> "Активно"
+            connecting -> "Подключение"
+            stopping -> "Отключение"
+            else -> "Отключено"
+        }
+        homeNetworkState?.setTextColor(when {
+            running -> NeoTunDesign.SUCCESS
+            connecting -> NeoTunDesign.BRAND_VIOLET_LIGHT
+            else -> NeoTunDesign.TEXT_MUTED
+        })
+        homeNetworkState?.background = rounded(when {
+            running -> NeoTunDesign.SUCCESS_SURFACE
+            connecting -> NeoTunDesign.BRAND_SOFT
+            else -> NeoTunDesign.SURFACE_RAISED
+        }, 8)
         homeConnectionCard?.background = NeoTunDesign.connectionCardDrawable(resources.displayMetrics.density, running)
         updateHomeError(getSharedPreferences(NeoTunVpnService.PREFS, MODE_PRIVATE)
             .getString(NeoTunVpnService.KEY_ERROR, null))
