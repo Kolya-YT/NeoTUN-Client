@@ -932,6 +932,24 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SettingsAutoUpdateSubscriptions_Changed(object sender, RoutedEventArgs e)
+    {
+        if (SettingsAutoUpdateSubscriptions == null) return;
+        _settings.AutoUpdateSubscriptions = SettingsAutoUpdateSubscriptions.IsChecked == true;
+        SaveAppSettings();
+    }
+
+    private void SettingsPingTimeout_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(SettingsPingTimeoutBox.Text, out var timeout))
+            timeout = _settings.PingTimeoutMs;
+
+        timeout = Math.Clamp(timeout, 500, 30000);
+        _settings.PingTimeoutMs = timeout;
+        SettingsPingTimeoutBox.Text = timeout.ToString();
+        SaveAppSettings();
+    }
+
     private void SettingsSubInterval_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (SettingsSubInterval.SelectedIndex >= 0)
@@ -1032,6 +1050,17 @@ public partial class MainWindow : Window
         SettingsThemeSelector.SelectedIndex = _settings.Theme switch { "light" => 1, "oled" => 2, _ => 0 };
         SettingsFontScaleSelector.SelectedIndex = _settings.FontScale switch { 0.85 => 0, 1.15 => 2, 1.30 => 3, _ => 1 };
         SettingsAutoUpdateSubscriptions.IsChecked = _settings.AutoUpdateSubscriptions;
+        SettingsSubInterval.SelectedIndex = _settings.SubscriptionIntervalHours switch
+        {
+            1 => 0,
+            6 => 1,
+            12 => 2,
+            24 => 3,
+            72 => 4,
+            168 => 5,
+            _ => 2
+        };
+        SettingsPingTimeoutBox.Text = Math.Clamp(_settings.PingTimeoutMs, 500, 30000).ToString();
         SettingsLaunchWithWindows.IsChecked = _settings.LaunchWithWindows;
         SettingsMinimizeToTrayOnClose.IsChecked = _settings.MinimizeToTrayOnClose;
         SettingsMinimizeToTrayOnStart.IsChecked = _settings.MinimizeToTrayOnStart;
