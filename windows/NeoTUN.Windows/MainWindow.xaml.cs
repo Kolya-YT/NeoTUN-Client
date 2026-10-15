@@ -1043,6 +1043,7 @@ public partial class MainWindow : Window
         {
             _settings = new AppSettings();
             SaveAppSettings();
+            LoadAppSettings();
             ApplyThemeAndScale();
             MessageBox.Show("Настройки сброшены.", "NeoTUN", MessageBoxButton.OK, MessageBoxImage.Information);
         }
