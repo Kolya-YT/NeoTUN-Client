@@ -509,7 +509,7 @@
                   </StackPanel>
                 </Grid>
 
-                <CheckBox x:Name="SettingsUiAnimations" Content="Плавные переходы интерфейса" IsChecked="True"/>
+                <CheckBox x:Name="SettingsUiAnimations" Content="Плавные переходы интерфейса" IsChecked="True" IsEnabled="False" ToolTip="Анимации переходов пока не реализованы."/>
               </StackPanel>
             </Border>
 
