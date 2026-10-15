@@ -76,6 +76,7 @@ class NeoTunXrayVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             teardownInProgress = true
+            notificationHandler.removeCallbacks(notificationUpdater)
             running = false
             stateError = null
             broadcastXrayState()
