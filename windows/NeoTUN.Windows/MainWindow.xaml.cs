@@ -1111,6 +1111,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(_appSettingsPath))
+                return;
+
             var tempPath = _appSettingsPath + ".tmp";
             File.WriteAllText(tempPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
             File.Move(tempPath, _appSettingsPath, overwrite: true);
