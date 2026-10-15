@@ -520,7 +520,7 @@
 
                 <CheckBox x:Name="SettingsAutoUpdateSubscriptions" Content="Обновлять подписки при запуске NeoTUN" IsChecked="True" Margin="0,0,0,10" Checked="SettingsAutoUpdateSubscriptions_Changed" Unchecked="SettingsAutoUpdateSubscriptions_Changed"/>
 
-                <TextBlock Text="Интервал фонового обновления" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                <TextBlock Text="Минимальный интервал между автообновлениями" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
                 <ComboBox x:Name="SettingsSubInterval" SelectionChanged="SettingsSubInterval_SelectionChanged" Width="260" HorizontalAlignment="Left">
                   <ComboBoxItem Content="Каждый час"/>
                   <ComboBoxItem Content="Каждые 6 часов"/>
