@@ -23,6 +23,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _notice = "Добавьте ссылку на сервер или импортируйте подписку.";
 
     private string _speed = "0 B/s";
+    private string _downloadSpeed = "0 B/s";
+    private string _uploadSpeed = "0 B/s";
     private string _received = "0 B";
     private string _sent = "0 B";
 
@@ -194,6 +196,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public string Speed { get => _speed; set { if (_speed != value) { _speed = value; OnPropertyChanged(); } } }
+    public string DownloadSpeed { get => _downloadSpeed; set { if (_downloadSpeed != value) { _downloadSpeed = value; OnPropertyChanged(); } } }
+    public string UploadSpeed { get => _uploadSpeed; set { if (_uploadSpeed != value) { _uploadSpeed = value; OnPropertyChanged(); } } }
     public string Received { get => _received; set { if (_received != value) { _received = value; OnPropertyChanged(); } } }
     public string Sent { get => _sent; set { if (_sent != value) { _sent = value; OnPropertyChanged(); } } }
 
@@ -280,6 +284,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void UpdateTraffic(long rxRate, long txRate, long totalRx, long totalTx)
     {
+        DownloadSpeed = $"{FormatBytes(rxRate)}/s";
+        UploadSpeed = $"{FormatBytes(txRate)}/s";
         Speed = $"{FormatBytes(rxRate + txRate)}/s";
         Received = FormatBytes(totalRx);
         Sent = FormatBytes(totalTx);
@@ -288,6 +294,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void ResetTraffic()
     {
         Speed = "0 B/s";
+        DownloadSpeed = "0 B/s";
+        UploadSpeed = "0 B/s";
         Received = "0 B";
         Sent = "0 B";
     }
