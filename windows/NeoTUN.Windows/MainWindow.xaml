@@ -500,7 +500,7 @@
 
                   <StackPanel Grid.Column="1" Margin="8,0,0,0">
                     <TextBlock Text="Масштаб шрифта" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                    <ComboBox x:Name="SettingsFontScaleSelector" SelectionChanged="SettingsFontScale_SelectionChanged">
+                    <ComboBox x:Name="SettingsFontScaleSelector" IsEnabled="False" ToolTip="Масштабирование шрифтов по всему интерфейсу пока не реализовано." SelectionChanged="SettingsFontScale_SelectionChanged">
                       <ComboBoxItem Content="Маленький · 85%"/>
                       <ComboBoxItem Content="Стандартный · 100%"/>
                       <ComboBoxItem Content="Крупный · 115%"/>
