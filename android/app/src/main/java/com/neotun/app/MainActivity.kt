@@ -1107,11 +1107,6 @@ class MainActivity : Activity() {
             when (updateHours) { 1 -> "Каждый час"; 6 -> "6 часов"; 12 -> "12 часов"; 24 -> "24 часа"; else -> "$updateHours ч." },
             "Выберите, как часто проверять подписки на изменения"
         ) { showSubscriptionIntervalSettings() })
-        subscriptionsSection.addView(settingsRow(
-            "🗂️ Серверы и подписки",
-            "${store.all().size} / ${subscriptions.all().size}",
-            "Профили, подписки, обновление и удаление"
-        ) { showScreen(Screen.PROFILES) })
         content.addView(subscriptionsSection, margins(bottom = 12))
 
         val tools = settingsSection("ДИАГНОСТИКА И ОБНОВЛЕНИЯ")
@@ -2286,7 +2281,7 @@ class MainActivity : Activity() {
                     showScreen(Screen.HOME)
                     toast("Подписка импортирована: $it профилей")
                 }.onFailure {
-                    showScreen(Screen.PROFILES)
+                    showScreen(Screen.HOME)
                     toast("Не удалось импортировать подписку: ${it.message ?: "ошибка"}")
                 }
             }
@@ -2311,7 +2306,7 @@ class MainActivity : Activity() {
                 val uri = o.optString("url").ifBlank { o.optString("uri") }.ifBlank { o.optString("link") }
                 if (uri.contains("://")) saveImportedShare(uri)
             }
-        }.onSuccess { showScreen(Screen.PROFILES); toast("JSON импортирован") }
+        }.onSuccess { showScreen(Screen.HOME); toast("JSON импортирован") }
          .onFailure { toast("Некорректный JSON") }
     }
 
@@ -2441,7 +2436,7 @@ class MainActivity : Activity() {
         )
         store.save(p)
         setSelectedProfile(p.id)
-        showScreen(Screen.PROFILES)
+        showScreen(Screen.HOME)
         toast("Профиль добавлен")
     }
 
@@ -2927,7 +2922,7 @@ class MainActivity : Activity() {
     private fun pingSelected(profile: NeoTunProfile?) {
         if (profile == null) {
             toast("Сначала добавьте профиль")
-            showScreen(Screen.PROFILES)
+            showScreen(Screen.HOME)
             return
         }
         // Ping checks use an independent socket/proxy test and are allowed while the tunnel is active.
