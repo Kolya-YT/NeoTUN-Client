@@ -250,11 +250,11 @@ class MainActivity : Activity() {
         val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         titleBox.addView(txt("NeoTUN", 21f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD))
         titleBox.addView(txt("Защищённое соединение", 11f, NeoTunDesign.TEXT_MUTED), margins(top = 2))
+        top.addView(titleBox, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(iconButton("⚙", 23) { showScreen(Screen.SETTINGS) }.apply {
             background = rounded(NeoTunDesign.SURFACE, 14, NeoTunDesign.BORDER, 1)
             contentDescription = "Настройки"
-        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { setMargins(0, 0, dp(10), 0) })
-        top.addView(titleBox, LinearLayout.LayoutParams(0, -2, 1f))
+        }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { setMargins(0, 0, dp(8), 0) })
         top.addView(iconButton("＋", 24) { showImportMenu() }.apply {
             background = rounded(NeoTunDesign.SURFACE, 14, NeoTunDesign.BORDER, 1)
             contentDescription = "Добавить сервер или подписку"
