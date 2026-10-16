@@ -2933,7 +2933,11 @@ class MainActivity : Activity() {
         // Ping checks use an independent socket/proxy test and are allowed while the tunnel is active.
         if (!pingInProgress.add(profile.id)) return
         pingResults[profile.id] = "…"
-        if (screen == Screen.PROFILES) renderProfiles()
+        when (screen) {
+            Screen.HOME -> renderHome()
+            Screen.PROFILES -> renderProfiles()
+            Screen.SETTINGS -> Unit
+        }
 
         // Ping runs in the background. Progress and result are shown inline in the server row.
         Thread {
@@ -3000,7 +3004,11 @@ class MainActivity : Activity() {
             runOnUiThread {
                 pingInProgress.remove(profile.id)
                 pingResults[profile.id] = if (result >= 0L) "${result}мс" else "Ошибка"
-                if (screen == Screen.PROFILES) renderProfiles()
+                when (screen) {
+                    Screen.HOME -> renderHome()
+                    Screen.PROFILES -> renderProfiles()
+                    Screen.SETTINGS -> Unit
+                }
             }
         }.start()
     }
