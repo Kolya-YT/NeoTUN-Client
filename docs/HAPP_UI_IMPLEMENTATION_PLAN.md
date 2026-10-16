@@ -57,14 +57,14 @@ The APK's string tables include names relating to subscription refresh and prope
 ### Phase 3 — Subscription groups and server rows
 - [ ] Compact subscription headers and provide clear expand/collapse state.
 - [ ] Retain refresh, ping and subscription actions without overcrowding the header on narrow devices.
-- [ ] Make completed ping results refresh the visible Home server row (currently the completion callback only rerenders the legacy Profiles screen).
+- [x] Refresh the visible Home server rows when a ping starts and completes (commit `ecb24d9`; Android/Windows CI pending).
 - [ ] Improve server name/protocol/latency alignment and selected-row indication.
 - [ ] Preserve sorting, rename/delete/pin/configuration actions and safe profile switching.
 - [ ] Show subscription usage/expiry/support details only when backed by known metadata or provider responses.
 
 ### Phase 4 — Settings and secondary flows
 - [ ] Audit common settings against Happ's interaction patterns: compact label/value rows, contextual bottom sheets, switches/selectors, and consistent confirmation feedback. Keep NeoTUN-specific settings and existing storage keys.
-- [ ] Verify ping modes against the Happ APK beyond static strings before claiming exact behavioral parity. Current NeoTUN modes are TCP socket connect, ICMP reachability, and Xray `pingBatch` to `https://cp.cloudflare.com/` using GET/HEAD; this is a mixed set of tests, not a verified reproduction of Happ's implementation.
+- [ ] Verify ping modes against the Happ APK beyond static strings before claiming exact behavioral parity. Current Android NeoTUN modes are TCP socket connect, ICMP reachability, and Xray `pingBatch` to `https://cp.cloudflare.com/` using GET/HEAD; Windows currently implements TCP handshake only. These are not yet a verified reproduction of Happ's implementation.
 - [ ] Open settings from the gear without a bottom navigation item.
 - [ ] Audit import, profile editor, routing, DNS, exclusions, diagnostics, update and reset flows for reachable entry points.
 - [ ] Keep advanced/raw config separate from the common server action menu.
@@ -75,7 +75,7 @@ The APK's string tables include names relating to subscription refresh and prope
 
 ### Phase 6 — Verification and documentation
 - [ ] Run Android APK and Windows Desktop CI after each logical change.
-- [ ] Confirm CI for speed-metric removal commit `9c15149` (runs `38788784526` Android and `38788784521` Windows are pending).
+- [x] Confirm CI for speed-metric removal commit `9c15149`: Android run `38788784526` and Windows run `38788784521` succeeded.
 - [ ] Test narrow Android screens, large font settings, collapsed/expanded subscriptions, empty state, multiple subscriptions, long names, and selected profile.
 - [ ] On a real Android device, verify connect/disconnect/reconnect, Xray↔sing-box switching, traffic, DNS and routing; CI alone does not establish these.
 - [ ] Update this plan and the parity audit with exact commits and actual CI outcomes.
