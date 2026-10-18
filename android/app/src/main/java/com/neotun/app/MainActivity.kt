@@ -313,21 +313,51 @@ class MainActivity : Activity() {
             12f, NeoTunDesign.TEXT_SECONDARY
         ), margins(top = 4, bottom = 12))
 
-        val connectButton = button(when { running -> "Отключиться"; connecting -> "Отменить подключение"; stopping -> "Отключение…"; else -> "Подключиться" }) {
+        connection.addView(txt(selected?.name ?: "Сервер не выбран",
+            13f, NeoTunDesign.TEXT_SECONDARY, Typeface.BOLD, Gravity.CENTER).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+        }, margins(top = 5, bottom = 12))
+        val connectButton = button("⏻") {
             if (isVpnServiceActiveOrStarting()) disconnect()
             else {
                 val current = selectedProfile(store.all())
                 if (current == null) showImportMenu() else connect(current)
             }
         }.apply {
-            textSize = 15f * fontScaleFactor()
-            minHeight = dp(48)
-            background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
-            setTextColor(if (running) NeoTunDesign.TEXT_PRIMARY else Color.WHITE)
+            textSize = 43f * fontScaleFactor()
+            minWidth = dp(112)
+            minHeight = dp(112)
+            setPadding(0, 0, 0, dp(5))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                if (running) intArrayOf(0xFF167D62.toInt(), NeoTunDesign.SUCCESS)
+                else intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
+            ).apply {
+                shape = GradientDrawable.OVAL
+                setStroke(dp(2), if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT)
+            }
+            setTextColor(Color.WHITE)
+            contentDescription = when {
+                running -> "Отключиться"
+                connecting -> "Отменить подключение"
+                stopping -> "Отключение"
+                else -> "Подключиться"
+            }
         }
         homeConnectionButton = connectButton
         connectButton.isEnabled = !stopping
-        connection.addView(connectButton, LinearLayout.LayoutParams(-1, dp(48)))
+        connection.addView(connectButton, LinearLayout.LayoutParams(dp(112), dp(112)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+        })
+        connection.addView(txt(when {
+            running -> "Нажмите, чтобы отключиться"
+            connecting -> "Подключаемся…"
+            stopping -> "Останавливаем соединение…"
+            else -> "Нажмите для подключения"
+        }, 11f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER).apply {
+            maxLines = 1
+        }, margins(top = 8))
         content.addView(connection, margins(bottom = 14))
 
         val errorCard = card().apply {
@@ -345,124 +375,8 @@ class MainActivity : Activity() {
         content.addView(errorCard, margins(bottom = 12))
         updateHomeError(prefs.getString(NeoTunVpnService.KEY_ERROR, null))
 
-        val sectionHeader = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        sectionHeader.addView(txt("Текущий сервер", 16f, NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD),
-            LinearLayout.LayoutParams(0, -2, 1f))
-        // Server selection stays on the Home screen; the full list is embedded below.
-        content.addView(sectionHeader, margins(top = 2, bottom = 9))
-
-        val serverCard = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = rounded(NeoTunDesign.SURFACE, 16, NeoTunDesign.BORDER, 1)
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Действия с текущим сервером"
-            setOnClickListener {
-                if (selected != null) profileActions(selected) else showImportMenu()
-            }
-        }
-
-        val flag = FrameLayout(this).apply {
-            background = rounded(NeoTunDesign.SURFACE_RAISED, 12)
-            addView(txt(selected?.let { countryFlag(it.name) } ?: "＋", 20f,
-                NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER), FrameLayout.LayoutParams(-1, -1))
-        }
-        serverCard.addView(flag, LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-            setMargins(0, 0, dp(12), 0)
-        })
-        val serverInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        serverInfo.addView(txt(selected?.name ?: "Сервер не выбран", 14f,
-            NeoTunDesign.TEXT_PRIMARY, Typeface.BOLD).apply {
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        })
-        serverInfo.addView(txt(selected?.let { protocolLabel(it) + " · " + maskUri(it.uri) }
-            ?: "Нажмите для выбора сервера", 10f, NeoTunDesign.TEXT_MUTED).apply {
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }, margins(top = 2))
-        serverCard.addView(serverInfo, LinearLayout.LayoutParams(0, -2, 1f))
-        serverCard.addView(txt("›", 22f, NeoTunDesign.TEXT_MUTED, Typeface.NORMAL, Gravity.CENTER),
-            LinearLayout.LayoutParams(dp(24), dp(44)))
-        content.addView(serverCard, margins(bottom = 8))
-
-        // The current server is already presented above. Keep this row focused on
-        // alternatives so the same profile is not repeated twice on the home screen.
-        val quickProfiles = profiles.filter { it.id != selected?.id }
-        if (quickProfiles.isNotEmpty()) {
-            val quickHeader = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            quickHeader.addView(txt("Быстрое переключение", 12f, NeoTunDesign.TEXT_SECONDARY, Typeface.BOLD),
-                LinearLayout.LayoutParams(0, -2, 1f))
-            quickHeader.addView(txt("${quickProfiles.size} серверов", 10f, NeoTunDesign.TEXT_MUTED))
-            content.addView(quickHeader, margins(bottom = 7))
-
-            val quickScroll = HorizontalScrollView(this).apply {
-                isHorizontalScrollBarEnabled = false
-                clipToPadding = false
-                setPadding(0, 0, 0, dp(3))
-            }
-            val quickRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            quickProfiles.forEach { profile ->
-                val isSelected = profile.id == selected?.id
-                val chip = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(9), dp(8), dp(10), dp(8))
-                    background = rounded(
-                        if (isSelected) NeoTunDesign.BRAND_SOFT else NeoTunDesign.SURFACE,
-                        14,
-                        if (isSelected) NeoTunDesign.BORDER_ACCENT else NeoTunDesign.BORDER,
-                        1
-                    )
-                    isClickable = true
-                    isFocusable = true
-                    contentDescription = "Выбрать сервер ${profile.name}"
-                    setOnClickListener {
-                        if (profile.id == selectedProfileId()) {
-                            // Already selected: keep the user on Home instead of opening a duplicate list.
-                            renderHome()
-                        } else if (isVpnServiceActiveOrStarting()) {
-                            // KEY_RUNNING can still be false while an engine is starting
-                            // or the previous VPN is tearing down. Treat that as an active
-                            // session so a quick-switch tap never only changes selection
-                            // while leaving the old/new service lifecycle untouched.
-                            switchServer(profile)
-                        } else {
-                            setSelectedProfile(profile.id)
-                            renderHome()
-                        }
-                    }
-                }
-                chip.addView(txt(countryFlag(profile.name), 18f, NeoTunDesign.TEXT_PRIMARY, Typeface.NORMAL, Gravity.CENTER))
-                val label = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                label.addView(txt(profile.name, 12f,
-                    if (isSelected) NeoTunDesign.BRAND_VIOLET_LIGHT else NeoTunDesign.TEXT_PRIMARY,
-                    Typeface.BOLD).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-                label.addView(txt(protocolLabel(profile), 9f, NeoTunDesign.TEXT_MUTED).apply {
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }, margins(top = 2))
-                chip.addView(label, LinearLayout.LayoutParams(dp(if (resources.displayMetrics.widthPixels < dp(360)) 94 else 104), -2).apply { setMargins(dp(6), 0, 0, 0) })
-                quickRow.addView(chip, LinearLayout.LayoutParams(-2, dp(54)).apply {
-                    setMargins(0, 0, dp(7), 0)
-                })
-            }
-            quickScroll.addView(quickRow)
-            content.addView(quickScroll, margins(bottom = 14))
-        } else {
-            content.addView(View(this), LinearLayout.LayoutParams(1, dp(7)))
-        }
+        // Server selection is represented once, in the subscription/profile list below.
+        // Avoid a duplicate current-server card and a second quick-switch carousel.
 
         val traffic = readVpnTraffic()
         val trafficCard = card().apply {
@@ -698,9 +612,22 @@ class MainActivity : Activity() {
         val traffic = readVpnTraffic()
         homeRxValue?.text = formatBytes(traffic.sessionRx)
         homeTxValue?.text = formatBytes(traffic.sessionTx)
-        homeConnectionButton?.text = when { running -> "Отключиться"; connecting -> "Отменить подключение"; stopping -> "Отключение…"; else -> "Подключиться" }
+        homeConnectionButton?.text = "⏻"
         homeConnectionButton?.isEnabled = !stopping
-        homeConnectionButton?.background = NeoTunDesign.connectButtonDrawable(resources.displayMetrics.density, running)
+        homeConnectionButton?.background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            if (running) intArrayOf(0xFF167D62.toInt(), NeoTunDesign.SUCCESS)
+            else intArrayOf(NeoTunDesign.BRAND_VIOLET, NeoTunDesign.BRAND_BLUE)
+        ).apply {
+            shape = GradientDrawable.OVAL
+            setStroke(dp(2), if (running) NeoTunDesign.SUCCESS else NeoTunDesign.BRAND_VIOLET_LIGHT)
+        }
+        homeConnectionButton?.contentDescription = when {
+            running -> "Отключиться"
+            connecting -> "Отменить подключение"
+            stopping -> "Отключение"
+            else -> "Подключиться"
+        }
         homeStatusDot?.setTextColor(when {
             running -> NeoTunDesign.SUCCESS
             connecting -> NeoTunDesign.BRAND_VIOLET_LIGHT
