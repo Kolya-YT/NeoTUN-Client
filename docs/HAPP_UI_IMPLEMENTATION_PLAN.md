@@ -1,6 +1,6 @@
 # Happ UI audit and NeoTUN implementation plan
 
-**Status:** static APK analysis completed; Android home-screen restructuring is underway.  
+**Status:** static APK analysis completed; Happ-inspired Android and Windows home-screen redesign is underway.  
 **Reference:** user-provided Happ APK (65.7 MB) and the user's home-screen screenshot.  
 **Scope:** use the interaction structure and visual hierarchy as inspiration. Do not copy Happ branding, proprietary artwork, or source code.
 
@@ -88,6 +88,14 @@ The APK's string tables include names relating to subscription refresh and prope
 - VLESS TCP must continue to use Xray where the current engine-selection logic requires it.
 - Do not reintroduce the removed DPI packet-shaping code.
 - Do not claim that the APK was run or fully decompiled; current analysis was static.
+
+## Latest UI pass (2026-10-18)
+
+- Android commit `9839f1f`: replaces the wide primary action with a large circular power control; removes the duplicate current-server card and horizontal quick-switch carousel so server selection is presented once in the main subscription/profile list.
+- Windows commit `256c102`: replaces the wide primary action with a circular power control and changes the Home quick-switch strip into a compact vertical server list showing country flag, protocol and ping.
+- Earlier Android commit `da6cc9b`: routes legacy requests for the separate profile page back to Home.
+- CI for `da6cc9b` completed successfully on Android and Windows. CI for `9839f1f` and `256c102` is still running at the time of this update; do not call these UI commits build-verified until the matching runs complete.
+- Next: harmonize profile/subscription row density and status labels, then restyle Android settings and apply the same spacing/type hierarchy to Windows secondary pages. Keep networking, profile persistence, subscription refresh, ping and engine lifecycle unchanged.
 
 ## Deeper static APK review — component and screen inventory
 
