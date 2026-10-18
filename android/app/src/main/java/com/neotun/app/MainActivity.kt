@@ -190,11 +190,15 @@ class MainActivity : Activity() {
     }
 
     private fun showScreen(value: Screen) {
-        screen = value
-        bottomActions.visibility = if (value == Screen.PROFILES) View.VISIBLE else View.GONE
-        when (value) {
+        // Server selection now lives on Home. Keep legacy callers safe while
+        // import/profile actions are migrated: no navigation path should reopen
+        // the old standalone server screen.
+        val destination = if (value == Screen.PROFILES) Screen.HOME else value
+        screen = destination
+        bottomActions.visibility = View.GONE
+        when (destination) {
             Screen.HOME -> renderHome()
-            Screen.PROFILES -> renderProfiles()
+            Screen.PROFILES -> renderProfiles() // unreachable; retained for compatibility during migration
             Screen.SETTINGS -> renderSettings()
         }
         nav.visibility = View.GONE
