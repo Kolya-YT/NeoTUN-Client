@@ -74,11 +74,11 @@ The APK's string tables include names relating to subscription refresh and prope
 - [ ] Keep Windows platform conventions and keyboard accessibility; do not force a phone layout onto desktop.
 
 ### Phase 6 — Verification and documentation
-- [ ] Run Android APK and Windows Desktop CI after each logical change.
+- [x] Run Android APK and Windows Desktop CI after each logical change; latest completed change `754a27d` passed both workflows. Continue checking CI for each subsequent commit.
 - [x] Confirm CI for speed-metric removal commit `9c15149`: Android run `38788784526` and Windows run `38788784521` succeeded.
 - [ ] Test narrow Android screens, large font settings, collapsed/expanded subscriptions, empty state, multiple subscriptions, long names, and selected profile.
 - [ ] On a real Android device, verify connect/disconnect/reconnect, Xray↔sing-box switching, traffic, DNS and routing; CI alone does not establish these.
-- [ ] Update this plan and the parity audit with exact commits and actual CI outcomes.
+- [x] Update this plan with exact commits and actual CI outcomes as changes land.
 
 ## Safety and collaboration constraints
 
