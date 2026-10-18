@@ -1143,6 +1143,13 @@ class MainActivity : Activity() {
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }, margins(top = 4, end = 18))
         }
+        // Subtle separators give settings the compact, grouped feel of Happ
+        // without introducing another card around every individual option.
+        row.addView(View(this).apply {
+            setBackgroundColor(Color.argb(30, 150, 150, 175))
+        }, LinearLayout.LayoutParams(-1, dp(1)).apply {
+            setMargins(dp(7), dp(8), dp(5), 0)
+        })
         return row
     }
 
