@@ -584,9 +584,9 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel>
             <!-- Appearance Card (18px radius) -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
               <StackPanel>
-                <TextBlock Text="ВНЕШНИЙ ВИД" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
+                <TextBlock Text="ВНЕШНИЙ ВИД" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,10"/>
 
                 <Grid Margin="0,0,0,12">
                   <Grid.ColumnDefinitions>
@@ -619,9 +619,9 @@
             </Border>
 
             <!-- Subscriptions Card -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
               <StackPanel>
-                <TextBlock Text="ПОДПИСКИ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
+                <TextBlock Text="ПОДПИСКИ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,10"/>
 
                 <CheckBox x:Name="SettingsAutoUpdateSubscriptions" Content="Обновлять подписки при запуске NeoTUN" IsChecked="True" Margin="0,0,0,10" Checked="SettingsAutoUpdateSubscriptions_Changed" Unchecked="SettingsAutoUpdateSubscriptions_Changed"/>
 
@@ -638,9 +638,9 @@
             </Border>
 
             <!-- Network & Ping Card -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
               <StackPanel>
-                <TextBlock Text="СЕТЬ И ПРОВЕРКА ЗАДЕРЖКИ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
+                <TextBlock Text="СЕТЬ И ПРОВЕРКА ЗАДЕРЖКИ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,10"/>
 
                 <Grid Margin="0,0,0,12">
                   <Grid.ColumnDefinitions>
@@ -667,9 +667,9 @@
             </Border>
 
             <!-- Windows System Integration -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
               <StackPanel>
-                <TextBlock Text="СИСТЕМА И ТРЕЙ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
+                <TextBlock Text="СИСТЕМА И ТРЕЙ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,10"/>
 
                 <CheckBox x:Name="SettingsLaunchWithWindows" Content="Запускать NeoTUN вместе с Windows" Margin="0,0,0,8" Click="LaunchWithWindows_Click"/>
                 <CheckBox x:Name="SettingsMinimizeToTrayOnClose" Content="Сворачивать в системный трей при закрытии окна (крестик)" IsChecked="True" Margin="0,0,0,8" Checked="SettingsMinimizeToTray_Changed" Unchecked="SettingsMinimizeToTray_Changed"/>
@@ -678,9 +678,9 @@
             </Border>
 
             <!-- App Updates Card -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
               <StackPanel>
-                <TextBlock Text="ОБНОВЛЕНИЯ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,14"/>
+                <TextBlock Text="ОБНОВЛЕНИЯ" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandVioletLightBrush}" Margin="0,0,0,10"/>
                 <TextBlock x:Name="SettingsVersionLabel" Text="NeoTUN Windows v0.1.1" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
                 <StackPanel Orientation="Horizontal">
                   <Button Content="Проверить обновления" Style="{StaticResource BrandButton}" Click="CheckUpdates_Click" Margin="0,0,8,0"/>
@@ -691,9 +691,9 @@
             </Border>
 
             <!-- Reset Settings -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,14">
+            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushNeo}" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
               <StackPanel>
-                <TextBlock Text="СБРОС" FontSize="12" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" Margin="0,0,0,14"/>
+                <TextBlock Text="СБРОС" FontSize="12" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" Margin="0,0,0,10"/>
                 <TextBlock Text="Сброс восстановит параметры тем, таймеров и путей к начальным значениям." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
                 <Button Content="Сбросить все настройки" Style="{StaticResource DangerButton}" HorizontalAlignment="Left" Click="ResetSettings_Click"/>
               </StackPanel>
